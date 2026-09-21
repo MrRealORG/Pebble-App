@@ -29,7 +29,13 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["../assets/icons/icon.png"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "category": "Productivity",
     "shortDescription": "All-in-one workspace: notes, tasks, calendar, habits, AI copilot, game layer.",
     "longDescription": "Pebble is a local-first all-in-one workspace: block notes, wiki with knowledge graph, tasks and kanban, calendar with free-time finder, reminders, habits, goals, journal, focus timer, time tracking, finance, contacts, bookmarks, team chat, inbox, an offline AI engine with optional LLM providers, a copilot agent with voice, a points/shop game layer, skill wallet and prompt manager."
