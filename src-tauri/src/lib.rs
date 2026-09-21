@@ -49,7 +49,7 @@ fn rust_bench(n: u32) -> u64 {
     let t0 = Instant::now();
     let mut acc: u64 = 0;
     for i in 0..n.max(1) {
-        acc = acc.wrapping_add(i.wrapping_mul(2654435761));
+        acc = acc.wrapping_add((i as u64).wrapping_mul(2654435761));
     }
     acc.wrapping_add(t0.elapsed().as_nanos() as u64)
 }
