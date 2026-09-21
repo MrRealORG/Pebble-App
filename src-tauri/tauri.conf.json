@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Pebble",
+  "version": "2.0.0",
+  "identifier": "app.pebble.desktop",
+  "build": {
+    "frontendDist": "../dist/web",
+    "beforeBuildCommand": "node scripts/build.js",
+    "devUrl": "http://localhost:8080"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Pebble",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 940,
+        "minHeight": 600,
+        "center": true,
+        "resizable": true,
+        "backgroundColor": "#191919"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["../assets/icons/icon.png"],
+    "category": "Productivity",
+    "shortDescription": "All-in-one workspace: notes, tasks, calendar, habits, AI copilot, game layer.",
+    "longDescription": "Pebble is a local-first all-in-one workspace: block notes, wiki with knowledge graph, tasks and kanban, calendar with free-time finder, reminders, habits, goals, journal, focus timer, time tracking, finance, contacts, bookmarks, team chat, inbox, an offline AI engine with optional LLM providers, a copilot agent with voice, a points/shop game layer, skill wallet and prompt manager."
+  }
+}

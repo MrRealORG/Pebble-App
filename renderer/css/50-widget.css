@@ -1,0 +1,173 @@
+/* ============================================================
+   Pebble — 50-widget.css : widget-wall UI renewal
+   Reference languages: Nothing OS (mono+red), Bubblegum wall
+   (black tiles, pink+lime, seg digits), Wexa neon dashboard.
+   ============================================================ */
+
+/* ---------------- widget wall ---------------- */
+.widget-wall {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.wgt {
+  border-radius: 22px;
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  background: var(--bg-card);
+  border: 1px solid var(--bd);
+  transition: transform var(--dur-2) var(--spring-soft), box-shadow var(--dur-2), border-color var(--dur-2);
+  min-height: 96px;
+}
+.wgt:hover { transform: translateY(-3px); box-shadow: var(--sh-2); }
+.wgt.w2 { grid-column: span 2; }
+.wgt.w3 { grid-column: span 3; }
+.wgt.wr2 { grid-row: span 2; }
+@media (max-width: 900px) { .wgt.w2, .wgt.w3 { grid-column: span 1; } }
+.wgt .wg-label {
+  font-size: 9.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase;
+  color: var(--tx-3); display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
+}
+.wgt .wg-label .wg-ico { display: flex; color: var(--brand-1); }
+.wgt .wg-big { display: flex; align-items: baseline; gap: 6px; }
+.wgt .wg-unit { font-size: 11px; font-weight: 700; color: var(--tx-3); letter-spacing: .6px; }
+.wgt .wg-sub { font-size: 10.5px; color: var(--tx-3); margin-top: 6px; letter-spacing: .3px; }
+.wgt .wg-x {
+  position: absolute; top: 10px; right: 10px; width: 20px; height: 20px; border-radius: 99px;
+  display: none; place-items: center; background: rgba(127,127,127,.18); color: inherit; font-size: 11px;
+}
+.wgt:hover .wg-x { display: grid; }
+.wgt.wall-editing { outline: 2px dashed var(--brand-1); outline-offset: 3px; }
+
+/* surface variants used by widgets per theme */
+.wgt.sf-ink   { background: #101114; color: #f2f3f5; border-color: #101114; }
+.wgt.sf-paper { background: #ffffff; color: #101112; border-color: #ffffff; }
+.wgt.sf-pink  { background: #f8c1d9; color: #17171b; border-color: #f8c1d9; }
+.wgt.sf-lime  { background: #d4f04a; color: #17171b; border-color: #d4f04a; }
+.wgt.sf-lav   { background: #c9a1f2; color: #17121f; border-color: #c9a1f2; }
+.wgt.sf-orange{ background: #f5a054; color: #221204; border-color: #f5a054; }
+.wgt.sf-red   { background: #e32726; color: #fff; border-color: #e32726; }
+.wgt .wg-sub { opacity: .8; }
+
+/* nothing-OS style circular quick toggles */
+.qt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 10px; }
+.qt {
+  aspect-ratio: 1; border-radius: 99px; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  background: var(--bg-card); border: 1px solid var(--bd); color: var(--tx-2);
+  transition: all var(--dur-2) var(--spring-soft); padding: 6px; text-align: center;
+}
+.qt span.qt-t { font-size: 8.5px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; line-height: 1.25; }
+.qt.on { background: #101114; color: #fff; border-color: #101114; }
+[data-theme="nothing"] .qt.on { background: #e32726; border-color: #e32726; }
+.qt:hover { transform: scale(1.06); }
+.qt:active { transform: scale(.94); }
+
+/* pill buttons & seg pill rows (nothing / wexa) */
+.pill-row { display: flex; gap: 7px; flex-wrap: wrap; }
+.pill {
+  padding: 7px 15px; border-radius: 99px; font-size: 10px; font-weight: 800;
+  letter-spacing: 1.1px; text-transform: uppercase; cursor: pointer;
+  background: var(--bg-card); color: var(--tx-2); border: 1px solid var(--bd-2);
+  transition: all var(--dur-1) var(--spring);
+}
+.pill:hover { transform: translateY(-1px); border-color: var(--brand-1); color: var(--brand-1); }
+.pill.on { background: #101114; color: #fff; border-color: #101114; }
+[data-theme="nothing"] .pill.on { background: #e32726; border-color: #e32726; color: #fff; }
+[data-theme="bubblegum"] .pill.on { background: #d4f04a; border-color: #d4f04a; color: #17171b; }
+[data-theme="wexa"] .pill.on { background: #c8f031; border-color: #c8f031; color: #141018; }
+.pill.outline { background: transparent; }
+
+/* segmented control restyle */
+.seg { border-radius: 99px; padding: 3px; gap: 3px; }
+.seg button { border-radius: 99px; padding: 4px 12px; font-size: 10px; font-weight: 800; letter-spacing: .9px; text-transform: uppercase; }
+.seg button.on { background: #101114; color: #fff; }
+[data-theme="nothing"] .seg button.on { background: #111; color: #fff; }
+[data-theme="bubblegum"] .seg button.on { background: #d4f04a; color: #17171b; }
+[data-theme="wexa"] .seg button.on { background: #c8f031; color: #141018; }
+
+/* ---------------- theme component overrides ---------------- */
+
+/* NOTHING OS: paper canvas, mono cards, red signal */
+[data-theme="nothing"] body, html[data-theme="nothing"] body { background: #e6e7e9; }
+[data-theme="nothing"] .card { border-radius: 24px; border-color: #fff; box-shadow: 0 1px 0 rgba(0,0,0,.04); }
+[data-theme="nothing"] .rail { background: #f0f1f2; }
+[data-theme="nothing"] .rail-btn.active { background: #111; color: #fff; }
+[data-theme="nothing"] .rail-btn.active::before { background: #e32726; }
+[data-theme="nothing"] .btn.primary { background: #111; color: #fff; border-radius: 99px; }
+[data-theme="nothing"] .btn { border-radius: 99px; }
+[data-theme="nothing"] .chip { border-radius: 99px; }
+[data-theme="nothing"] .stat { border-radius: 24px; background: #fff; border-color: #fff; }
+[data-theme="nothing"] .topbar { background: #e6e7e9; }
+[data-theme="nothing"] .sidebar { background: #f0f1f2; }
+[data-theme="nothing"] .island { background: #111; }
+[data-theme="nothing"] .page-head h1 { font-weight: 600; letter-spacing: -.3px; }
+[data-theme="nothing"] .wgt { border-radius: 26px; }
+[data-theme="nothing"] .tabs button.on { color: #e32726; border-bottom-color: #e32726; }
+[data-theme="nothing"] .task-check.on { background: #e32726; border-color: #e32726; }
+[data-theme="nothing"] .progress > i { background: #111; }
+[data-theme="nothing"] .xp-chip .lvl { background: #e32726; }
+
+/* BUBBLEGUM WALL: charcoal bg, black tiles, pink+lime */
+[data-theme="bubblegum"] .card { border-radius: 24px; background: #17171b; border-color: #26262c; }
+[data-theme="bubblegum"] .stat { border-radius: 24px; background: #17171b; border-color: #26262c; }
+[data-theme="bubblegum"] .btn.primary { background: #f8c1d9; color: #17171b; border-radius: 99px; border-color: transparent; font-weight: 800; }
+[data-theme="bubblegum"] .btn { border-radius: 99px; }
+[data-theme="bubblegum"] .rail { background: #101014; }
+[data-theme="bubblegum"] .rail-btn.active { background: #f8c1d9; color: #17171b; }
+[data-theme="bubblegum"] .rail-btn.active::before { background: #d4f04a; }
+[data-theme="bubblegum"] .sidebar { background: #141418; }
+[data-theme="bubblegum"] .topbar { background: #2a2a30; }
+[data-theme="bubblegum"] .tabs button.on { color: #f8c1d9; border-bottom-color: #f8c1d9; }
+[data-theme="bubblegum"] .progress > i { background: linear-gradient(90deg, #f8c1d9, #d4f04a); }
+[data-theme="bubblegum"] .task-check.on { background: #d4f04a; border-color: #d4f04a; }
+[data-theme="bubblegum"] .task-check.on::after { border-color: #17171b; border-left: 2px solid #17171b; border-bottom: 2px solid #17171b; }
+[data-theme="bubblegum"] .xp-chip .lvl { background: #f8c1d9; color: #17171b; }
+[data-theme="bubblegum"] .wgt { border-radius: 26px; }
+[data-theme="bubblegum"] .chip.on { background: rgba(248,193,217,.16); color: #f8c1d9; border-color: rgba(248,193,217,.4); }
+
+/* WEXA NEON: near-black, neon surfaces */
+[data-theme="wexa"] .card { border-radius: 20px; background: #15121a; border-color: #221c2c; }
+[data-theme="wexa"] .stat { border-radius: 20px; background: #15121a; border-color: #221c2c; }
+[data-theme="wexa"] .btn.primary { background: #c9a1f2; color: #17121f; border-radius: 12px; border-color: transparent; font-weight: 800; }
+[data-theme="wexa"] .btn { border-radius: 12px; }
+[data-theme="wexa"] .rail { background: #0a080d; }
+[data-theme="wexa"] .rail-btn.active { background: #c9a1f2; color: #17121f; }
+[data-theme="wexa"] .rail-btn.active::before { background: #c8f031; }
+[data-theme="wexa"] .sidebar { background: #120f17; }
+[data-theme="wexa"] .topbar { background: #0d0b10; }
+[data-theme="wexa"] .tabs button.on { color: #c8f031; border-bottom-color: #c8f031; }
+[data-theme="wexa"] .progress > i { background: linear-gradient(90deg, #c9a1f2, #c8f031); }
+[data-theme="wexa"] .task-check.on { background: #c8f031; border-color: #c8f031; }
+[data-theme="wexa"] .task-check.on::after { border-left-color: #141018; border-bottom-color: #141018; }
+[data-theme="wexa"] .xp-chip .lvl { background: #c8f031; color: #141018; }
+[data-theme="wexa"] .chip.on { background: rgba(200,240,49,.14); color: #c8f031; border-color: rgba(200,240,49,.4); }
+[data-theme="wexa"] .wgt { border-radius: 18px; }
+
+/* ---------------- dicebear avatar rounding ---------------- */
+img.dbav { object-fit: cover; }
+.avatar img { border-radius: inherit; }
+
+/* ---------------- departure-board style card ---------------- */
+.board {
+  background: #101114; color: #f2f3f5; border-radius: 22px; padding: 16px 18px;
+  font-family: var(--font-mono); letter-spacing: .4px;
+}
+.board .bd-row { display: flex; justify-content: space-between; gap: 12px; font-size: 11px; opacity: .85; }
+.board .bd-big { margin: 8px 0 4px; }
+
+/* ---------------- widget picker sheet ---------------- */
+.wpick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.wpick button {
+  border-radius: 18px; border: 1px solid var(--bd-2); background: var(--bg-card);
+  padding: 13px; text-align: left; cursor: pointer; transition: all var(--dur-1) var(--spring);
+}
+.wpick button:hover { border-color: var(--brand-1); transform: translateY(-2px); }
+.wpick b { display: block; font-size: 12.5px; margin-top: 7px; }
+.wpick span { font-size: 10.5px; color: var(--tx-4); display: block; margin-top: 2px; line-height: 1.4; }
+
+/* seg/dot alignment helpers */
+.seg, .dottext { max-width: 100%; }
+.wg-segwrap { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }

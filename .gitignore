@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+target/
+src-tauri/target/
+src-tauri/gen/
+.env
+*.log
+*.zip
+probe-copy.zip
+upload/
+.DS_Store
+Thumbs.db
