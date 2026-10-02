@@ -32,7 +32,7 @@ fn single_instance_guard() -> bool {
     use windows_sys::Win32::Foundation::{GetLastError, ERROR_ALREADY_EXISTS};
     use windows_sys::Win32::System::Threading::CreateMutexW;
     unsafe {
-        let mut name: Vec<u16> = "Global\\PebbleX_App_Instance_Mutex".encode_utf16().collect();
+        let mut name: Vec<u16> = "Local\\PebbleX_App_Instance_Mutex".encode_utf16().collect();
         name.push(0);
         let handle = CreateMutexW(std::ptr::null(), 0, name.as_ptr());
         if (handle as usize) == 0 {
@@ -1179,35 +1179,43 @@ fn asr_record(timeout_ms: u32) -> Result<String, String> {
 
 #[tauri::command(rename_all = "snake_case")]
 fn widget_toggle(app: AppHandle, show: Option<bool>) -> Result<(), String> {
-    let want = show.unwrap_or_else(|| app.get_webview_window("widget").is_none());
+    let want = show.unwrap_or_else(|| {
+        app.get_webview_window("widget")
+            .and_then(|w| w.is_visible().ok())
+            .map(|vis| !vis)
+            .unwrap_or(true)
+    });
     if want {
-        if app.get_webview_window("widget").is_none() {
-            let mut builder = WebviewWindowBuilder::new(
-                &app,
-                "widget",
-                WebviewUrl::App("index.html#widget".into()),
-            )
-            .initialization_script("window.__PEBBLE_WINDOW__ = 'widget';")
-            .title("Pebble Widget")
-            .inner_size(320.0, 490.0)
-            .resizable(true)
-            .decorations(false)
-            .skip_taskbar(true)
-            .always_on_top(true)
-            .shadow(true)
-            .transparent(true);
-            if let Ok(Some(m)) = app.primary_monitor() {
-                let sz = m.size();
-                let sf = m.scale_factor().max(1.0);
-                builder = builder.position(
-                    (sz.width as f64 - 330.0) / sf,
-                    (sz.height as f64 - 550.0) / sf,
-                );
-            }
-            builder.build().map_err(|e| e.to_string())?;
+        if let Some(w) = app.get_webview_window("widget") {
+            let _ = w.show();
+            let _ = w.set_focus();
+            return Ok(());
         }
+        let mut builder = WebviewWindowBuilder::new(
+            &app,
+            "widget",
+            WebviewUrl::App("index.html".into()),
+        )
+        .initialization_script("window.__PEBBLE_WINDOW__ = 'widget';")
+        .title("Pebble Widget")
+        .inner_size(320.0, 490.0)
+        .resizable(true)
+        .decorations(false)
+        .skip_taskbar(true)
+        .always_on_top(true)
+        .shadow(true)
+        .transparent(true);
+        if let Ok(Some(m)) = app.primary_monitor() {
+            let sz = m.size();
+            let sf = m.scale_factor().max(1.0);
+            builder = builder.position(
+                (sz.width as f64 - 330.0) / sf,
+                (sz.height as f64 - 550.0) / sf,
+            );
+        }
+        builder.build().map_err(|e| e.to_string())?;
     } else if let Some(w) = app.get_webview_window("widget") {
-        let _ = w.close();
+        let _ = w.hide();
     }
     Ok(())
 }

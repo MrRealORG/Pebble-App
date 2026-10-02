@@ -11,6 +11,23 @@ let filter = 'upcoming';
 function rems(){ return NX.store.get('reminders', []); }
 function saveRems(r){ NX.store.set('reminders', r); NX.refreshBadges(); }
 
+/* ---------------- do not disturb ----------------
+   Focus rounds push a label; reminders still fire and still show
+   up in the notification centre, but stay silent and land in a
+   deferred queue instead of interrupting.                        */
+const dnd = {
+  stack: [],
+  get on(){ return this.stack.length > 0; },
+  get label(){ return this.stack.length ? this.stack[this.stack.length-1] : ''; },
+  push(label){ this.stack.push(label || 'Busy'); NX.events.emit('dnd:changed'); },
+  pop(){ this.stack.pop(); NX.events.emit('dnd:changed'); },
+  clear(){ this.stack = []; NX.events.emit('dnd:changed'); }
+};
+NX.dnd = dnd;
+
+const deferred = [];
+NX.deferredNotifs = deferred;
+
 /* ---------------- scheduler ---------------- */
 function tick(){
   const list = rems();
@@ -34,6 +51,14 @@ function tick(){
   }
 }
 function fire(r){
+  const silent = dnd.on;
+  if(silent){
+    deferred.unshift({ id:U.uid('df'), name:r.name, note:r.note || '', when:r.when, at:Date.now() });
+    if(deferred.length > 40) deferred.length = 40;
+    NX.events.emit('dnd:deferred');
+    if(NX.router.currentName === 'focus') NX.toastInfo('Reminder held', r.name + ' · muted by ' + dnd.label);
+    return;
+  }
   NX.sfx.play('notify');
   NX.native.notify({ title:'⏰ ' + r.name, body: (r.note ? r.note + ' · ' : '') + U.hhmm(r.when) + (r.repeat!=='none' ? ' · ' + r.repeat : '') });
   NX.pushNotif('Reminder: ' + r.name, U.untilStr(r.when) === 'now' ? 'It\'s time!' : r.note || '', 'bell');
@@ -140,6 +165,8 @@ NX.routeInShell('reminders', 'Reminders', 'bell', function(view){
           <div><div class="rr-name">${U.esc(r.name)}</div>
             <div class="rr-when">Went off ${U.esc(U.relTime(r.when))} · ${U.esc(new Date(r.when).toLocaleTimeString())}</div></div>
           <button class="icon-btn sm" style="margin-left:auto;color:var(--red)" data-del="${r.id}">${icon('trash')}</button>
+          <button class="btn btn-soft btn-sm" data-snooze="${r.id}" data-snooze-min="10" data-tip="Snooze 10 minutes">${icon('snooze')} 10m</button>
+          <button class="btn btn-soft btn-sm" data-snooze="${r.id}" data-snooze-min="60" data-tip="Snooze 1 hour">${icon('snooze')} 1h</button>
         </div>`).join('')
         : `<div class="empty card"><div class="e-sub">History will fill up as reminders fire.</div></div>`;
     }
@@ -161,6 +188,28 @@ NX.routeInShell('reminders', 'Reminders', 'bell', function(view){
     qa('[data-done]', host).forEach(b=>b.onclick = ()=>{
       const l = rems(); const r = l.find(x=>x.id===b.dataset.done);
       if(r){ r.fired = true; saveRems(l); NX.sfx.play('ok'); NX.router.go('reminders'); }
+    });
+    /* snooze — reopen a fired reminder N minutes from now */
+    qa('[data-snooze]', host).forEach(b=>b.onclick = ()=>{
+      const id = b.dataset.snooze;
+      const mins = +b.dataset.snoozeMin || 10;
+      const list = rems();
+      const r = list.find(x => x.id === id);
+      if(!r) return;
+      const wasWhen = r.when, wasFired = r.fired;
+      r.when = Date.now() + mins*60e3;
+      r.fired = false;
+      saveRems(list);
+      NX.sfx.play('tick');
+      NX.router.go('reminders');
+      NX.undoable('Snoozed ' + mins + ' minutes', r.name || 'Reminder', ()=>{
+        const l2 = rems();
+        const x = l2.find(y => y.id === id);
+        if(!x) return;
+        x.when = wasWhen; x.fired = wasFired;
+        saveRems(l2);
+        NX.router.go('reminders');
+      });
     });
   }
 

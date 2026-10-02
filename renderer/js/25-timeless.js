@@ -215,11 +215,68 @@ function weekSeries(){
 }
 
 /* ---------------- pomodoro ---------------- */
+function focusCfg(){
+  const s = NX.store.get('settings', {}) || {};
+  const p = NX.store.get('pomo', { len:25, breakLen:5 });
+  return {
+    len: p.len || 25,
+    breakLen: p.breakLen || 5,
+    autoStart: !!s.pomoAutoStart,
+    dnd: !!s.pomoDnd,
+    ambient: !!s.pomoAmbient,
+    sound: s.focusSoundMode || 'brown',
+    vol: s.focusSoundVol != null ? s.focusSoundVol : 0.32
+  };
+}
+function roundLog(){ const f = NX.store.get('focus', {}) || {}; return Array.isArray(f.rounds) ? f.rounds : []; }
+function logRound(entry){
+  const f = NX.store.get('focus', {}) || {};
+  const rounds = roundLog().concat([entry]);
+  f.rounds = rounds.slice(-200);
+  NX.store.set('focus', f);
+  NX.events.emit('focus:log');
+}
+function focusStreak(){
+  const days = new Set(roundLog().map(r => U.todayKey(r.at)));
+  let n = 0;
+  for(let i=0;i<400;i++){
+    const k = U.todayKey(new Date(Date.now() - i*86400e3));
+    if(days.has(k)) n++;
+    else if(i > 0) break;
+  }
+  return n;
+}
+function focusWeek(){
+  const out = [];
+  for(let i=6;i>=0;i--){
+    const d = new Date(Date.now() - i*86400e3);
+    const k = U.todayKey(d);
+    const rs = roundLog().filter(r => U.todayKey(r.at) === k);
+    out.push({
+      day:k, label:d.toLocaleDateString(undefined,{weekday:'short'}).slice(0,2),
+      rounds: rs.length, sec: rs.reduce((a,r)=> a + (r.sec||0), 0),
+      today: i === 0
+    });
+  }
+  return out;
+}
+NX.focusLog = { rounds: roundLog, streak: focusStreak, week: focusWeek, add: logRound };
+
 const pomo = {
-  st:null, timer:null,
-  start(){ this.st = { mode:'focus', left: (NX.store.get('pomo',{}).len||25)*60, running:true };
+  st:null, timer:null, meta:null,
+  start(meta){
+    const cfg = focusCfg();
+    this.st = { mode:'focus', left: cfg.len*60, running:true };
+    this.meta = Object.assign({ at:Date.now(), task:'', note:'' }, meta || {});
     clearInterval(this.timer);
     this.timer = setInterval(()=>this.tick(), 1000);
+    if(cfg.dnd) NX.dnd && NX.dnd.push('Focus round');
+    if(cfg.ambient && NX.focusSound && !NX.focusSound.on){
+      NX.focusSound.setMode(cfg.sound);
+      NX.focusSound.setVol(cfg.vol);
+      NX.focusSound.toggle();
+      NX.toastInfo('Ambient on', cfg.sound === 'hum' ? 'Deep hum' : cfg.sound === 'rain' ? 'Rain' : 'Brown noise');
+    }
     NX.events.emit('pomo:changed'); NX.sfx.play('ok');
   },
   pause(){ if(this.st){ this.st.running = !this.st.running; NX.events.emit('pomo:changed'); } },
@@ -228,18 +285,25 @@ const pomo = {
     if(!this.st || !this.st.running) return;
     this.st.left--;
     if(this.st.left <= 0){
-      const cfg = NX.store.get('pomo', { len:25, breakLen:5 });
+      const cfg = focusCfg();
       if(this.st.mode === 'focus'){
         const stats = NX.store.get('pomoStats', { done:0 }); stats.done++; NX.store.set('pomoStats', stats);
-        NX.native.notify({ title:'🍅 Pomodoro done!', body: cfg.breakLen + ' min break — you earned it.' });
-        NX.pushNotif('Pomodoro complete', 'Take a ' + cfg.breakLen + ' min break', 'clock');
+        logRound(Object.assign({}, this.meta, {
+          at: Date.now(), sec: cfg.len*60, cat:'focus',
+          task: this.meta && this.meta.task, note: this.meta && this.meta.note
+        }));
+        NX.native.notify({ title:'🍅 Pomodoro done!', body:'+' + cfg.len + ' focused minutes logged. Take a ' + cfg.breakLen + ' min break.' });
+        NX.pushNotif('Pomodoro complete', '+' + cfg.len + ' focused min · ' + cfg.breakLen + ' min break', 'clock');
         NX.confetti(innerWidth/2, 120);
-        this.st = { mode:'break', left: (cfg.breakLen||5)*60, running:true };
+        this.st = { mode:'break', left: cfg.breakLen*60, running:true };
+        this.meta = { at:Date.now(), task:'', note:'' };
       } else {
-        NX.native.notify({ title:'Break over', body:'Back to ' + (cfg.len||25) + ' minutes of deep focus.' });
+        NX.native.notify({ title:'Break over', body:'Round ' + (NX.store.get('pomoStats',{done:0}).done+1) + ' — back to it.' });
         NX.pushNotif('Break over', 'Round ' + (NX.store.get('pomoStats',{done:0}).done+1) + ' — go!', 'clock');
-        this.st = { mode:'focus', left: (cfg.len||25)*60, running:true };
+        if(cfg.autoStart){ this.st = { mode:'focus', left: cfg.len*60, running:true }; this.meta = { at:Date.now(), task:'', note:'' }; }
+        else this.st = { mode:'focus', left: cfg.len*60, running:false };
       }
+      if(cfg.dnd) NX.dnd && NX.dnd.pop();
       NX.sfx.play('timer');
     }
     NX.events.emit('pomo:changed');

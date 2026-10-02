@@ -40,12 +40,12 @@ NX.cycleTheme = function(){
 
 /* ---------------- nav model ---------------- */
 const NAV = [
-  { group:'Workspace', items:[
+{ group:'Workspace', items:[
+    { r:'today',      n:'Today',      ic:'sun' },
     { r:'dashboard',  n:'Dashboard',  ic:'dashboard' },
     { r:'chat',       n:'Chat',       ic:'chat' },
     { r:'notes',      n:'Notes',      ic:'notes' },
-    { r:'todo',       n:'Tasks',      ic:'todo' },
-    { r:'planner',    n:'Day Planner',ic:'calendar' }
+    { r:'todo',       n:'Tasks',      ic:'todo' }
   ]},
   { group:'Intelligence', items:[
     { r:'ai',         n:'Pel AI',     ic:'ai' },

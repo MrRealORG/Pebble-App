@@ -1,6 +1,7 @@
 /* PebbleX — desktop widget styles */
+html.widget-mode,
 body.widget-mode {
-  background: var(--bg, #141413) !important;
+  background: transparent !important;
   margin: 0;
   padding: 8px;
   box-sizing: border-box;

@@ -550,6 +550,39 @@ NX.newNote = function(folder){
   }
 };
 
+/* which note is open right now (used by backlinks, history, wiki popups) */
+NX.currentNoteId = function(){ return curNoteId || null; };
+NX.currentNote = function(){ return (NX.store.get('notes', []) || []).find(n => n.id === curNoteId) || null; };
+
+/* deep-link: open an existing note by id (Quick Capture, search, backlinks) */
+NX.openNoteById = function(id, highlight){
+  const n = (NX.store.get('notes', []) || []).find(x => x.id === id);
+  if(!n) return false;
+  if(NX.router.currentName !== 'notes'){
+    NX.router.go('notes');
+    setTimeout(()=> NX.openNoteById(id, highlight), 180);
+    return true;
+  }
+  curNoteId = id;
+  if(n.folder) curFolder = n.folder;
+  NX.sfx.play('pop');
+  if(window.__nx_refreshNotesView) window.__nx_refreshNotesView();
+  setTimeout(()=>{
+    const card = document.querySelector('.note-card[data-id="' + id + '"]') ||
+                 Array.from(document.querySelectorAll('.note-card')).find(c => (c.textContent||'').indexOf(n.title || '') > -1);
+    if(card){
+      card.classList.add('nx-hl');
+      card.scrollIntoView({ block:'center' });
+      setTimeout(()=> card.classList.remove('nx-hl'), 2400);
+    }
+    if(highlight && window.__nx_findInEditor){
+      const found = window.__nx_findInEditor(highlight);
+      if(found) found();
+    }
+  }, 140);
+  return true;
+};
+
 /* ---------------- Notes Module View ---------------- */
 NX.routeInShell('notes', 'Notes', 'notes', function(view){
   if(!notes().length){
@@ -1278,7 +1311,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
     const query = match[1].toLowerCase().trim();
     const allTasks = NX.store.get('tasks', []).filter(t => !t.done);
-    const matches = allTasks.filter(t => (t.title || '').toLowerCase().includes(query)).slice(0, 6);
+    const matches = allTasks.filter(t => ((t.name || t.title || '')).toLowerCase().includes(query)).slice(0, 6);
     if(!matches.length){
       removeTaskMentionMenu();
       return;
@@ -1292,13 +1325,15 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       <div style="padding:6px 10px 4px;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line)">
         ${icon('todo',12)} Mention Task
       </div>
-      ${matches.map(t => `
-        <div class="tm-item" data-id="${U.esc(t.id)}" data-title="${U.esc(t.title)}">
+      ${matches.map(t => {
+        const title = t.name || t.title || 'Task';
+        return `
+        <div class="tm-item" data-id="${U.esc(t.id)}" data-title="${U.esc(title)}">
           <span style="font-size:13px">${t.priority==='high'?'🔴':'📋'}</span>
-          <span class="tm-title">${U.esc(t.title)}</span>
+          <span class="tm-title">${U.esc(title)}</span>
           ${t.due ? `<span class="tm-due">${U.esc(t.due)}</span>` : ''}
-        </div>
-      `).join('')}
+        </div>`;
+      }).join('')}
     </div>`);
 
     document.body.appendChild(taskMentionMenu);

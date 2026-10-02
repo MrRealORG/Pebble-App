@@ -145,10 +145,10 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
     const END_HOUR = 23;
     const HOUR_HEIGHT = 60; // 60px per hour = 1px per minute
 
-    for(let h = START_HOUR; h <= END_HOUR; h++){
-      const hourRow = h(`<div class="planner-hour-row" style="height:${HOUR_HEIGHT}px" data-hour="${h}">
-        <div class="planner-hour-label">${h % 12 || 12} ${h >= 12 ? 'PM' : 'AM'}</div>
-        <div class="planner-hour-slot" data-hour="${h}"></div>
+    for(let hr = START_HOUR; hr <= END_HOUR; hr++){
+      const hourRow = h(`<div class="planner-hour-row" style="height:${HOUR_HEIGHT}px" data-hour="${hr}">
+        <div class="planner-hour-label">${hr % 12 || 12} ${hr >= 12 ? 'PM' : 'AM'}</div>
+        <div class="planner-hour-slot" data-hour="${hr}"></div>
       </div>`);
 
       const slot = q('.planner-hour-slot', hourRow);
@@ -157,7 +157,7 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
         const rect = slot.getBoundingClientRect();
         const y = e.clientY - rect.top;
         const addMin = y > 30 ? 30 : 0;
-        promptNewBlock(h * 60 + addMin);
+        promptNewBlock(hr * 60 + addMin);
       };
 
       // Drag and drop task into slot
@@ -174,7 +174,7 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
           const tasks = NX.store.get('tasks', []);
           const t = tasks.find(x => x.id === taskId);
           if(t){
-            scheduleTaskAt(t, h * 60);
+            scheduleTaskAt(t, hr * 60);
           }
         }
       };
@@ -213,7 +213,10 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
       q('.pl-check-btn', blockEl).onclick = (e) => {
         e.stopPropagation();
         b.done = !b.done;
-        savePlannerBlocks(plannerBlocks());
+        const all = plannerBlocks();
+        const found = all.find(x => x.id === b.id);
+        if(found) found.done = b.done;
+        savePlannerBlocks(all);
         renderHeader();
         renderTimeline();
         NX.sfx.play('tick');
@@ -282,7 +285,7 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
     listEl.innerHTML = unscheduled.map(t => `
       <div class="planner-task-item" draggable="true" data-id="${t.id}">
         <span style="font-size:12px">${t.priority==='high'?'🔴':'📋'}</span>
-        <span class="ellipsis" style="flex:1">${U.esc(t.title)}</span>
+        <span class="ellipsis" style="flex:1">${U.esc(t.name || t.title || 'Untitled')}</span>
         <button class="btn btn-sm btn-soft pl-quick-sched" data-id="${t.id}" style="height:22px;font-size:10px;padding:0 6px">+ Slot</button>
       </div>
     `).join('');
@@ -382,7 +385,15 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
           b.startMin = parseTimeString(q('#pb-edit-start', body).value);
           b.endMin = Math.max(b.startMin + 15, parseTimeString(q('#pb-edit-end', body).value));
           b.category = q('#pb-edit-cat', body).value;
-          savePlannerBlocks(plannerBlocks());
+          const all = plannerBlocks();
+          const found = all.find(x => x.id === b.id);
+          if(found){
+            found.title = b.title;
+            found.startMin = b.startMin;
+            found.endMin = b.endMin;
+            found.category = b.category;
+          }
+          savePlannerBlocks(all);
           NX.closeAllModals();
           renderHeader();
           renderTimeline();
@@ -403,15 +414,16 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
     promptNewBlock(startMin);
     setTimeout(() => {
       const titleInp = q('#pb-title');
-      if(titleInp) titleInp.value = task.title;
+      if(titleInp) titleInp.value = task.name || task.title || 'Focus Task';
     }, 60);
   }
 
   function scheduleTaskAt(task, startMin){
+    const taskLabel = task.name || task.title || 'Untitled Task';
     const newB = {
       id: U.uid('pb'),
       date: dateKey,
-      title: task.title,
+      title: taskLabel,
       startMin: startMin,
       endMin: startMin + 60,
       category: task.priority === 'high' ? 'deep' : 'admin',
@@ -424,7 +436,7 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
     renderHeader();
     renderTimeline();
     renderSidebar();
-    NX.toastOk('Task scheduled', task.title);
+    NX.toastOk('Task scheduled', taskLabel);
     NX.sfx.play('pop');
   }
 
@@ -468,10 +480,11 @@ NX.routeInShell('planner', 'Day Planner', 'calendar', function(view){
 
       if(cursor + 45 <= 19 * 60){
         const duration = task.priority === 'high' ? 60 : 45;
+        const taskTitle = task.name || task.title || 'Focus Task';
         const newB = {
           id: U.uid('pb'),
           date: dateKey,
-          title: task.title,
+          title: taskTitle,
           startMin: cursor,
           endMin: cursor + duration,
           category: task.priority === 'high' ? 'deep' : 'admin',

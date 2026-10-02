@@ -76,7 +76,7 @@ function widgetHTML(){
         ${openTasks.length ? openTasks.map(tk => `
           <div class="widget-task-item">
             <input type="checkbox" data-task-id="${tk.id}">
-            <span>${U.esc(tk.name)}</span>
+            <span>${U.esc(tk.name || tk.title || 'Untitled')}</span>
           </div>
         `).join('') : '<div class="faint tiny">All tasks complete! 🎉</div>'}
       </div>
@@ -256,10 +256,12 @@ const widget = {
 
   async apply(forceOpen){
     const s = NX.store.get('settings', {});
-    const want = forceOpen !== undefined ? forceOpen : !this.open;
+    const want = forceOpen !== undefined ? !!forceOpen : !!s.widgetEnabled;
     this.open = want;
-    s.widgetEnabled = want;
-    NX.store.set('settings', s);
+    if(forceOpen !== undefined){
+      s.widgetEnabled = want;
+      NX.store.set('settings', s);
+    }
 
     if(NX.native.available && NX.native.mode === 'tauri'){
       await NX.native.widgetToggle(want);
@@ -301,6 +303,7 @@ NX.router.register('widget', {
   layout: 'widget',
   icon: 'widget',
   render(app){
+    document.documentElement.classList.add('widget-mode');
     document.body.classList.add('widget-mode');
     const splash = document.getElementById('nx-splash');
     if(splash) try{ splash.remove(); }catch(e){}

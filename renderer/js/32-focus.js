@@ -1,8 +1,8 @@
-﻿/* ============================================================
-   PebbleX v0.1 â€” 32-focus.js
+/* ============================================================
+   PebbleX v0.1 — 32-focus.js
    Focus suite: pomodoro, breathing patterns, offline ambient
    noise, 20-20-20 eye breaks, today's focus ledger.
-   Everything runs on device â€” no network, no accounts.
+   Everything runs on device — no network, no accounts.
    ============================================================ */
 (function(NX){
 'use strict';
@@ -148,13 +148,13 @@ const focusShield = {
         <div style="width:60px;height:60px;border-radius:20px;background:var(--red-soft);color:var(--red);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
           ${icon('eye', 30)}
         </div>
-        <div style="font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.01em">ðŸ›¡ï¸ Focus Shield Active</div>
+        <div style="font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.01em">🛡️ Focus Shield Active</div>
         <div style="font-size:13.5px;color:var(--ink-2);margin:8px 0 16px;line-height:1.5">
           You are in deep focus with <b style="color:var(--green)">${U.fmtClock(timeLeft)}</b> remaining.<br>
           <span style="color:var(--red);font-weight:700">${U.esc(appName)}</span> is marked as a distraction.
         </div>
         <div class="row gap-8" style="justify-content:center;flex-wrap:wrap">
-          <button class="btn btn-green btn-lg" id="fs-back" style="flex:1;min-width:140px">ðŸš€ Back to Flow</button>
+          <button class="btn btn-green btn-lg" id="fs-back" style="flex:1;min-width:140px">🚀 Back to Flow</button>
           <button class="btn btn-soft" id="fs-allow">Allow for 5 min</button>
           <button class="btn btn-soft" id="fs-break">Take 2-min Break</button>
         </div>
@@ -167,7 +167,7 @@ const focusShield = {
     NX.sfx.play('timer');
     if(NX.native.available && NX.native.mode === 'tauri'){
       NX.native.notify({
-        title: 'ðŸ›¡ï¸ Focus Shield Active',
+        title: '🛡️ Focus Shield Active',
         body: `${appName} is marked as a distraction. Stay in your deep work session!`
       });
     }
@@ -242,7 +242,7 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
   <div class="page" id="fx-page">
     <div class="row gap-8" style="flex-wrap:wrap">
       <span class="pill green">${icon('target')} Deep work suite</span>
-      <span class="faint small">Timer, breathing, ambient noise and eye breaks â€” all generated on device.</span>
+      <span class="faint small">Timer, breathing, ambient noise and eye breaks — all generated on device.</span>
     </div>
     <div class="focus-grid">
       <div class="tl-col">
@@ -275,13 +275,15 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
   function renderTimer(){
     const host = q('#fx-timer', view); if(!host) return;
     const cfg = pomoCfg();
+    const s = NX.store.get('settings', {}) || {};
     const st = NX.pomo.st;
     const stats = NX.store.get('pomoStats', { done:0 });
     const t = NX.totals();
     const total = roundTotal(st);
     const pct = st ? Math.max(0, Math.min(100, (1 - st.left/total)*100)) : 0;
+    const pomoMeta = (NX.pomo && NX.pomo.meta) || {};
 
-    /* build the chrome once â€” the clock ticks every second, so only
+    /* build the chrome once — the clock ticks every second, so only
        the dynamic nodes get touched afterwards (no focus/hover loss) */
     if(!host.dataset.built){
       host.innerHTML = `
@@ -296,13 +298,50 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
           <div class="fx-state" id="fx-t-state">ready</div>
           <div class="meter fx-meter"><i id="fx-t-bar" style="width:0%"></i></div>
           <div class="fx-lens">
-            ${[15,25,45,60].map(n=>`<button class="chip" data-len="${n}">${n}m</button>`).join('')}
+          ${[15,25,45,60].map(n=>`<button class="chip" data-len="${n}">${n}m</button>`).join('')}
+        </div>
+          <div class="fx-toggles">
+            <label class="row gap-6" data-tip="Start the next round automatically when a break ends">
+              <span class="switch mini"><input type="checkbox" id="fx-auto" ${s.pomoAutoStart?'checked':''}><span class="track"></span></span>
+              <span class="tiny bold">Auto-start</span></label>
+            <label class="row gap-6" data-tip="Mute reminders while a round runs — they queue up instead">
+              <span class="switch mini"><input type="checkbox" id="fx-dnd" ${s.pomoDnd?'checked':''}><span class="track"></span></span>
+              <span class="tiny bold">Mute reminders</span></label>
+            <label class="row gap-6" data-tip="Turn on ambient sound when a round starts">
+              <span class="switch mini"><input type="checkbox" id="fx-amb" ${s.pomoAmbient?'checked':''}><span class="track"></span></span>
+              <span class="tiny bold">Ambient</span></label>
+          </div>
+          <div class="field" style="margin-top:12px">
+            <label>What are you working on? (logged with the round)</label>
+            <input class="input" id="fx-task" list="fx-task-list" placeholder="e.g. Draft the release notes" value="${U.esc(pomoMeta.task||'')}">
+            <datalist id="fx-task-list">
+              ${(NX.store.get('tasks', [])||[]).filter(t=>!t.done).slice(0,20).map(t=>`<option value="${U.esc(t.name)}"></option>`).join('')}
+            </datalist>
           </div>
           <div class="row gap-8" style="justify-content:center" id="fx-t-acts"></div>
           <div class="row gap-8" style="justify-content:center;flex-wrap:wrap;margin-top:12px" id="fx-t-pills"></div>
         </div>`;
       host.dataset.built = '1';
       q('#fx-skip', host).onclick = skipRound;
+      const setFlag = (id, key, label)=>{
+        const el = q(id, host);
+        if(!el) return;
+        el.onchange = e=>{
+          const cur = NX.store.get('settings', {}) || {};
+          cur[key] = e.target.checked;
+          NX.store.set('settings', cur);
+          NX.toastInfo(label + (e.target.checked ? ' on' : ' off'));
+        };
+      };
+      setFlag('#fx-auto', 'pomoAutoStart', 'Auto-start');
+      setFlag('#fx-dnd',  'pomoDnd',      'Reminder muting');
+      setFlag('#fx-amb',  'pomoAmbient',  'Ambient on start');
+      const taskIn = q('#fx-task', host);
+      if(taskIn){
+        taskIn.oninput = ()=>{
+          if(NX.pomo && NX.pomo.meta) NX.pomo.meta.task = taskIn.value;
+        };
+      }
       qa('[data-len]', host).forEach(b=>b.onclick = ()=>{
         const c2 = pomoCfg(); c2.len = +b.dataset.len;
         NX.store.set('pomo', c2);
@@ -337,14 +376,14 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
     q('#fx-t-pills', host).innerHTML =
       `<span class="pill gray">${stats.done} rounds all-time</span>
        <span class="pill green">${Math.round(t.prod/60)} min focused today</span>
-       <button class="chip ${focusShield.enabled ? 'active' : ''}" id="fx-shield-chip" style="cursor:pointer;height:24px;font-size:11px">ðŸ›¡ï¸ Shield: ${focusShield.enabled ? 'ON' : 'OFF'}</button>`;
+       <button class="chip ${focusShield.enabled ? 'active' : ''}" id="fx-shield-chip" style="cursor:pointer;height:24px;font-size:11px">🛡️ Shield: ${focusShield.enabled ? 'ON' : 'OFF'}</button>`;
     const shieldBtn = q('#fx-shield-chip', host);
     if(shieldBtn){
       shieldBtn.onclick = () => {
         focusShield.enabled = !focusShield.enabled;
         NX.store.set('focusShield_enabled', focusShield.enabled);
         shieldBtn.classList.toggle('active', focusShield.enabled);
-        shieldBtn.textContent = `ðŸ›¡ï¸ Shield: ${focusShield.enabled ? 'ON' : 'OFF'}`;
+        shieldBtn.textContent = `🛡️ Shield: ${focusShield.enabled ? 'ON' : 'OFF'}`;
         NX.toastOk('Focus Shield', focusShield.enabled ? 'Distraction blocking enabled' : 'Disabled');
         NX.sfx.play('pop');
       };
@@ -361,9 +400,9 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
     if(!circle || !label) return;
     circle.style.transitionDuration = s.d + 's';
     circle.style.transform = 'scale(' + s.s + ')';
-    label.textContent = s.t + ' Â· ' + s.d + 's';
+    label.textContent = s.t + ' · ' + s.d + 's';
     const sub = q('#fx-b-sub', view);
-    if(sub) sub.textContent = 'Cycle ' + (cycles+1) + ' Â· step ' + (step+1) + ' of ' + p.steps.length;
+    if(sub) sub.textContent = 'Cycle ' + (cycles+1) + ' · step ' + (step+1) + ' of ' + p.steps.length;
     later('breath', ()=>{
       step = (step+1) % p.steps.length;
       if(step === 0){ cycles++; Sound.blip(520, 180); }
@@ -488,7 +527,7 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
   function eyeRemind(){
     NX.toastInfo('Eye break', 'Look 20 feet away for 20 seconds.', { life:5000 });
     try{ NX.pushNotif('Time for an eye break', 'Look at something 20 feet away for 20s.', 'eye'); }catch(e){}
-    try{ NX.native.notify({ title:'ðŸ‘€ Eye break', body:'Look at something 20 feet away for 20 seconds.' }); }catch(e){}
+    try{ NX.native.notify({ title:'👀 Eye break', body:'Look at something 20 feet away for 20 seconds.' }); }catch(e){}
     Sound.blip(880, 200);
   }
 

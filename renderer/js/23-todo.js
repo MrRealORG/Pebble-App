@@ -155,6 +155,9 @@ NX.newTask = function(defaultCat){
 /* ---------------- Module View ---------------- */
 NX.routeInShell('todo', 'Tasks', 'todo', function(view){
   const viewMode = NX.store.get('ui:todoView', 'list') === 'board' ? 'board' : 'list';
+  /* declared before the template — the header reads selectMode */
+  let picked = new Set();
+  let selectMode = false;
 
   view.innerHTML = `
   <div class="page" style="height:100%;padding-bottom:0">
@@ -182,6 +185,7 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
             <button role="tab" class="${viewMode==='list'?'on':''}" data-v="list">List</button>
             <button role="tab" class="${viewMode==='board'?'on':''}" data-v="board">Board</button>
           </div>
+          <button class="icon-btn sm" id="td-select-toggle" data-tip="Select multiple tasks for bulk actions" style="color:${selectMode?'var(--green-deep)':'var(--ink-3)'}">${icon('check',15)}</button>
           <button class="btn btn-dark btn-sm" id="td-new">${icon('plus')} Add Task</button>
         </div>
 
@@ -198,6 +202,7 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
         <!-- Scrollable Tasks or Kanban -->
         <div class="mstodo-tasks-scroll" id="td-content"></div>
       </div>
+      <div id="td-bulk"></div>
 
       <!-- Right Detail Flyout Panel -->
       <div class="mstodo-detail-panel" id="mstodo-detail" style="display:none"></div>
@@ -412,6 +417,94 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
     });
   }
 
+  /* ---------------- multi-select + bulk actions ---------------- */
+  function renderBulkBar(){
+    const bar = q('#td-bulk', view);
+    if(!bar) return;
+    if(!picked.size){
+      if(bar._built){ bar.innerHTML = ''; bar._built = false; }
+      return;
+    }
+    bar._built = true;
+    bar.innerHTML = `<div class="bulk-bar">
+      <span class="bulk-n">${picked.size} selected</span>
+      <button class="btn" data-bulk="done">${icon('check')} Complete</button>
+      <button class="btn" data-bulk="today">${icon('sun')} My Day</button>
+      <button class="btn" data-bulk="week">${icon('calendar')} Planned</button>
+      <button class="btn" data-bulk="important">${icon('star')} Star</button>
+      <button class="btn" data-bulk="delete">${icon('trash')} Delete</button>
+      <button class="icon-btn" id="bulk-x" data-tip="Clear selection">${icon('x')}</button>
+    </div>`;
+    qa('[data-bulk]', bar).forEach(b=>b.onclick = ()=>bulk(b.dataset.bulk));
+    q('#bulk-x', bar).onclick = ()=>{ picked.clear(); syncPicks(); renderBulkBar(); };
+  }
+
+  function syncPicks(){
+    qa('[data-pick]', view).forEach(el=>{
+      const on = picked.has(el.dataset.pick);
+      el.classList.toggle('on', on);
+      const row = el.closest('.mstodo-task-item, .task-card, .mstodo-row, li');
+      row && row.classList.toggle('picked', on);
+    });
+  }
+
+  function bulk(kind){
+    const ids = Array.from(picked);
+    if(!ids.length) return;
+    const list = tasks();
+    const snapshot = JSON.parse(JSON.stringify(list));
+    const hit = list.filter(t=>ids.includes(t.id));
+
+    if(kind === 'delete'){
+      NX.store.set('tasks', list.filter(t=>!ids.includes(t.id)));
+    } else if(kind === 'done'){
+      hit.forEach(t=>{ t.done = !t.done; if(t.done){ t.doneAt = Date.now(); t.col='done'; } else { delete t.doneAt; t.col='today'; } });
+      NX.store.set('tasks', list);
+      NX.sfx.play('ok');
+    } else if(kind === 'important'){
+      hit.forEach(t=> t.important = !t.important);
+      NX.store.set('tasks', list);
+    } else {
+      hit.forEach(t=>{ t.col = kind; });
+      NX.store.set('tasks', list);
+      NX.sfx.play('tick');
+    }
+
+    picked.clear();
+    saveTasks(NX.store.get('tasks', []));
+    renderSidebar();
+    renderMain();
+    renderBulkBar();
+
+    const label = { delete:'deleted', done:'updated', important:'updated', today:'moved to My Day', week:'moved to Planned' }[kind] || 'updated';
+    NX.undoable(`${ids.length} task${ids.length===1?'':'s'} ${label}`, hit.map(t=>t.name).slice(0,2).join(', '), ()=>{
+      NX.store.set('tasks', snapshot);
+      saveTasks(snapshot);
+      renderSidebar();
+      renderMain();
+      renderBulkBar();
+      NX.toastOk('Restored', ids.length + ' task' + (ids.length===1?'':'s'));
+    }, { life:7000 });
+  }
+
+  function togglePick(id){
+    if(picked.has(id)) picked.delete(id); else picked.add(id);
+    if(!picked.size && !selectMode){ /* keep selectMode sticky until toggled off */ }
+    syncPicks();
+    renderBulkBar();
+  }
+
+  function setSelectMode(on){
+    selectMode = on !== undefined ? on : !selectMode;
+    const host = q('#td-select-toggle', view);
+    if(host) host.classList.toggle('active', selectMode);
+    if(!selectMode){ picked.clear(); }
+    renderSidebar();
+    renderMain();
+    syncPicks();
+    renderBulkBar();
+  }
+
   function renderMain(){
     const content = q('#td-content', view);
     const v = NX.store.get('ui:todoView', 'list');
@@ -421,6 +514,27 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
     } else {
       renderListView(content);
     }
+    if(selectMode || picked.size){
+      qa('.mstodo-task-item .mstodo-check-btn', content).forEach(btn=>{
+        btn.style.display = 'none';
+      });
+    } else {
+      qa('.mstodo-task-item .mstodo-check-btn', content).forEach(btn=>{
+        btn.style.display = '';
+      });
+    }
+    /* inject pick checkboxes + wire selection without touching the row markup */
+    if(selectMode || picked.size){
+      qa('.mstodo-task-item, .task-card, .mstodo-row', content).forEach(row=>{
+        const id = row.dataset.id ||
+                   ((row.querySelector('[data-check]') || {}).dataset || {}).check;
+        if(!id || row.querySelector('[data-pick]')) return;
+        const box = h(`<span class="task-pick ${picked.has(id)?'on':''}" data-pick="${id}" role="checkbox" aria-label="Select task">${icon('check')}</span>`);
+        box.onclick = (e)=>{ e.stopPropagation(); togglePick(id); };
+        row.insertBefore(box, row.firstChild);
+      });
+    }
+    renderBulkBar();
   }
 
   function renderListView(container){
@@ -1086,6 +1200,7 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
   });
 
   q('#td-new', view).onclick = () => NX.newTask(curList);
+  q('#td-select-toggle', view).onclick = () => setSelectMode();
 
   window.__nx_refreshTodoView = () => {
     renderSidebar();

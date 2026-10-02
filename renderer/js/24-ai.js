@@ -127,6 +127,56 @@ async function askLLM({ model, messages, onDelta, signal }){
 
 NX.pelAI = { askLLM, workspaceContext, mdLite, offlineAnswer, MODELS };
 
+/* ---------------- public AI API (omnibox, commands, automations) ----------
+   One in-flight call at a time, cancelable. Every consumer goes
+   through here so streaming can always be stopped.            */
+let liveController = null;
+NX.ai = {
+  configured(){ return true; },                 /* gateway needs no key */
+  label(){ return 'Pel AI · ' + (NX.store.get('ai', {}).model || 'openai'); },
+  busy: false,
+  cancel(){
+    if(!liveController) return false;
+    try{ liveController.abort(); }catch(e){}
+    liveController = null;
+    NX.ai.busy = false;
+    return true;
+  },
+  async ask(text, opts){
+    opts = opts || {};
+    text = String(text || '').trim();
+    if(!text) return '';
+    const cfg = NX.store.get('ai', { model:'openai', context:true, history:[] });
+    const msgs = [];
+    if(cfg.context && !opts.noContext) msgs.push({ role:'system', content: workspaceContext() });
+    msgs.push({ role:'user', content:text });
+
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    liveController = ctl;
+    NX.ai.busy = true;
+    try{
+      const out = await askLLM({
+        model: cfg.model || 'openai',
+        messages: msgs,
+        signal: opts.signal || (ctl ? ctl.signal : undefined),
+        onDelta: full => { if(opts.onDelta) opts.onDelta(full); }
+      });
+      return out;
+    }catch(e){
+      if(e && e.name === 'AbortError'){
+        if(opts.onAbort) opts.onAbort();
+        return '';
+      }
+      const local = opts.offline !== false ? offlineAnswer(text) : null;
+      if(local){ if(opts.onDelta) opts.onDelta(local); return local; }
+      throw e;
+    }finally{
+      liveController = null;
+      NX.ai.busy = false;
+    }
+  }
+};
+
 /* ---------------- Pel AI module page ---------------- */
 NX.routeInShell('ai', 'Pel AI', 'ai', function(view){
   view.classList.add('full');
