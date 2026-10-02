@@ -579,3 +579,101 @@ svg{max-width:48px;max-height:48px}
 .chat-root.simple .chat-msgs{padding:20px max(24px,calc(50% - 380px))}
 .chat-root.simple .chat-head{padding-left:max(20px,calc(50% - 380px));padding-right:max(20px,calc(50% - 380px))}
 .chat-root.simple .chat-inputbar{padding:12px max(24px,calc(50% - 380px)) 16px}
+
+/* ============================================================
+   Arcade 2.0 — skill & brain games
+   ============================================================ */
+
+/* ---------- typing speed ---------- */
+.type-wrap{width:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+.type-pass{
+  background:var(--surface-2);border:1px solid var(--line);border-radius:16px;
+  padding:18px 20px;font-size:17px;line-height:1.9;letter-spacing:.01em;
+  font-family:'Sarasa Mono SC',Consolas,monospace;max-height:220px;overflow-y:auto;
+  user-select:none;word-break:break-word;
+}
+.type-pass .ok{color:var(--green-deep);background:var(--green-soft);border-radius:3px}
+.type-pass .bad{color:var(--red);background:var(--red-soft);border-radius:3px;text-decoration:line-through}
+.type-pass .cur{background:var(--ink);color:var(--bg);border-radius:3px;animation:nx-pulse 1s infinite}
+
+/* ---------- minesweeper ---------- */
+.mine-grid{
+  display:grid;gap:3px;width:min(420px,100%);margin:14px auto;padding:12px;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:18px;
+}
+.mine-cell{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border-radius:9px;font-weight:800;font-size:15px;
+  color:var(--ink);box-shadow:0 1px 2px rgba(18,18,18,.06);
+  transition:background .12s,transform .1s;user-select:none;padding:0;
+}
+.mine-cell:hover{background:var(--surface-3)}
+.mine-cell:active{transform:scale(.94)}
+.mine-cell.open{background:var(--surface-3);box-shadow:none;cursor:default}
+.mine-cell.open:hover{background:var(--surface-3)}
+.mine-cell.boom{background:var(--red-soft);color:var(--red)}
+.mine-cell.n1{color:var(--blue)}.mine-cell.n2{color:var(--green-deep)}
+.mine-cell.n3{color:var(--red)}.mine-cell.n4{color:var(--purple)}
+.mine-cell.n5{color:#8B6914}.mine-cell.n6{color:var(--teal)}
+.mine-cell.n7{color:var(--ink)}.mine-cell.n8{color:var(--ink-3)}.mine-cell.n9{color:var(--ink-4)}
+
+/* ---------- sudoku ---------- */
+.sud-grid{
+  display:grid;grid-template-columns:repeat(9,1fr);gap:1px;
+  width:min(432px,100%);margin:14px auto;padding:8px;
+  background:var(--surface-2);border:1.5px solid var(--line-strong);border-radius:16px;
+}
+.sud-cell{
+  aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  background:var(--surface);border-radius:6px;font-weight:700;font-size:17px;
+  color:var(--blue);transition:background .1s,box-shadow .1s;padding:0;position:relative;
+}
+.sud-cell:hover{background:var(--surface-3)}
+.sud-cell.giv{color:var(--ink);font-weight:800;background:var(--surface-2);cursor:default}
+.sud-cell.giv:hover{background:var(--surface-2)}
+.sud-cell.peer{background:var(--surface-3)}
+.sud-cell.sel{background:var(--green-soft);box-shadow:inset 0 0 0 2px var(--green)}
+.sud-cell.bad{color:var(--red)}
+.sud-cell.bb{margin-bottom:2px}
+.sud-cell.br{margin-right:2px}
+.sud-val{display:flex;align-items:center;justify-content:center;width:100%;height:100%}
+.sud-notes{display:grid;grid-template-columns:repeat(3,1fr);width:100%;height:100%;padding:1px}
+.sud-notes i{font-style:normal;font-size:8.5px;font-weight:700;color:var(--ink-3);line-height:1.15;display:flex;align-items:center;justify-content:center}
+.sud-notes.mini{
+  position:absolute;left:2px;right:2px;bottom:2px;height:auto;width:auto;
+  display:flex;justify-content:center;gap:3px;padding:0;
+}
+.sud-notes.mini i{font-size:7px;line-height:1;opacity:.9}
+.sud-pad{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+.sud-pad .btn{width:44px;padding:0}
+
+/* ---------- color match (stroop) ---------- */
+.stroop-word{
+  font-size:44px;font-weight:800;letter-spacing:-.02em;text-align:center;
+  padding:34px 0 6px;line-height:1;user-select:none;min-height:96px;
+}
+.stroop-pad{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;max-width:440px;margin:14px auto 18px}
+.stroop-swatch{
+  aspect-ratio:1.4;border-radius:16px;cursor:pointer;padding:0;
+  box-shadow:var(--sh-card);transition:transform .1s,box-shadow .15s;
+}
+.stroop-swatch:hover{transform:translateY(-3px);box-shadow:var(--sh-pop)}
+.stroop-swatch:active{transform:scale(.96)}
+
+/* ---------- break the code ---------- */
+.cd-board{width:min(420px,100%);margin:0 auto}
+.cd-rows{display:flex;flex-direction:column;gap:6px;min-height:180px}
+.cd-row{
+  display:flex;align-items:center;gap:12px;padding:9px 14px;border-radius:12px;
+  background:var(--surface-2);border:1px solid transparent;
+}
+.cd-row.live{background:var(--surface);border-style:dashed;border-color:var(--line-strong)}
+.cd-row.win{background:var(--green-soft);border-color:var(--green)}
+.cd-digits{font-family:'Sarasa Mono SC',Consolas,monospace;font-size:22px;font-weight:800;letter-spacing:.12em;min-width:76px}
+.cd-fb{display:flex;gap:5px;flex:1}
+.cd-fb i{width:11px;height:11px;border-radius:50%;display:block}
+.cd-fb .exact{background:var(--green)}
+.cd-fb .mis{background:transparent;border:2px solid var(--yellow)}
+.cd-note{font-size:10.5px;color:var(--ink-3);white-space:nowrap}
+.cd-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.cd-pad .btn{width:100%}

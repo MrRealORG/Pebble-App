@@ -85,6 +85,10 @@ window.NX = window.NX || {};
       }
       kill.forEach(k=>localStorage.removeItem(k));
       Object.keys(mem).forEach(k=>delete mem[k]);
+    },
+    async flush(){
+      if(!NX.native || !NX.native.available) return;
+      try{ await NX.native.invoke('save_workspace', { data: JSON.stringify(Store.dump()) }); }catch(e){}
     }
   };
   const mirrorTimers = {};
@@ -201,6 +205,20 @@ window.NX = window.NX || {};
       return ((p[0]||'')[0]||'?').toUpperCase() + (p.length>1 ? (p[p.length-1][0]||'').toUpperCase() : '');
     },
     hashCode(s){ let h=0; for(let i=0;i<s.length;i++){ h=(h<<5)-h+s.charCodeAt(i); h|=0; } return Math.abs(h); },
+    hashPin(pin){
+      if(!pin) return '';
+      const s = String(pin).trim();
+      let h1 = 5381;
+      for(let i=0;i<s.length;i++) h1 = ((h1<<5)+h1+s.charCodeAt(i))|0;
+      return 'h'+(h1>>>0).toString(36);
+    },
+    verifyPin(pin, storedHash){
+      if(!pin || !storedHash) return false;
+      const s = String(pin).trim();
+      if(U.hashPin(s) === storedHash) return true;
+      if(String(U.hashCode(s)) === storedHash) return true;
+      return false;
+    },
     colorFor(s){
       const palette = ['#7CD56E','#5EB8FF','#E8853D','#8B5CF6','#E05C9C','#0FA3A3','#E25C4A','#D4A017','#4A90D9','#67B26F'];
       return palette[U.hashCode(String(s)) % palette.length];

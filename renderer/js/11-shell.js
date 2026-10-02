@@ -54,7 +54,8 @@ const NAV = [
   ]},
   { group:'Explore', items:[
     { r:'games',      n:'Arcade',     ic:'game' },
-    { r:'media',      n:'Screenshot', ic:'camera' }
+    { r:'media',      n:'Screenshot', ic:'camera' },
+    { r:'focus',      n:'Focus',      ic:'target' }
   ]}
 ];
 NX.NAV = NAV;

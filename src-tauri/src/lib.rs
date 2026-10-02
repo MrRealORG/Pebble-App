@@ -570,21 +570,22 @@ fn app_icon(exe: String, name: String) -> IconResult {
         // resolve by app name via the live exe map
         if let Some(p) = ext_bridge::lookup_exe(name.trim()) {
             path = p;
-        } else if !path.contains('\\') {
-            // last resort: name passed as filename
-            if path.to_lowercase().ends_with(".exe") {
-                // search typical install locations
-                for base in [PathBuf::from("C:\\Program Files"), PathBuf::from("C:\\Program Files (x86)")] {
-                    let cand = find_exe_recursive(base.clone(), &path.to_lowercase(), 0);
-                    if let Some(c) = cand {
-                        path = c;
-                        break;
-                    }
+        } else if !path.contains('\\') && path.to_lowercase().ends_with(".exe") {
+            // Check direct Windows system paths without recursive disk crawling
+            let test_paths = [
+                format!("C:\\Windows\\System32\\{}", path),
+                format!("C:\\Windows\\{}", path),
+                "C:\\Windows\\explorer.exe".to_string(),
+            ];
+            for tp in test_paths {
+                if PathBuf::from(&tp).exists() {
+                    path = tp;
+                    break;
                 }
             }
         }
     }
-    if path.is_empty() {
+    if path.is_empty() || !PathBuf::from(&path).exists() {
         return IconResult { ok: false, url: None };
     }
     match extract_icon_png(&path) {
@@ -614,31 +615,6 @@ fn urlencoding_lite(s: &str) -> String {
         }
     }
     out
-}
-
-#[cfg(windows)]
-fn find_exe_recursive(dir: PathBuf, exe_lower: &str, depth: u32) -> Option<String> {
-    if depth > 2 {
-        return None;
-    }
-    if let Ok(entries) = fs::read_dir(&dir) {
-        for e in entries.filter_map(|e| e.ok()) {
-            let p = e.path();
-            if p.is_dir() {
-                if let Some(found) = find_exe_recursive(p, exe_lower, depth + 1) {
-                    return Some(found);
-                }
-            } else if p.file_name().map(|f| f.to_string_lossy().to_lowercase() == exe_lower).unwrap_or(false) {
-                return Some(p.to_string_lossy().to_string());
-            }
-        }
-    }
-    None
-}
-
-#[cfg(not(windows))]
-fn find_exe_recursive(_dir: PathBuf, _exe: &str, _d: u32) -> Option<String> {
-    None
 }
 
 /* ----------------------------------------------------------
@@ -1209,7 +1185,7 @@ fn widget_toggle(app: AppHandle, show: Option<bool>) -> Result<(), String> {
             let mut builder = WebviewWindowBuilder::new(
                 &app,
                 "widget",
-                WebviewUrl::App("index.html".into()),
+                WebviewUrl::App("index.html#widget".into()),
             )
             .initialization_script("window.__PEBBLE_WINDOW__ = 'widget';")
             .title("Pebble Widget")
@@ -1218,7 +1194,8 @@ fn widget_toggle(app: AppHandle, show: Option<bool>) -> Result<(), String> {
             .decorations(false)
             .skip_taskbar(true)
             .always_on_top(true)
-            .shadow(true);
+            .shadow(true)
+            .transparent(true);
             if let Ok(Some(m)) = app.primary_monitor() {
                 let sz = m.size();
                 let sf = m.scale_factor().max(1.0);
@@ -1245,9 +1222,13 @@ fn login_done(app: AppHandle, name: String) -> bool {
         let _ = main.set_focus();
         let _ = main.emit("profile-ready", name);
     }
-    if let Some(login) = app.get_webview_window("login") {
-        let _ = login.close();
-    }
+    let app_handle = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        if let Some(login) = app_handle.get_webview_window("login") {
+            let _ = login.close();
+        }
+    });
     true
 }
 

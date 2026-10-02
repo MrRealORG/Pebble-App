@@ -197,8 +197,14 @@ NX.GAMES = [
   { id:'gm_click', name:'Focus Clicker',icon:'fire',    color:'#E25C4A', desc:'Click the pebble as many times as you can in 10s.' },
   { id:'gm_simon', name:'Simon Says',   icon:'star',    color:'#5EB8FF', desc:'Repeat the glowing pattern. It grows fast.' },
   { id:'gm_math',  name:'Math Rush',    icon:'grid',    color:'#0FA3A3', desc:'Solve quick math against the clock, build streaks.' },
-  { id:'gm_aim',   name:'Aim Trainer',  icon:'target',  color:'#8B5CF6', desc:'Hit the dots before they move. 20 seconds.' }
+  { id:'gm_aim',   name:'Aim Trainer',  icon:'target',  color:'#8B5CF6', desc:'Hit the dots before they move. 20 seconds.' },
+  { id:'gm_type',  name:'Typing Speed', icon:'zap',     color:'#0FA3A3', desc:'30-second typing sprint. Real WPM plus accuracy.' },
+  { id:'gm_mine',  name:'Minesweeper',  icon:'target',  color:'#E25C4A', desc:'Clear the grid without a blast. Flags are free.' },
+  { id:'gm_sudoku',name:'Sudoku Lite',  icon:'grid',    color:'#3E7BFA', desc:'Real 9x9 logic puzzle. Three difficulties, notes pad.' },
+  { id:'gm_stroop',name:'Color Match',  icon:'palette', color:'#E05C9C', desc:'Name the ink, not the word. Trains selective focus.' },
+  { id:'gm_code',  name:'Break the Code',icon:'code',   color:'#D4A017', desc:'Crack a 4-digit lock in as few guesses as you can.' }
 ];
 NX.gameBest = function(id){ const b = S.get('gameBest:'+id, null); return b; };
 NX.setGameBest = function(id, score){ const cur = S.get('gameBest:'+id, null); if(cur==null || score>cur) S.set('gameBest:'+id, score); };
+NX.recordMin = function(id, score){ const cur = S.get('gameBest:'+id, null); if(cur==null || score<cur) S.set('gameBest:'+id, score); };
 })(window.NX);

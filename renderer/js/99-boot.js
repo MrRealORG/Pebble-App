@@ -88,6 +88,20 @@ function startEngines(){
   try{ NX.widget.apply(); }catch(e){}
   try{ NX.extsync.start(); }catch(e){ console.error('extsync', e); }
 
+  /* listen for profile handoff from login window */
+  try {
+    if(window.__TAURI__ && window.__TAURI__.event && typeof window.__TAURI__.event.listen === 'function'){
+      window.__TAURI__.event.listen('profile-ready', async ()=>{
+        try {
+          await NX.restoreBackend();
+          const p = NX.store.get('profile', NX.defaults.profile);
+          NX.events.emit('profile:updated', p);
+          NX.router.go('dashboard');
+        } catch(e){}
+      });
+    }
+  } catch(e){}
+
   /* first-run onboarding (or what's-new for upgraders) */
   try{
     if(!NX.store.get('onboarded')) NX.onboarding.start();

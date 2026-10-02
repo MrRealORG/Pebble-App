@@ -527,6 +527,8 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   }
 
   if(!curNoteId || !notes().find(n=>n.id===curNoteId)){
+    curNoteId = current() ? current().id : null;
+  }
   const isCollapsed = !!NX.store.get('ui:notesSidebarCollapsed', false);
 
   view.innerHTML = `

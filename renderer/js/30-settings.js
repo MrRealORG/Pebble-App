@@ -86,8 +86,8 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
           { label:'Cancel', cls:'btn-soft' },
           { label:'Save PIN', cls:'btn-green', onClick:()=>{
               const v = q('#pin-in', body).value.trim();
-              if(v && v.length >= 4){ NX.store.set('auth', { pinHash: String(NX.util.hashCode(v)) }); NX.closeAllModals(); NX.toastOk('PIN saved', 'You\'ll be asked on next launch.'); }
-              else if(!v){ NX.store.del('auth'); NX.closeAllModals(); NX.toastOk('PIN removed'); }
+              if(v && v.length >= 4){ NX.store.set('auth', { pinHash: U.hashPin(v) }); if(NX.store && NX.store.flush) NX.store.flush(); NX.closeAllModals(); NX.toastOk('PIN saved', 'You\'ll be asked on next launch.'); }
+              else if(!v){ NX.store.del('auth'); if(NX.store && NX.store.flush) NX.store.flush(); NX.closeAllModals(); NX.toastOk('PIN removed'); }
               else NX.toastErr('Too short', 'PIN needs 4+ digits.');
             } }
         ]});

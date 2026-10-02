@@ -116,25 +116,30 @@ NX.router.register('login', {
       p.name = name; p.avatar = avatar;
       NX.store.set('profile', p);
       if(auth && auth.pinHash){
-        if(hashPin(pin) !== auth.pinHash){ showErr('Wrong PIN — try again.'); NX.sfx.play('err'); return; }
+        if(!U.verifyPin(pin, auth.pinHash)){ showErr('Wrong PIN — try again.'); NX.sfx.play('err'); return; }
       } else if(pin){
         if(pin.length < 4){ showErr('PIN needs at least 4 digits (or leave it empty).'); return; }
-        NX.store.set('auth', { pinHash: hashPin(pin) });
+        NX.store.set('auth', { pinHash: U.hashPin(pin) });
       }
       NX.store.set('session', { authed:true, at:Date.now() });
       NX.sfx.play('login');
       const btn = q('#lg-go', app);
       if(btn){ btn.innerHTML = 'Welcome, ' + U.esc(name) + ' ✨'; btn.disabled = true; }
-      setTimeout(async ()=>{
-        if(NX.native.available && NX.native.mode === 'tauri'){
-          try {
-            await NX.native.loginDone(name);
-          } catch(e) {
-            console.error('loginDone error', e);
+      (async ()=>{
+        try {
+          if(NX.store && NX.store.flush) await NX.store.flush();
+        } catch(e){}
+        setTimeout(async ()=>{
+          if(NX.native.available && NX.native.mode === 'tauri'){
+            try {
+              await NX.native.loginDone(name);
+            } catch(e) {
+              console.error('loginDone error', e);
+            }
           }
-        }
-        NX.router.go('dashboard');
-      }, 350);
+          NX.router.go('dashboard');
+        }, 120);
+      })();
     }
 
     q('#lg-go', app).onclick = ()=>{

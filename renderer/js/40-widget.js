@@ -302,8 +302,15 @@ NX.router.register('widget', {
   icon: 'widget',
   render(app){
     document.body.classList.add('widget-mode');
+    const splash = document.getElementById('nx-splash');
+    if(splash) try{ splash.remove(); }catch(e){}
     app.innerHTML = '';
-    const root = document.getElementById('nx-widget-root');
+    let root = document.getElementById('nx-widget-root');
+    if(!root){
+      root = document.createElement('div');
+      root.id = 'nx-widget-root';
+      document.body.appendChild(root);
+    }
     root.innerHTML = widgetHTML();
     attachWidgetEvents(root);
     setInterval(refreshWidget, 1000);
