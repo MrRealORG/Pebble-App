@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "app.pebble.desktop",
   "build": {
-    "beforeBuildCommand": "node ../scripts/build.js",
+    "beforeBuildCommand": "node scripts/build.js",
     "frontendDist": "../renderer"
   },
   "app": {
