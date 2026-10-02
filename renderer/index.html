@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PebbleX</title>
+<style>
+  /* Instant loading splash - zero external dependency, instant paint */
+  #nx-splash {
+    position: fixed; inset: 0; z-index: 999999;
+    background: #141413; color: #f4f2ee;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s;
+    user-select: none;
+  }
+  #nx-splash.fade-out {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .nx-splash-box {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    animation: nx-splash-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .nx-splash-mark {
+    width: 68px; height: 68px; border-radius: 22px;
+    background: linear-gradient(135deg, #1c261b 0%, #151d14 100%);
+    border: 1px solid rgba(124, 213, 110, 0.25);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(124, 213, 110, 0.15);
+    display: flex; align-items: center; justify-content: center;
+    color: #7cd56e;
+    animation: nx-splash-pulse 2s ease-in-out infinite alternate;
+  }
+  .nx-splash-mark svg { width: 36px; height: 36px; }
+  .nx-splash-title {
+    font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #f4f2ee;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .nx-splash-badge {
+    font-size: 11px; font-weight: 900; background: #7cd56e; color: #0f1c0d;
+    padding: 2px 7px; border-radius: 99px; letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  .nx-splash-sub {
+    font-size: 13px; color: #9b9a94; margin-top: -6px; font-weight: 500;
+  }
+  .nx-splash-loader {
+    width: 140px; height: 3px; background: rgba(255, 255, 255, 0.08);
+    border-radius: 99px; overflow: hidden; margin-top: 8px; position: relative;
+  }
+  .nx-splash-loader-bar {
+    position: absolute; top: 0; left: 0; bottom: 0; width: 40%;
+    background: linear-gradient(90deg, transparent, #7cd56e, transparent);
+    border-radius: 99px;
+    animation: nx-splash-slide 1.2s ease-in-out infinite;
+  }
+  @keyframes nx-splash-enter {
+    from { opacity: 0; transform: scale(0.92) translateY(8px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  @keyframes nx-splash-pulse {
+    from { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(124, 213, 110, 0.1); }
+    to { box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), 0 0 30px rgba(124, 213, 110, 0.35); }
+  }
+  @keyframes nx-splash-slide {
+    0% { left: -40%; }
+    100% { left: 100%; }
+  }
+  body.widget-mode #nx-splash { display: none !important; }
+</style>
+<link rel="stylesheet" href="css/00-tokens.css">
+<link rel="stylesheet" href="css/01-base.css">
+<link rel="stylesheet" href="css/02-components.css">
+<link rel="stylesheet" href="css/03-shell.css">
+<link rel="stylesheet" href="css/04-modules.css">
+<link rel="stylesheet" href="css/05-timeless.css">
+<link rel="stylesheet" href="css/06-widget.css">
+<link rel="stylesheet" href="css/07-upgrade.css">
+</head>
+<body>
+  <div id="nx-splash">
+    <div class="nx-splash-box">
+      <div class="nx-splash-mark">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 3c4 0 7 2.2 7 5.4 0 1.9-.8 3.2-2 4.2.5.7.8 1.5.8 2.4 0 3.3-2.8 6-5.8 6-3.4 0-6-2.3-6-5.6 0-1.7.6-3 1.7-4C6.6 10.4 5 9 5 7.6 5 5 8 3 12 3z" fill="currentColor"/>
+          <path d="M12 3c4 0 7 2.2 7 5.4 0 1.9-.8 3.2-2 4.2" stroke="#7CD56E" stroke-width="1.8" stroke-linecap="round" fill="none"/>
+        </svg>
+      </div>
+      <div class="nx-splash-title">Pebble<span class="nx-splash-badge">X</span></div>
+      <div class="nx-splash-sub">One calm workspace</div>
+      <div class="nx-splash-loader"><div class="nx-splash-loader-bar"></div></div>
+    </div>
+  </div>
+
+  <div id="nx-login"></div>
+  <div id="nx-app"></div>
+  <div id="nx-widget-root"></div>
+  <div id="nx-overlay-root"></div>
+  <div id="nx-toasts"></div>
+
+  <script src="js/00-core.js"></script>
+  <script src="js/01-data.js"></script>
+  <script src="js/02-ui.js"></script>
+  <script src="js/03-native.js"></script>
+  <script src="js/04-sfx.js"></script>
+  <script src="js/09-onboarding.js"></script>
+  <script src="js/10-login.js"></script>
+  <script src="js/11-shell.js"></script>
+  <script src="js/19-extsync.js"></script>
+  <script src="js/20-dashboard.js"></script>
+  <script src="js/21-chat.js"></script>
+  <script src="js/22-notes.js"></script>
+  <script src="js/23-todo.js"></script>
+  <script src="js/24-ai.js"></script>
+  <script src="js/25-timeless.js"></script>
+  <script src="js/26-reminders.js"></script>
+  <script src="js/28-media.js"></script>
+  <script src="js/29-games.js"></script>
+  <script src="js/31-prompts.js"></script>
+  <script src="js/30-settings.js"></script>
+  <script src="js/40-widget.js"></script>
+  <script src="js/99-boot.js"></script>
+</body>
+</html>

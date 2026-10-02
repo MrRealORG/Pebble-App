@@ -1,0 +1,114 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { width: 330px; font: 13px/1.45 "Segoe UI", system-ui, sans-serif; background: #141414; color: #eceae6; }
+  header { display: flex; align-items: center; gap: 9px; padding: 13px 14px 11px; border-bottom: 1px solid #262626; }
+  header img { width: 28px; height: 28px; border-radius: 9px; }
+  header b { font-size: 14px; }
+  header .dot { margin-left: auto; width: 9px; height: 9px; border-radius: 99px; background: #555; }
+  header .dot.on { background: #4caf7d; box-shadow: 0 0 8px rgba(76,175,125,.7); }
+  .connline { font-size: 11px; color: #9b968d; padding: 7px 14px 0; }
+  .connline b { color: #7ed268; }
+  .quick { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; padding: 10px 14px 4px; }
+  .qbtn {
+    display: flex; align-items: center; gap: 7px; background: #1f1f1f; border: 1px solid #2c2c2c;
+    color: #eceae6; border-radius: 12px; padding: 10px 11px; font: 600 12px "Segoe UI", sans-serif; cursor: pointer; text-align: left;
+  }
+  .qbtn:hover { border-color: #7ed268; background: #232923; }
+  .qbtn span.ic { font-size: 15px; flex: none; }
+  main { padding: 10px 14px 14px; display: none; }
+  main.on { display: block; }
+  .statrow { display: flex; gap: 7px; margin-bottom: 10px; }
+  .stat { flex: 1; background: #1d1d1d; border-radius: 12px; padding: 9px 10px; }
+  .stat .n { font-weight: 700; font-size: 15px; }
+  .stat .l { font-size: 10px; color: #9b968d; text-transform: uppercase; letter-spacing: .4px; }
+  .stat.p .n { color: #7ed268; } .stat.d .n { color: #eb5757; } .stat.n2 .n { color: #a7d7f9; }
+  .sub { font-size: 11px; color: #9b968d; margin: 8px 0 6px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+  ul.apps { list-style: none; }
+  ul.apps li { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid #202020; font-size: 12.5px; }
+  ul.apps li:last-child { border-bottom: none; }
+  ul.apps .t { color: #9b968d; margin-left: auto; font-size: 11px; }
+  .bar { height: 4px; border-radius: 99px; background: #262626; overflow: hidden; margin-top: 3px; }
+  .bar i { display: block; height: 100%; border-radius: 99px; }
+  label { display: block; font-size: 11px; color: #9b968d; margin: 9px 0 4px; }
+  textarea, input { width: 100%; background: #1d1d1d; border: 1px solid #333; color: #eceae6; border-radius: 10px; padding: 8px 10px; font: 12.5px "Segoe UI", sans-serif; outline: none; }
+  textarea:focus, input:focus { border-color: #7ed268; }
+  textarea { resize: vertical; min-height: 58px; }
+  .btn { width: 100%; margin-top: 10px; background: #7ed268; color: #17301c; font-weight: 700; border: none; border-radius: 10px; padding: 9px; cursor: pointer; font-size: 13px; }
+  .btn:hover { background: #8fdd7c; }
+  .btn.ghost { background: #262626; color: #eceae6; font-weight: 600; }
+  .msg { margin-top: 8px; font-size: 11.5px; color: #7ed268; min-height: 15px; }
+  .msg.err { color: #eb5757; }
+  .statusline { font-size: 11.5px; color: #9b968d; margin-bottom: 8px; }
+  .empty { text-align: center; color: #6b675f; font-size: 12px; padding: 18px 0; }
+  footer { padding: 8px 14px 12px; font-size: 10.5px; color: #6b675f; border-top: 1px solid #202020; }
+  footer b { color: #9b968d; }
+  nav { display: flex; border-bottom: 1px solid #262626; }
+  nav button { flex: 1; background: none; border: none; color: #9b968d; padding: 9px 0; font: 600 12px "Segoe UI", sans-serif; cursor: pointer; border-bottom: 2px solid transparent; }
+  nav button.on { color: #eceae6; border-bottom-color: #7ed268; }
+</style>
+</head>
+<body>
+<header>
+  <img src="icon.png" alt="PebbleX">
+  <b>PebbleX</b>
+  <span class="dot" id="connDot" title="connection"></span>
+</header>
+<div class="connline" id="connLine">connecting to the PebbleX app…</div>
+<nav>
+  <button data-tab="today" class="on">Today</button>
+  <button data-tab="send">Send</button>
+  <button data-tab="settings">Setup</button>
+</nav>
+
+<main id="tab-today" class="on">
+  <div class="statrow" style="margin-top:10px">
+    <div class="stat p"><div class="n" id="stProd">—</div><div class="l">Productive</div></div>
+    <div class="stat n2"><div class="n" id="stNeut">—</div><div class="l">Neutral</div></div>
+    <div class="stat d"><div class="n" id="stDistr">—</div><div class="l">Wasted</div></div>
+  </div>
+  <div class="sub">Browser time today</div>
+  <ul class="apps" id="appList"><li class="empty">no data yet</li></ul>
+</main>
+
+<main id="tab-send">
+  <div class="sub" style="margin-top:10px">One click, straight into PebbleX</div>
+  <div class="quick">
+    <button class="qbtn" id="qSavePage"><span class="ic">🔖</span> Save this page as a note</button>
+    <button class="qbtn" id="qOpenApp"><span class="ic">🪨</span> Open the PebbleX app</button>
+  </div>
+  <label>Quick task</label>
+  <input id="taskTitle" placeholder="e.g. Review the PR from Sam">
+  <button class="btn ghost" id="sendTask">Add task</button>
+  <label>Quick note</label>
+  <input id="noteTitle" placeholder="Title">
+  <textarea id="noteBody" placeholder="Write it down…"></textarea>
+  <button class="btn ghost" id="sendNote">Save note</button>
+  <label>Save a prompt</label>
+  <textarea id="promptText" placeholder="The prompt you want to keep…"></textarea>
+  <button class="btn ghost" id="sendPrompt">Save prompt</button>
+  <label>Message → #general</label>
+  <textarea id="msgText" placeholder="Send a message to your workspace chat…"></textarea>
+  <button class="btn" id="sendMessage">Send message</button>
+  <div class="msg" id="sendMsg"></div>
+</main>
+
+<main id="tab-settings">
+  <div class="sub" style="margin-top:10px">Where PebbleX is running</div>
+  <label>Bridge URL</label>
+  <input id="cfgUrl" placeholder="http://127.0.0.1:47615">
+  <label>Token (any text — PebbleX accepts it)</label>
+  <input id="cfgToken" placeholder="pebble">
+  <button class="btn" id="saveCfg">Connect</button>
+  <div class="msg" id="cfgMsg"></div>
+  <div class="sub" style="margin-top:14px">With the PebbleX app running on this computer, the extension <b>auto-connects</b> — tab time flows into <b>Timeless</b>, and tasks/notes/prompts/messages land in the app. Open <b>http://127.0.0.1:47615</b> in a tab for a live mini dashboard.</div>
+</main>
+
+<footer>PebbleX <b>v0.1</b> · Timeless tracks the active tab only — nothing else is read.</footer>
+<script src="popup.js"></script>
+</body>
+</html>

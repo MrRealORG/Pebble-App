@@ -1,0 +1,101 @@
+{
+  "name": "pebblex",
+  "productName": "PebbleX",
+  "version": "0.1.0",
+  "description": "PebbleX \u2014 the X series: notes with real .md vault, tasks, reminders, Timeless tracking, real AI, prompts, games.",
+  "main": "electron/main.js",
+  "author": "Built with Qwen",
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "start": "node scripts/build.js && electron .",
+    "web": "node scripts/build.js && node tools/serve.js",
+    "pack": "node scripts/build.js && electron-builder --dir",
+    "dist": "node scripts/build.js && electron-builder",
+    "dist:win": "node scripts/build.js && electron-builder --win",
+    "dist:mac": "node scripts/build.js && electron-builder --mac",
+    "dist:linux": "node scripts/build.js && electron-builder --linux",
+    "test": "node scripts/smoke-test.js",
+    "icons": "python3 scripts/make_icons.py",
+    "package": "node scripts/package-desktop.js",
+    "tauri": "tauri",
+    "tauri:dev": "node scripts/build.js && tauri dev",
+    "tauri:build": "node scripts/build.js && tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.nexadesk.app",
+    "productName": "Pebble",
+    "asar": true,
+    "files": [
+      "electron/**/*",
+      "renderer/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "assets/icons/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "assets/icons/icon.png"
+    },
+    "extraResources": [
+      {
+        "from": "rust/pebble-core/target/x86_64-pc-windows-gnu/release/pebble-core.exe",
+        "to": "sidecar/pebble-core.exe"
+      },
+      {
+        "from": "rust/pebble-core/target/release/pebble-core",
+        "to": "sidecar/pebble-core"
+      }
+    ]
+  },
+  "dependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

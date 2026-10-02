@@ -1,0 +1,121 @@
+/* ============================================================
+   Pebble 3.2 — 07-upgrade.css
+   Onboarding wizard, dashboard live cards (weather & joke),
+   real-AI chat styling, real app icons, crash/bug reports,
+   browser-link status.
+   ============================================================ */
+
+/* ---------------- real app icons ---------------- */
+.ar-ic.real{overflow:hidden}
+.ar-img{width:22px;height:22px;object-fit:contain;display:block}
+.live-session .ar-ic{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;flex:none;color:#fff;font-weight:800}
+.live-session .ar-ic .ar-img{width:26px;height:26px}
+
+/* ---------------- dashboard live cards ---------------- */
+.dash-live{display:grid;grid-template-columns:1.1fr 1fr;gap:16px;margin-bottom:16px}
+@media (max-width:1100px){ .dash-live{grid-template-columns:1fr} }
+
+.live-weather .card-h{border:0}
+.wx-row{display:flex;gap:10px}
+.wx-cell{flex:1;background:rgba(255,255,255,.07);border-radius:14px;padding:10px 12px}
+.wx-cell .wx-k{font-size:11px;color:#9B9B94;font-weight:600;letter-spacing:.02em}
+.wx-cell .wx-v{font-size:16.5px;font-weight:800;color:#F6F5F3;margin-top:2px;font-variant-numeric:tabular-nums}
+
+.joke-box{display:flex;flex-direction:column;gap:6px}
+.joke-setup{font-size:14px;font-weight:700;line-height:1.5}
+.joke-punch{padding:2px 0}
+.joke-punchline{font-size:14px;font-weight:700;color:var(--green-deep);animation:nx-fade .3s ease both}
+
+/* ---------------- Pel AI real chat ---------------- */
+.ai-root .chat-head .seg{margin-right:8px}
+.ai-root .chat-head .seg button{padding:5px 10px;font-size:11px}
+.am-bubble{white-space:normal;word-break:break-word;line-height:1.62}
+.md-pre{background:var(--surface-2,#F1F0ED);border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;margin:8px 0;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;
+  font-size:12px;overflow-x:auto;white-space:pre}
+.md-code{background:var(--surface-2,#F1F0ED);border:1px solid var(--line);border-radius:6px;
+  padding:1px 5px;font-family:ui-monospace,'Cascadia Code',Consolas,monospace;font-size:12px}
+.ai-typing{color:var(--ink-3);font-style:italic}
+.ai-typing .dots i{animation:ai-blink 1.2s infinite;font-style:normal}
+.ai-typing .dots i:nth-child(2){animation-delay:.2s}
+.ai-typing .dots i:nth-child(3){animation-delay:.4s}
+@keyframes ai-blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.ai-caret{display:inline-block;width:7px;height:14px;background:var(--green);border-radius:2px;
+  margin-left:3px;vertical-align:-2px;animation:ai-blink 1s infinite}
+
+/* ---------------- onboarding wizard ---------------- */
+.ob-backdrop{position:fixed;inset:0;z-index:400;display:flex;align-items:center;justify-content:center;
+  background:rgba(18,18,18,.45);backdrop-filter:blur(6px);animation:nx-fade .25s ease both}
+.ob-backdrop.out{animation:nx-fade .3s ease both reverse}
+.ob-card{width:min(560px, calc(100vw - 40px));max-height:calc(100vh - 60px);overflow-y:auto;
+  background:var(--surface);border-radius:24px;box-shadow:var(--sh-pop);
+  padding:34px 38px 26px;text-align:center;position:relative;animation:ob-pop .35s cubic-bezier(.2,.9,.3,1.2) both}
+@keyframes ob-pop{from{transform:translateY(16px) scale(.97);opacity:0}to{transform:none;opacity:1}}
+.ob-logo svg{width:44px;height:44px;color:var(--ink)}
+.ob-logo.big svg{width:56px;height:56px}
+.ob-h{font-size:23px;font-weight:800;letter-spacing:-.02em;margin:14px 0 6px}
+.ob-ver{color:var(--green-deep)}
+.ob-p{font-size:13.5px;color:var(--ink-2);line-height:1.65;max-width:430px;margin:0 auto}
+.ob-avatars{display:flex;gap:10px;justify-content:center;margin:16px 0 6px}
+.ob-avatars i{width:34px;height:34px;border-radius:50%;cursor:pointer;display:block;
+  border:2.5px solid transparent;transition:transform .15s ease, border-color .15s ease}
+.ob-avatars i:hover{transform:scale(1.1)}
+.ob-avatars i.on{border-color:var(--ink);transform:scale(1.12)}
+
+.ob-themes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:18px 0 8px}
+@media (max-width:560px){ .ob-themes{grid-template-columns:repeat(3,1fr)} }
+.ob-theme{cursor:pointer;border:2px solid transparent;border-radius:14px;padding:8px;background:var(--surface-2);
+  transition:border-color .15s ease, transform .15s ease}
+.ob-theme:hover{transform:translateY(-2px)}
+.ob-theme.on{border-color:var(--green)}
+.ob-theme .theme-name{font-size:11px;font-weight:700;margin-top:6px;color:var(--ink-2)}
+
+.ob-feats{display:flex;flex-direction:column;gap:12px;margin:18px 0 8px;text-align:left}
+.ob-feat{display:flex;gap:12px;align-items:flex-start;background:var(--surface-2);border-radius:16px;padding:13px 15px}
+.of-ic{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:none}
+.of-ic svg{width:19px;height:19px}
+.of-t{font-weight:800;font-size:13.5px}
+.of-d{font-size:12.5px;color:var(--ink-2);margin-top:2px;line-height:1.5}
+
+.ob-steps{display:flex;flex-direction:column;gap:9px;margin:16px auto 12px;max-width:420px;text-align:left}
+.ob-step{display:flex;gap:11px;align-items:center;background:var(--surface-2);border-radius:13px;padding:10px 13px}
+.ob-step b{width:24px;height:24px;border-radius:50%;background:var(--green-soft);color:var(--green-deep);
+  display:flex;align-items:center;justify-content:center;font-size:12px;flex:none}
+.ob-step span{font-size:12.5px;color:var(--ink-2);line-height:1.45}
+.ob-step code{background:var(--surface-3);border-radius:5px;padding:1px 5px;font-size:11.5px}
+
+.ob-link-status{display:inline-flex;align-items:center;gap:8px;background:var(--surface-2);
+  border-radius:999px;padding:8px 16px;font-size:12.5px;color:var(--ink-2);margin-top:4px}
+.ob-link-status.ok .ob-dot{background:var(--green)}
+.ob-link-status.no .ob-dot{background:var(--yellow)}
+.ob-dot{width:9px;height:9px;border-radius:50%;background:var(--ink-4);display:inline-block;flex:none;
+  animation:ob-pulse 2s infinite}
+@keyframes ob-pulse{0%,100%{box-shadow:0 0 0 0 rgba(124,213,110,.4)}50%{box-shadow:0 0 0 5px rgba(124,213,110,0)}}
+
+.ob-actions{display:flex;gap:10px;justify-content:center;align-items:center;margin-top:22px}
+.ob-actions.center{justify-content:center}
+.ob-dots{display:flex;gap:6px;justify-content:center;margin-top:20px}
+.ob-dots i{width:7px;height:7px;border-radius:50%;background:var(--line-strong);display:block;transition:all .2s ease}
+.ob-dots i.done{background:var(--ink-4)}
+.ob-dots i.on{background:var(--green);width:20px;border-radius:999px}
+
+/* ---------------- browser link status on Timeless ---------------- */
+.ext-card .ec-d{font-size:12px;color:var(--ink-2);line-height:1.55;margin-top:2px}
+.ext-card .ec-d .ob-dot{margin-right:6px;vertical-align:0}
+.ext-card.ok .ec-ic{background:var(--green-soft);color:var(--green-deep)}
+
+/* ---------------- reliability: crash & bugs ---------------- */
+.ok-line{display:flex;align-items:center;gap:8px;color:var(--green-deep);font-size:13px;font-weight:600;
+  padding:8px 2px}
+.ok-line svg{width:16px;height:16px}
+.crash-item{border:1px solid var(--line);border-radius:12px;margin-bottom:8px;overflow:hidden}
+.crash-item summary{display:flex;align-items:center;gap:10px;padding:10px 13px;cursor:pointer;
+  font-size:12.5px;background:var(--surface-2);list-style:none}
+.crash-item summary::-webkit-details-marker{display:none}
+.crash-item summary:hover{background:var(--surface-3)}
+.crash-pre{margin:0;padding:12px 14px;font-size:11.5px;line-height:1.55;overflow-x:auto;
+  font-family:ui-monospace,'Cascadia Code',Consolas,monospace;background:var(--surface);
+  max-height:260px;overflow-y:auto;white-space:pre-wrap}
+
+/* textarea tweak used by bug form */
+textarea.input{resize:vertical;min-height:64px;font-family:inherit}

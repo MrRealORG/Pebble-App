@@ -1,0 +1,513 @@
+#!/usr/bin/env python3
+"""Regenerate renderer/js/25-timeless.js safely.
+@@LBH@@ placeholders expand to [h (the transport layer strips literal [h)."""
+import subprocess
+
+LB = chr(91)
+CONTENT = r'''/* ============================================================
+   Pebble 3.2 — 25-timeless.js
+   Timeless: SYSTEM-WIDE app & site time tracking.
+   - every real app on your PC (Explorer, Edge, Chrome, Firefox,
+     Brave, IDEs, terminals...) via the native foreground watcher
+   - browser sites auto-detected (native URL guess + extension)
+   - REAL app icons extracted from the exe (native) + favicons
+   - auto-categorization with 100+ built-in rules, re-classable
+   - live "connected to your browser" status
+   ============================================================ */
+(function(NX){
+'use strict';
+const { h, q, qa, util:U, icon } = NX;
+
+const CATS = {
+  prod:  { l:'Productive',  cls:'cat-prod',  pill:'green' },
+  neut:  { l:'Neutral',     cls:'cat-neut',  pill:'yellow' },
+  distr: { l:'Distraction', cls:'cat-distr', pill:'red' }
+};
+let currentFilter = 'all', currentKind = 'all';
+
+/* ---------------- real icon engine ---------------- */
+const _iconCache = new Map();      // key -> html (<img>) or null
+
+function faviconHTML(host){
+  const url = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(host) + '&sz=64';
+  return `<img class="ar-img" src="${url}" alt="" onerror="this.parentNode.textContent='${U.esc(host.slice(0,1).toUpperCase())}'">`;
+}
+
+function iconHTML(key, rec){
+  if(rec.isSite){ return `<span class="ar-ic" style="background:var(--surface-3);color:var(--ink-2)">${faviconHTML(key)}</span>`; }
+  if(_iconCache.has(key)) return _iconCache.get(key) || '';
+  const placeholder = `<span class="ar-ic" style="background:${U.colorFor(rec.name)}">${U.initials(rec.name)}</span>`;
+  _iconCache.set(key, null);      // in-flight marker
+  (async ()=>{
+    try{
+      const r = await NX.native.appIcon(rec.exe || rec.path || '', rec.name || '');
+      const el = q(`.app-row[data-k="${CSS.escape(key)}"] .ar-ic`);
+      if(r && r.ok && r.url){
+        const html = `<span class="ar-ic real"><img class="ar-img" src="${r.url}" alt=""></span>`;
+        _iconCache.set(key, html);
+        if(el) el.outerHTML = html;
+      } else {
+        _iconCache.set(key, placeholder);
+      }
+    }catch(e){ _iconCache.delete(key); }
+  })();
+  return placeholder;
+}
+
+/* ---------------- tracking engine ---------------- */
+const tracker = {
+  live: { app:'Pebble', cat:'prod', isSite:false, started:Date.now(), url:'', iconKey:'' },
+  lastTick: Date.now(),
+  nativeOk: false,
+
+  classify(name){
+    const rules = NX.store.get('rules', []);
+    const n = String(name||'').toLowerCase();
+    for(const r of rules){ if(n.includes(r.match.toLowerCase())) return r.cat; }
+    return 'neut';
+  },
+
+  addRule(match, cat){
+    const rules = NX.store.get('rules', []);
+    const ex = rules.find(r=>r.match.toLowerCase() === match.toLowerCase());
+    if(ex) ex.cat = cat; else rules.push({ match, cat });
+    NX.store.set('rules', rules);
+  },
+
+  currentWindow(){
+    return new Promise(resolve=>{
+      if(NX.native.available && NX.native.mode === 'tauri'){
+        NX.native.activeWindow().then(w=>{
+          if(w && w.name) resolve(w);
+          else resolve(null);
+        }).catch(()=>resolve(null));
+      } else resolve(null);
+    });
+  },
+
+  bump(name, sec, isSite, meta){
+    const today = U.todayKey();
+    const all = NX.store.get('timeless', {});
+    const day = all[today] = all[today] || {};
+    const key = String(name).toLowerCase();
+    const rec = day[key] = day[key] || { name, cat:this.classify(name), sec:0, isSite:!!isSite };
+    rec.cat = this.classify(name);          // re-classify live when rules change
+    rec.sec += sec;
+    rec.last = Date.now();
+    rec.isSite = !!isSite;
+    if(meta && meta.path) rec.exe = meta.path;
+    else if(meta && meta.exe) rec.exe = meta.exe;
+    const hr = new Date().getHours();
+    day.__hours = day.__hours || {};
+    day.__hours@@LBH@@r] = (day.__hours@@LBH@@r] || 0) + sec;
+    NX.store.set('timeless', all);   // sync write keeps totals/live UI exact
+  },
+
+  start(){
+    setInterval(async ()=>{
+      const now = Date.now();
+      const dt = Math.min(10, Math.round((now - this.lastTick)/1000));
+      this.lastTick = now;
+      if(document.hidden) return;                       // don't count background time
+      const w = await this.currentWindow();
+      if(w){
+        this.nativeOk = true;
+        const lower = String(w.name||'').toLowerCase();
+        const isBrowser = ['chrome','msedge','edge','firefox','brave','opera','vivaldi','arc'].some(b=>lower.includes(b));
+        if(isBrowser && w.url){
+          // the site gets the time — the browser itself is just the shell
+          const host = String(w.url).replace(/^www\./,'');
+          this.live = { app:host, cat:this.classify(host), isSite:true, started:this.live.started, url:w.url, iconKey:host };
+          this.bump(host, dt, true, { exe:w.path, exeName:w.exe });
+        } else {
+          this.live = { app:w.name, cat:this.classify(w.name), isSite:false, started:this.live.started, url:'', iconKey:w.name };
+          this.bump(w.name, dt, false, { exe:w.exe, path:w.path });
+        }
+      } else {
+        const route = NX.router.currentName;
+        const label = 'Pebble — ' + (NX.router.routes[route] ? (NX.router.routes[route].title || route) : route);
+        this.live = { app: label, cat:'prod', isSite:false, started:this.live.started, url:'', iconKey:'' };
+        this.bump(label, dt, false);
+      }
+      NX.events.emit('timeless:tick');
+    }, 2000);
+  }
+};
+NX.timeless = tracker;
+
+function dayData(offset=0){
+  return NX.store.get('timeless', {})[U.todayKey(new Date(Date.now()-offset*86400e3))] || {};
+}
+function totals(){
+  const d = dayData();
+  let prod=0, neut=0, distr=0;
+  Object.entries(d).forEach(([k,a])=>{
+    if(k==='__hours' || !a || !a.sec) return;
+    if(a.cat==='prod') prod+=a.sec; else if(a.cat==='distr') distr+=a.sec; else neut+=a.sec;
+  });
+  return { prod, neut, distr, total:prod+neut+distr };
+}
+function score(){ const t = totals(); return Math.round(t.prod / Math.max(1, t.prod + t.distr) * 100); }
+NX.totals = totals;
+
+/* ---------------- pomodoro ---------------- */
+const pomo = {
+  st:null, timer:null,
+  start(){ this.st = { mode:'focus', left: (NX.store.get('pomo',{}).len||25)*60, running:true };
+    clearInterval(this.timer);
+    this.timer = setInterval(()=>this.tick(), 1000);
+    NX.events.emit('pomo:changed'); NX.sfx.play('ok');
+  },
+  pause(){ if(this.st){ this.st.running = !this.st.running; NX.events.emit('pomo:changed'); } },
+  reset(){ clearInterval(this.timer); this.st = null; NX.events.emit('pomo:changed'); },
+  tick(){
+    if(!this.st || !this.st.running) return;
+    this.st.left--;
+    if(this.st.left <= 0){
+      const cfg = NX.store.get('pomo', { len:25, breakLen:5 });
+      if(this.st.mode === 'focus'){
+        const stats = NX.store.get('pomoStats', { done:0 }); stats.done++; NX.store.set('pomoStats', stats);
+        NX.native.notify({ title:'🍅 Pomodoro done!', body: cfg.breakLen + ' min break — you earned it.' });
+        NX.pushNotif('Pomodoro complete', 'Take a ' + cfg.breakLen + ' min break', 'clock');
+        NX.confetti(innerWidth/2, 120);
+        this.st = { mode:'break', left: (cfg.breakLen||5)*60, running:true };
+      } else {
+        NX.native.notify({ title:'Break over', body:'Back to ' + (cfg.len||25) + ' minutes of deep focus.' });
+        NX.pushNotif('Break over', 'Round ' + (NX.store.get('pomoStats',{done:0}).done+1) + ' — go!', 'clock');
+        this.st = { mode:'focus', left: (cfg.len||25)*60, running:true };
+      }
+      NX.sfx.play('timer');
+    }
+    NX.events.emit('pomo:changed');
+  }
+};
+NX.pomo = pomo;
+
+/* ---------------- browser link status card ---------------- */
+function extStatusHTML(st){
+  if(!NX.native.available || NX.native.mode !== 'tauri'){
+    return `<span class="ob-dot"></span> Desktop mode only — the extension links when Pebble runs as an app`;
+  }
+  if(st.connected){
+    const ago = st.lastSeen ? U.relTime(st.lastSeen*1000) : 'just now';
+    return `<span class="ob-dot"></span> <b>Connected to your browser</b> · ${st.extSessions||0} tab sessions today · last ping ${U.esc(ago)}${st.queued?` · ${st.queued} queued`:''}`;
+  }
+  return `<span class="ob-dot"></span> <b>Not connected</b> — load the Pebble Timeless extension to stream tab time here`;
+}
+
+/* ---------------- module page ---------------- */
+NX.routeInShell('timeless', 'Timeless', 'clock', function(view){
+  view.innerHTML = `<div class="page" id="tl-page"></div>`;
+  renderPage(view);
+
+  const off = NX.events.on('timeless:tick', ()=>{
+    const live = q('#tl-live-name', view);
+    if(live){
+      live.textContent = tracker.live.app;
+      const tEl = q('#tl-live-time', view); if(tEl) tEl.textContent = U.fmtClock((Date.now()-tracker.live.started)/1000);
+      const pEl = q('#tl-live-pill', view);
+      if(pEl){ pEl.className = 'pill ' + CATS[tracker.live.cat].pill; pEl.textContent = CATS[tracker.live.cat].l; }
+      const ic = q('#tl-live-ic', view);
+      if(ic && tracker.live.iconKey !== ic.dataset.k){
+        ic.dataset.k = tracker.live.iconKey;
+        ic.outerHTML = tracker.live.isSite
+          ? `<span class="ar-ic real" id="tl-live-ic" data-k="${U.esc(tracker.live.iconKey)}" style="background:var(--surface-3)">${faviconHTML(tracker.live.iconKey)}</span>`
+          : `<span class="ar-ic real" id="tl-live-ic" data-k="${U.esc(tracker.live.iconKey)}" style="background:${U.colorFor(tracker.live.app)}">${U.initials(tracker.live.app)}</span>`;
+        if(!tracker.live.isSite && NX.native.available && NX.native.mode === 'tauri'){
+          const day = dayData();
+          const meta = day@@LBH@@tracker.live.app.toLowerCase()];
+          const target = q('#tl-live-ic', view);
+          if(target && meta && (meta.exe || meta.path)){
+            NX.native.appIcon(meta.exe || meta.path || '', tracker.live.app).then(r=>{
+              const t2 = q('#tl-live-ic', view);
+              if(t2 && r && r.ok && r.url) t2.innerHTML = `<img class="ar-img" src="${r.url}" alt="">`;
+            }).catch(()=>{});
+          }
+        }
+      }
+      const sc = q('#tl-score-num', view);
+      if(sc){ sc.textContent = score() + '%'; }
+    }
+  });
+  const offP = NX.events.on('pomo:changed', ()=>renderPomo(view));
+  const offE = NX.events.on('ext:connected', ()=>{
+    const el = q('#tl-ext-status', view);
+    if(el){ el.classList.add('ok'); renderExtStatus(view); }
+  });
+  const extTimer = setInterval(()=>renderExtStatus(view), 5000);
+  view._cleanup = ()=>{ off(); offP(); offE(); clearInterval(extTimer); };
+}, function(){ /* onMount */ });
+
+function renderExtStatus(view){
+  const el = q('#tl-ext-status', view); if(!el) return;
+  const st = NX.extsync ? NX.extsync.status() : { connected:false };
+  el.classList.toggle('ok', !!st.connected);
+  el.innerHTML = extStatusHTML(st);
+}
+
+function renderPage(view){
+  const page = q('#tl-page', view);
+  const t = totals(), s = score();
+  const set = NX.store.get('settings', {});
+  const goalMin = set.focusGoalMin || 240;
+  const distLimit = set.distractionLimitMin || 120;
+
+  const goalPct = Math.min(100, Math.round((t.prod/60)/goalMin*100));
+  const distPct = Math.min(100, Math.round((t.distr/60)/distLimit*100));
+
+  page.innerHTML = `
+  <div class="card stat-strip anim-in">
+    <div class="stat"><div class="tile">${icon('target')}</div>
+      <div><div class="s-label">Focus score</div><div class="s-num" id="tl-score-num">${s}%</div></div>
+      <span class="pill ${s>=70?'green':s>=40?'yellow':'red'}" style="margin-left:auto">${s>=70?'On track':s>=40?'Keep going':'Red flag'}</span></div>
+    <div class="stat"><div class="tile">${icon('clock')}</div>
+      <div><div class="s-label">Productive</div><div class="s-num">${U.fmtTime(t.prod)}</div></div></div>
+    <div class="stat"><div class="tile">${icon('eye')}</div>
+      <div><div class="s-label">Distraction</div><div class="s-num">${U.fmtTime(t.distr)}</div></div>
+      <span class="delta ${distPct>=100?'down':'up'}" style="margin-left:auto">${distPct}% of limit</span></div>
+    <div class="stat"><div class="tile">${icon('activity')}</div>
+      <div><div class="s-label">Tracked today</div><div class="s-num">${U.fmtTime(t.total)}</div></div></div>
+  </div>
+
+  <div class="tl-grid">
+    <div class="tl-col">
+      <div class="live-session anim-in" style="animation-delay:.04s">
+        <span class="ar-ic" id="tl-live-ic" data-k="" style="background:${U.colorFor(tracker.live.app)}">${U.initials(tracker.live.app)}</span>
+        <div><div class="ls-name" id="tl-live-name">${U.esc(tracker.live.app)}</div>
+          <div class="ls-sub">Detected automatically — every app on this PC, every site you visit</div></div>
+        <div style="text-align:right">
+          <span class="pill" id="tl-live-pill">${CATS[tracker.live.cat].l}</span>
+          <div class="ls-time" id="tl-live-time">${U.fmtClock((Date.now()-tracker.live.started)/1000)}</div>
+        </div>
+      </div>
+
+      <div class="card anim-in" style="animation-delay:.08s">
+        <div class="card-h"><div class="tile sm">${icon('layers')}</div>
+          <div><div class="c-title">Apps & sites today</div><div class="c-sub">Real icons · auto-detected · re-categorize anytime</div></div>
+          <div class="spacer"></div>
+          <div id="tl-kind-seg"></div></div>
+        <div class="card-b" style="padding-top:8px">
+          <div class="todo-filters" id="tl-filters" style="margin-bottom:6px"></div>
+          <div class="tl-cat-legend" style="margin-bottom:8px">
+            <span class="lg"><i class="cat-prod"></i> Productive</span>
+            <span class="lg"><i class="cat-neut"></i> Neutral</span>
+            <span class="lg"><i class="cat-distr"></i> Distraction</span>
+          </div>
+          <div id="tl-apps"></div>
+        </div>
+      </div>
+
+      <div class="card anim-in" style="animation-delay:.12s">
+        <div class="card-h"><div class="tile sm">${icon('activity')}</div>
+          <div><div class="c-title">Activity by hour</div><div class="c-sub">Where the day actually went</div></div></div>
+        <div class="card-b"><div id="tl-hours" style="display:flex;align-items:flex-end;gap:6px;height:120px"></div></div>
+      </div>
+    </div>
+
+    <div class="tl-col">
+      <div class="card anim-in" style="animation-delay:.05s">
+        <div class="card-h"><div class="tile sm">${icon('clock')}</div>
+          <div><div class="c-title">Pomodoro</div><div class="c-sub" id="pomo-state-sub"></div></div></div>
+        <div class="pomo-timer" id="pomo-box"></div>
+      </div>
+
+      <div class="card anim-in" style="animation-delay:.1s">
+        <div class="card-h"><div class="tile sm">${icon('target')}</div>
+          <div><div class="c-title">Goals</div><div class="c-sub">Daily focus & distraction limits</div></div></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:12px">
+          <div><div class="row small bold" style="justify-content:space-between;margin-bottom:5px"><span>Focus goal · ${goalMin} min</span><span class="mono-num">${Math.round(t.prod/60)} min</span></div>
+            <div class="meter"><i style="width:${goalPct}%"></i></div></div>
+          <div><div class="row small bold" style="justify-content:space-between;margin-bottom:5px"><span>Distraction limit · ${distLimit} min</span><span class="mono-num">${Math.round(t.distr/60)} min</span></div>
+            <div class="meter"><i style="width:${distPct}%;background:${distPct>=100?'var(--red)':'var(--yellow)'}"></i></div></div>
+          <button class="btn btn-soft btn-sm" id="tl-goal-edit">${icon('edit')} Adjust goals</button>
+        </div>
+      </div>
+
+      <div class="card anim-in" style="animation-delay:.15s">
+        <div class="card-h"><div class="tile sm">${icon('filter')}</div>
+          <div><div class="c-title">App rules</div><div class="c-sub">Which apps count as what</div></div>
+          <div class="spacer"></div><button class="btn btn-soft btn-sm" id="tl-rule-add">+ Rule</button></div>
+        <div class="card-b" id="tl-rules" style="padding-top:8px"></div>
+      </div>
+
+      <div class="ext-card anim-in ${NX.extsync && NX.extsync.status().connected ? 'ok':''}" style="animation-delay:.2s">
+        <div class="ec-ic">${icon('chrome')}</div>
+        <div style="min-width:0"><div class="ec-t">Browser link</div>
+          <div class="ec-d" id="tl-ext-status"></div>
+          <div class="ec-d faint">Install: <code>chrome://extensions</code> → Developer mode → <b>Load unpacked</b> → the <code>extension</code> folder. Sends tab time + lets you add tasks, notes & messages from your browser.</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+
+  renderExtStatus(view);
+
+  /* kind segment */
+  const seg = NX.seg([{v:'all',l:'All'},{v:'app',l:'Apps'},{v:'site',l:'Sites'}], 'all', v=>{ currentKind = v; renderApps(view); });
+  q('#tl-kind-seg', page).appendChild(seg);
+
+  /* filters (3 nature filters) */
+  function renderFilters(){
+    const f = q('#tl-filters', page);
+    const d = dayData();
+    const counts = { all:0, prod:0, neut:0, distr:0 };
+    Object.entries(d).forEach(([k,a])=>{ if(k==='__hours'||!a||!a.sec) return; counts.all++; counts[a.cat]++; });
+    f.innerHTML = [['all','Everyone'],['prod','Productive'],['neut','Neutral'],['distr','Distraction']].map(([v,l])=>
+      `<button class="chip ${currentFilter===v?'active':''}">${l} <span class="n">${counts[v]}</span></button>`).join('');
+    qa('.chip', f).forEach((b,i)=>b.onclick = ()=>{ currentFilter = ['all','prod','neut','distr'][i]; renderFilters(); renderApps(page); });
+  }
+
+  function renderApps(view2){
+    const host = q('#tl-apps', page); if(!host) return;
+    const d = dayData();
+    const items = Object.entries(d).filter(([k,a])=>k!=='__hours' && a && a.sec>=3)
+      .filter(([k,a])=>currentFilter==='all' || a.cat===currentFilter)
+      .filter(([k,a])=>currentKind==='all' || (currentKind==='site' ? a.isSite : !a.isSite))
+      .sort((a,b)=>b[1].sec-a[1].sec);
+    const max = Math.max(1, ...items.map(x=>x[1].sec));
+    const total = Math.max(1, items.reduce((s,x)=>s+x[1].sec, 0));
+    if(!items.length){
+      host.innerHTML = `<div class="empty" style="padding:26px"><div class="e-title">No data yet</div><div class="e-sub">Keep Pebble open — every app and site you use will appear here automatically, with real icons.</div></div>`;
+      return;
+    }
+    host.innerHTML = items.map(([k,a])=>`
+      <div class="app-row" data-k="${U.esc(k)}">
+        ${iconHTML(k, a)}
+        <div style="min-width:0;width:150px"><div class="ar-name">${U.esc(a.name)}</div>
+          <div class="ar-cat">${a.isSite?'Site':'App'} · <span class="pill ${CATS[a.cat].pill}" style="height:16px;font-size:9.5px">${CATS[a.cat].l}</span></div></div>
+        <div class="ar-bar meter"><i style="width:${Math.round(a.sec/max*100)}%;background:${a.cat==='prod'?'var(--green)':a.cat==='distr'?'var(--red)':'var(--yellow)'}"></i></div>
+        <span class="ar-pct">${Math.round(a.sec/total*100)}%</span>
+        <span class="ar-time">${U.fmtTime(a.sec)}</span>
+        <button class="icon-btn sm" data-re="${U.esc(k)}" data-tip="Re-categorize / link">${icon('dots')}</button>
+      </div>`).join('');
+    qa('[data-re]', host).forEach(b=>{
+      b.onclick = (e)=>{
+        const key = b.dataset.re, a = dayData()[key];
+        NX.menu(e.currentTarget, [
+          { label:'Count as Productive', icon:'check', onClick:()=>setCat(key,'prod') },
+          { label:'Count as Neutral', icon:'eye', onClick:()=>setCat(key,'neut') },
+          { label:'Count as Distraction', icon:'eye', onClick:()=>setCat(key,'distr') },
+          '-',
+          { label:'Always this way (add rule)', icon:'filter', onClick:()=>{ tracker.addRule(key, a.cat); renderRules(); NX.toastOk('Rule saved', `"${key}" → ${CATS[a.cat].l}`); } },
+          { label:'Link to a task…', icon:'todo', onClick:()=>linkToTask(key, a.sec) },
+        ]);
+      };
+    });
+  }
+  NX._tlRenderApps = ()=>renderApps(page);
+
+  function setCat(key, cat){
+    const all = NX.store.get('timeless', {});
+    const d = all[U.todayKey()];
+    if(d && d[key]){ d[key].cat = cat; NX.store.set('timeless', all); }
+    renderApps(page); renderFilters();
+    NX.sfx.play('pop');
+  }
+
+  function linkToTask(key, sec){
+    const open = NX.store.get('tasks', []).filter(t=>!t.done);
+    if(!open.length){ NX.toastInfo('No open tasks', 'Add a task first, then link time to it.'); return; }
+    const body = h(`<div class="field"><label>Link ${U.fmtTime(sec)} of “${U.esc(key)}” to…</label>
+      <select class="select">${open.map(t=>`<option value="${t.id}">${U.esc(t.name)}</option>`).join('')}</select></div>`);
+    NX.modal({ title:'Link time to task', icon:'clock', body, footer:[
+      { label:'Cancel', cls:'btn-soft' },
+      { label:'Link', cls:'btn-green', onClick:()=>{
+          const sel = q('select', body).value;
+          const sess = NX.store.get('sessions', []);
+          sess.push({ id:U.uid('se'), date:U.todayKey(), app:key, cat:dayData()[key].cat, sec, taskId:sel, ts:Date.now() });
+          NX.store.set('sessions', sess);
+          NX.closeAllModals(); NX.toastOk('Linked', 'Open Tasks to see linked time');
+        } }
+    ]});
+  }
+
+  function renderRules(){
+    const host = q('#tl-rules', page); if(!host) return;
+    const rules = NX.store.get('rules', []);
+    host.innerHTML = rules.slice(0, 12).map((r,i)=>`
+      <div class="rule-row">
+        <code class="small bold" style="min-width:110px">${U.esc(r.match)}</code>
+        <span class="pill ${CATS[r.cat].pill}">${CATS[r.cat].l}</span>
+        <span style="flex:1"></span>
+        <button class="icon-btn sm" data-del="${i}" style="color:var(--ink-3)">${icon('trash')}</button>
+      </div>`).join('') || '<div class="faint small" style="padding:6px 0">No rules yet — defaults are preloaded.</div>';
+    qa('[data-del]', host).forEach(b=>b.onclick = ()=>{
+      const rules2 = NX.store.get('rules', []); rules2.splice(+b.dataset.del,1); NX.store.set('rules', rules2); renderRules();
+    });
+  }
+
+  q('#tl-rule-add', page).onclick = ()=>{
+    const body = h(`<div>
+      <div class="field" style="margin-bottom:10px"><label>Match (app or site name contains…)</label><input class="input" id="nr-match" placeholder="e.g. figma"></div>
+      <div class="field"><label>Counts as</label><select class="select" id="nr-cat">
+        <option value="prod">Productive</option><option value="neut">Neutral</option><option value="distr">Distraction</option></select></div>
+    </div>`);
+    NX.modal({ title:'New rule', icon:'filter', body, footer:[
+      { label:'Cancel', cls:'btn-soft' },
+      { label:'Save rule', cls:'btn-green', onClick:()=>{
+          const m = q('#nr-match', body).value.trim(); if(!m) return;
+          tracker.addRule(m, q('#nr-cat', body).value);
+          NX.closeAllModals(); renderRules(); NX.toastOk('Rule saved', m);
+        } }
+    ]});
+  };
+
+  q('#tl-goal-edit', page).onclick = ()=>{
+    const s2 = NX.store.get('settings', {});
+    const body = h(`<div>
+      <div class="field" style="margin-bottom:10px"><label>Daily focus goal (minutes)</label><input class="input" id="fg" type="number" min="30" max="900" value="${s2.focusGoalMin||240}"></div>
+      <div class="field"><label>Daily distraction limit (minutes)</label><input class="input" id="dg" type="number" min="15" max="600" value="${s2.distractionLimitMin||120}"></div>
+    </div>`);
+    NX.modal({ title:'Adjust goals', icon:'target', body, footer:[
+      { label:'Cancel', cls:'btn-soft' },
+      { label:'Save', cls:'btn-green', onClick:()=>{
+          s2.focusGoalMin = U.clamp(+q('#fg', body).value||240, 30, 900);
+          s2.distractionLimitMin = U.clamp(+q('#dg', body).value||120, 15, 600);
+          NX.store.set('settings', s2); NX.closeAllModals(); renderPage(view);
+        } }
+    ]});
+  };
+
+  /* hours chart */
+  function renderHours(){
+    const host = q('#tl-hours', page); if(!host) return;
+    const slots = dayData().__hours || {};
+    const cols = [];
+    for(let hh=0; hh<24; hh+=2){ cols.push({ h:hh, v: slots@@LBH@@hh]+(slots@@LBH@@hh+1]||0) }); }
+    const max = Math.max(60, ...cols.map(c=>c.v));
+    const has = Object.keys(slots).length > 0;
+    host.innerHTML = cols.map(c=>`<div class="bar-col" data-tip="${String(c.h).padStart(2,'0')}:00 — ${U.fmtTime(c.v)}">
+      <div class="bar ${c.v===Math.max(...cols.map(x=>x.v))&&c.v>0?'hot':''}" style="height:${has? Math.max(4, c.v/max*100) : 6}%;opacity:${has?1:.4}"></div>
+      <div class="bar-label">${String(c.h).padStart(2,'0')}</div></div>`).join('');
+  }
+
+  function renderPomo(view2){
+    const box = q('#pomo-box', page); if(!box) return;
+    const st = pomo.st;
+    q('#pomo-state-sub', page).textContent = st ? (st.mode==='focus'?'Deep work round':'Break time') : '25 / 5 classic — press start';
+    box.innerHTML = `
+      <div class="pomo-clock">${U.fmtClock(st ? st.left : (NX.store.get('pomo',{}).len||25)*60)}</div>
+      <div class="pomo-state">${st ? (st.running ? st.mode : 'paused') : 'ready'}</div>
+      <div class="row gap-8">
+        ${st? `<button class="btn btn-soft" id="pomo-pause">${icon(st.running?'pause':'play')} ${st.running?'Pause':'Resume'}</button>
+               <button class="btn btn-soft" id="pomo-reset">Reset</button>`
+             : `<button class="btn btn-green" id="pomo-start">${icon('play')} Start focus</button>`}
+      </div>
+      <div class="faint tiny">${NX.store.get('pomoStats',{done:0}).done} rounds completed all-time</div>`;
+    const b1 = q('#pomo-start', box) || q('#pomo-pause', box);
+    if(b1) b1.onclick = ()=> st ? pomo.pause() : pomo.start();
+    const b2 = q('#pomo-reset', box);
+    if(b2) b2.onclick = ()=>pomo.reset();
+  }
+  NX._tlRenderPomo = ()=>renderPomo(page);
+
+  renderFilters(); renderApps(page); renderHours(); renderRules(); renderPomo(page);
+});
+})(window.NX);
+'''
+
+out = CONTENT.replace('@@LBH@@', LB)
+p = '/home/z/my-project/renderer/js/25-timeless.js'
+open(p, 'w', encoding='utf-8').write(out)
+r = subprocess.run(['node', '--check', p], capture_output=True, text=True)
+print('node --check:', 'OK' if r.returncode == 0 else r.stderr[:600])

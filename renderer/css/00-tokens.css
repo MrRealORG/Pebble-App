@@ -1,0 +1,174 @@
+/* ============================================================
+   Pebble 3.0 — Design Tokens (Elera-grade design system)
+   Light theme = default, mirrors nazday-elera reference.
+   ============================================================ */
+:root{
+  /* surfaces */
+  --bg:#F6F5F3;            /* app background  */
+  --surface:#FFFFFF;       /* cards */
+  --surface-2:#F1F0ED;     /* wells, column containers */
+  --surface-3:#EBEAE6;     /* hover wells */
+  --line:#EBEAE6;          /* hairlines */
+  --line-strong:#E0DFDA;
+
+  /* ink */
+  --ink:#121212;
+  --ink-2:#5C5E63;
+  --ink-3:#8B8D93;
+  --ink-4:#B4B6BB;
+
+  /* brand green */
+  --green:#7CD56E;
+  --green-hover:#6FCB61;
+  --green-deep:#3E9E33;
+  --green-ink:#1E4B16;
+  --green-soft:#EAF8E6;
+  --green-ring:rgba(124,213,110,.35);
+
+  /* dark icon tiles (stat strip / card headers) */
+  --tile:#262624;
+  --tile-ink:#F6F5F3;
+
+  /* accents */
+  --blue:#3E7BFA;      --blue-soft:#E7F0FD;
+  --red:#E25C4A;       --red-soft:#FDEAE7;
+  --yellow:#B98900;    --yellow-soft:#FFF4D6;
+  --teal:#0FA3A3;      --teal-soft:#E0F5F5;
+  --purple:#8B5CF6;    --purple-soft:#F1EAFE;
+  --pink:#E05C9C;      --pink-soft:#FCE7F2;
+  --orange:#E8853D;    --orange-soft:#FDEEDF;
+
+  /* dark card (heatmap etc.) */
+  --dark-card:#2B2B28;
+  --dark-card-2:#35352F;
+
+  /* black action button (+ New) */
+  --btn-dark:#1D1D1B;
+  --btn-dark-hover:#111110;
+
+  /* geometry */
+  --r-lg:20px;
+  --r-md:14px;
+  --r-sm:10px;
+  --r-pill:999px;
+
+  /* elevation */
+  --sh-card:0 1px 2px rgba(18,18,18,.04), 0 4px 14px rgba(18,18,18,.04);
+  --sh-pop:0 12px 40px rgba(18,18,18,.14), 0 2px 8px rgba(18,18,18,.06);
+  --sh-login:0 24px 80px rgba(18,18,18,.22);
+
+  /* metrics */
+  --sidebar-w:244px;
+  --sidebar-mini:68px;
+  --topbar-h:64px;
+
+  --font:'Inter Variable',Inter,-apple-system,'Segoe UI',Roboto,'Noto Sans SC',sans-serif;
+}
+
+/* ================= THEME ENGINE =================
+   each theme overrides tokens; structure never changes */
+[data-theme="pebble-dark"]{
+  --bg:#161614; --surface:#1F1F1D; --surface-2:#262624; --surface-3:#2D2D2A;
+  --line:#2C2C29; --line-strong:#383835;
+  --ink:#F4F4F2; --ink-2:#A8AAA9; --ink-3:#7E807F; --ink-4:#55575A;
+  --tile:#F4F4F2; --tile-ink:#1B1B19;
+  --green:#7CD56E; --green-soft:#20301C; --green-ink:#9FE795;
+  --btn-dark:#F4F4F2; --btn-dark-hover:#ffffff;
+  --dark-card:#111110; --dark-card-2:#1C1C1A;
+  --blue-soft:#16233A; --red-soft:#3A211D; --yellow-soft:#33290F; --teal-soft:#0E2C2C;
+  --purple-soft:#241A38; --pink-soft:#331C28; --orange-soft:#33230F;
+  --sh-card:0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.25);
+  --sh-pop:0 12px 40px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.3);
+}
+[data-theme="midnight"]{
+  --bg:#0B1020; --surface:#111730; --surface-2:#161D3A; --surface-3:#1C2444;
+  --line:#1E2646; --line-strong:#283156;
+  --ink:#EAEFFF; --ink-2:#9AA6CC; --ink-3:#6B77A0; --ink-4:#4A5578;
+  --tile:#EAEFFF; --tile-ink:#111730;
+  --green:#5AD8A6; --green-hover:#4BCA97; --green-deep:#2FA97C; --green-soft:#12332A; --green-ink:#8FE6C4; --green-ring:rgba(90,216,166,.3);
+  --btn-dark:#EAEFFF; --btn-dark-hover:#ffffff;
+  --dark-card:#0A0E1C; --dark-card-2:#141A32;
+  --blue-soft:#16233A; --red-soft:#3A211D; --yellow-soft:#33290F; --teal-soft:#0E2C2C;
+  --purple-soft:#241A38; --pink-soft:#331C28; --orange-soft:#33230F;
+}
+[data-theme="nord"]{
+  --bg:#2E3440; --surface:#3B4252; --surface-2:#434C5E; --surface-3:#4C566A;
+  --line:#434C5E; --line-strong:#4C566A;
+  --ink:#ECEFF4; --ink-2:#C0C8D8; --ink-3:#8F9BB3; --ink-4:#6C7890;
+  --tile:#2E3440; --tile-ink:#ECEFF4;
+  --green:#A3BE8C; --green-hover:#96B27F; --green-deep:#7E9668; --green-soft:#3B4433; --green-ink:#CBDFB8;
+  --btn-dark:#2E3440; --btn-dark-hover:#3B4252;
+  --dark-card:#272C36; --dark-card-2:#333A48;
+  --blue-soft:#2E3F56; --red-soft:#4A3038; --yellow-soft:#463C2A; --teal-soft:#284048;
+  --purple-soft:#3A3352; --pink-soft:#46303E; --orange-soft:#46382A;
+}
+[data-theme="forest"]{
+  --bg:#101610; --surface:#172017; --surface-2:#1D291D; --surface-3:#243324;
+  --line:#223022; --line-strong:#2D402D;
+  --ink:#EAF4EA; --ink-2:#A5BFA5; --ink-3:#779577; --ink-4:#547054;
+  --tile:#EAF4EA; --tile-ink:#172017;
+  --green:#8FD97A; --green-soft:#1E331C; --green-ink:#B7EBA9;
+  --btn-dark:#EAF4EA; --btn-dark-hover:#ffffff;
+  --dark-card:#0C110C; --dark-card-2:#182218;
+}
+[data-theme="rose"]{
+  --bg:#FBF3F4; --surface:#FFFFFF; --surface-2:#F7EBEE; --surface-3:#F2E1E5;
+  --line:#F2E1E5; --line-strong:#EAD2D8;
+  --tile:#3B2E31; --tile-ink:#FBF3F4;
+  --green:#E8849B; --green-hover:#DD728C; --green-deep:#C25370; --green-soft:#FCE7EC; --green-ink:#9C3B55; --green-ring:rgba(232,132,155,.35);
+  --dark-card:#3B2E31; --dark-card-2:#4A3A3E;
+}
+[data-theme="ocean"]{
+  --bg:#F1F6F8; --surface:#FFFFFF; --surface-2:#E6EFF3; --surface-3:#DCE9EF;
+  --line:#DCE9EF; --line-strong:#CFE0E8;
+  --tile:#12303B; --tile-ink:#F1F6F8;
+  --green:#2EB5A0; --green-hover:#27A691; --green-deep:#1C8574; --green-soft:#DFF4F0; --green-ink:#0E5F52; --green-ring:rgba(46,181,160,.3);
+  --dark-card:#12303B; --dark-card-2:#1A4150;
+}
+[data-theme="mono"]{
+  --bg:#F4F4F4; --surface:#FFFFFF; --surface-2:#EBEBEB; --surface-3:#E0E0E0;
+  --line:#E6E6E6; --line-strong:#D9D9D9;
+  --tile:#1A1A1A; --tile-ink:#F4F4F4;
+  --green:#1A1A1A; --green-hover:#000000; --green-deep:#000000; --green-soft:#EDEDED; --green-ink:#1A1A1A; --green-ring:rgba(26,26,26,.25);
+  --dark-card:#1A1A1A; --dark-card-2:#2B2B2B;
+}
+[data-theme="sunset"]{
+  --bg:#FBF4EF; --surface:#FFFFFF; --surface-2:#F7EAE2; --surface-3:#F1DFD3;
+  --line:#F1DFD3; --line-strong:#E9D2C2;
+  --tile:#402A1E; --tile-ink:#FBF4EF;
+  --green:#F08A4B; --green-hover:#E87B3C; --green-deep:#C9622A; --green-soft:#FCEADF; --green-ink:#94490F; --green-ring:rgba(240,138,75,.3);
+  --dark-card:#402A1E; --dark-card-2:#523828;
+}
+[data-theme="candy"]{
+  --bg:#F5F2FB; --surface:#FFFFFF; --surface-2:#EDE8F8; --surface-3:#E3DBF4;
+  --line:#E7E0F5; --line-strong:#DACFEE;
+  --tile:#2E2640; --tile-ink:#F5F2FB;
+  --green:#9E7BFF; --green-hover:#8F6AF5; --green-deep:#7452DB; --green-soft:#EFE9FF; --green-ink:#4D2FA0; --green-ring:rgba(158,123,255,.3);
+  --dark-card:#2E2640; --dark-card-2:#3D3354;
+}
+[data-theme="coffee"]{
+  --bg:#F3EEE8; --surface:#FFFFFF; --surface-2:#EAE2D8; --surface-3:#E1D6C8;
+  --line:#E6DCCF; --line-strong:#DBCEBD;
+  --tile:#2E2318; --tile-ink:#F3EEE8;
+  --green:#B08954; --green-hover:#A67C45; --green-deep:#8C6236; --green-soft:#F2E7D8; --green-ink:#5E421E; --green-ring:rgba(176,137,84,.3);
+  --dark-card:#2E2318; --dark-card-2:#3D2F21;
+}
+[data-theme="slate"]{
+  --bg:#181B20; --surface:#20242B; --surface-2:#272C34; --surface-3:#2F3540;
+  --line:#2A2F38; --line-strong:#363D48;
+  --ink:#ECEEF2; --ink-2:#A6ACB8; --ink-3:#7A828F; --ink-4:#5A6270;
+  --tile:#ECEEF2; --tile-ink:#20242B;
+  --green:#8FA3BF; --green-hover:#7F96B4; --green-deep:#657C9C; --green-soft:#28303C; --green-ink:#C3D2E6;
+  --btn-dark:#ECEEF2; --btn-dark-hover:#ffffff;
+  --dark-card:#14171B; --dark-card-2:#20252D;
+}
+[data-theme="neon"]{
+  --bg:#0C0C0F; --surface:#141419; --surface-2:#1B1B22; --surface-3:#232330;
+  --line:#232330; --line-strong:#2F2F40;
+  --ink:#F2F2F7; --ink-2:#A0A0B8; --ink-3:#6F6F8A; --ink-4:#4D4D66;
+  --tile:#F2F2F7; --tile-ink:#0C0C0F;
+  --green:#5EF38C; --green-hover:#4BE97C; --green-deep:#2ED166; --green-soft:#12301C; --green-ink:#A8F7C0; --green-ring:rgba(94,243,140,.3);
+  --blue:#5EB8FF; --blue-soft:#10233A;
+  --btn-dark:#F2F2F7; --btn-dark-hover:#ffffff;
+  --dark-card:#08080A; --dark-card-2:#16161E;
+}
