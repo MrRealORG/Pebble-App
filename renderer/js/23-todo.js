@@ -189,6 +189,7 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
         <div class="mstodo-quick-add" id="mstodo-quick-bar">
           <button class="mstodo-check-btn" type="button" tabindex="-1" style="cursor:default">${icon('plus',14)}</button>
           <input id="mstodo-quick-input" placeholder="Add a task (press Enter)">
+          <button class="icon-btn sm" id="mstodo-quick-mic" data-tip="Dictate task by voice" style="color:var(--red,#ef4444)">${icon('mic',14)}</button>
           <button class="icon-btn sm" id="mstodo-quick-due" data-tip="Add due date">${icon('calendar',14)}</button>
           <button class="icon-btn sm" id="mstodo-quick-star" data-tip="Mark important">${icon('star',14)}</button>
           <button class="btn btn-green btn-sm" id="mstodo-quick-submit">Add</button>
@@ -1000,6 +1001,57 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
     if(e.key === 'Enter') submitQuickAdd();
   };
   q('#mstodo-quick-submit', view).onclick = submitQuickAdd;
+
+  const quickMicBtn = q('#mstodo-quick-mic', view);
+  if(quickMicBtn){
+    quickMicBtn.onclick = async () => {
+      const SpeechClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if(SpeechClass){
+        try {
+          const rec = new SpeechClass();
+          rec.lang = navigator.language || 'en-US';
+          quickMicBtn.style.color = '#fff';
+          quickMicBtn.style.background = 'var(--red,#ef4444)';
+          NX.sfx.play('pop');
+          NX.toastInfo('🎙️ Listening…', 'Speak your task name.');
+          rec.onresult = (e) => {
+            const val = e.results[0][0].transcript;
+            if(val && val.trim()){
+              inputEl.value = val.trim();
+              submitQuickAdd();
+            }
+          };
+          rec.onerror = () => { fallbackNativeTaskMic(); };
+          rec.onend = () => {
+            quickMicBtn.style.color = 'var(--red,#ef4444)';
+            quickMicBtn.style.background = '';
+          };
+          rec.start();
+          return;
+        } catch(e){}
+      }
+      fallbackNativeTaskMic();
+    };
+
+    async function fallbackNativeTaskMic(){
+      quickMicBtn.style.color = '#fff';
+      quickMicBtn.style.background = 'var(--red,#ef4444)';
+      NX.sfx.play('pop');
+      NX.toastInfo('🎙️ Listening via Windows Speech…', 'Speak your task.');
+      try {
+        const text = await NX.native.asrRecord(8000);
+        quickMicBtn.style.color = 'var(--red,#ef4444)';
+        quickMicBtn.style.background = '';
+        if(text && text.trim()){
+          inputEl.value = text.trim();
+          submitQuickAdd();
+        }
+      } catch(e){
+        quickMicBtn.style.color = 'var(--red,#ef4444)';
+        quickMicBtn.style.background = '';
+      }
+    }
+  }
 
   q('#mstodo-quick-due', view).onclick = () => {
     const today = U.todayKey();

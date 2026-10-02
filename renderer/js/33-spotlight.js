@@ -32,7 +32,7 @@ function openSpotlight(){
           <span><b>↑↓</b> Navigate</span>
           <span><b>ESC</b> Close</span>
         </div>
-        <div>Prefixes: <code>t</code> task · <code>n</code> note · <code>?</code> AI</div>
+        <div>Prefixes: <code>t</code> task · <code>n</code> note · <code>?</code> AI · <code>v</code> voice</div>
       </div>
     </div>
   </div>`);
@@ -95,6 +95,51 @@ function openSpotlight(){
       close();
       if(NX.openAskPebble) NX.openAskPebble(query.trim());
       else NX.router.go('ai');
+    } else if(mode === 'voice'){
+      close();
+      NX.router.go('notes');
+      setTimeout(async () => {
+        NX.toastInfo('🎙️ Voice Memo…', 'Listening… Speak your note.');
+        try {
+          let text = '';
+          const SpeechClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+          if(SpeechClass){
+            const rec = new SpeechClass();
+            rec.lang = navigator.language || 'en-US';
+            rec.onresult = (e) => {
+              text = e.results[0][0].transcript;
+            };
+            rec.onerror = () => {};
+            rec.start();
+            await new Promise(r => { rec.onend = r; setTimeout(r, 8000); });
+          }
+          if(!text && NX.native && NX.native.asrRecord){
+            text = await NX.native.asrRecord(10000);
+          }
+          if(text && text.trim()){
+            const title = '🎙️ Voice Note — ' + new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+            const notes = NX.store.get('notes', []);
+            const newN = {
+              id: U.uid('nt'),
+              title,
+              body: `# ${title}\n\n${text.trim()}\n`,
+              folder: '',
+              tags: ['voice-memo'],
+              pinned: false,
+              updated: Date.now()
+            };
+            notes.unshift(newN);
+            NX.store.set('notes', notes);
+            if(window.__nx_selectNote) window.__nx_selectNote(newN.id);
+            NX.toastOk('Voice note saved!', title);
+            NX.sfx.play('ok');
+          } else {
+            NX.toastInfo('No audio transcribed');
+          }
+        } catch(err){
+          NX.toastErr('Voice memo error', String(err));
+        }
+      }, 100);
     }
   }
 
@@ -119,6 +164,11 @@ function openSpotlight(){
       query = rawVal.replace(/^\?\s*/i, '');
       badge.textContent = 'Ask AI';
       badge.className = 'pill purple sm';
+    } else if(/^v\s*/i.test(rawVal)){
+      mode = 'voice';
+      query = rawVal.replace(/^v\s*/i, '');
+      badge.textContent = 'Voice Memo';
+      badge.className = 'pill red sm';
     } else {
       badge.textContent = 'Global';
       badge.className = 'pill gray sm';
@@ -154,6 +204,14 @@ function openSpotlight(){
         subtitle: 'Grounds response with your active notes, tasks, and today\'s tracked time',
         action: () => handleCreate('ai', query)
       });
+    } else if(mode === 'voice'){
+      currentResults.push({
+        type: 'voice-memo',
+        icon: 'mic',
+        title: query ? `Dictate Voice Note: "${query}"` : 'Record Voice Note',
+        subtitle: 'Press Enter to start speech recognition and transcribe to note',
+        action: () => handleCreate('voice', query)
+      });
     } else {
       // Global search
       if(!query){
@@ -161,6 +219,7 @@ function openSpotlight(){
         currentResults = [
           { type:'action', icon:'notes', title:'New Note', subtitle:'Start a fresh note (or type n Title)', action:()=>handleCreate('note', 'New Note') },
           { type:'action', icon:'check', title:'New Task', subtitle:'Add a task (or type t Title)', action:()=>handleCreate('task', 'New Task') },
+          { type:'action', icon:'mic', title:'Record Voice Note', subtitle:'Dictate thoughts with microphone (or type v)', action:()=>handleCreate('voice', '') },
           { type:'action', icon:'robot', title:'Ask Pebble AI', subtitle:'Chat with your notes & productivity data (or type ?)', action:()=>handleCreate('ai', '') },
           { type:'nav', icon:'clock', title:'Timeless Activity', subtitle:'View system app time tracking & focus score', action:()=>NX.router.go('timeless') },
           { type:'nav', icon:'target', title:'Focus Pomodoro', subtitle:'Start deep focus round', action:()=>{ NX.router.go('focus'); NX.pomo && NX.pomo.start(); } }

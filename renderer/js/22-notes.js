@@ -586,6 +586,9 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           <button class="nt-fmt" data-fmt="strike" data-tip="Strikethrough"><del>S</del></button>
           <button class="nt-fmt" data-fmt="code" data-tip="Inline code">&lt;/&gt;</button>
           <button class="nt-fmt" data-fmt="mark" data-tip="Highlight text">🖍️</button>
+          <div style="height:14px;width:1px;background:var(--line);margin:0 4px"></div>
+          <button class="nt-tb-dictate" id="ne-dictate" data-tip="Voice Dictation (Ctrl+Shift+D)" style="display:inline-flex;align-items:center;gap:4px;color:var(--red,#ef4444);font-weight:700;font-size:11.5px;padding:2px 7px;border-radius:6px;border:none;background:var(--red-soft,#fee2e2);cursor:pointer">${icon('mic',13)} Dictate</button>
+          <span id="ne-dictate-indicator" style="display:none"></span>
           <span style="flex:1"></span>
           <span class="faint tiny">Type <b>/</b> for Notion blocks · <b>[[</b> to link</span>
         </div>
@@ -1448,6 +1451,149 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       const it = SLASH_ITEMS.find(x => x.k === b.dataset.slash);
       if(it) applySlash(ta, it);
     };
+  });
+
+  /* ---------------- Voice Dictation & Speech-to-Text ---------------- */
+  let speechRec = null;
+  let isListening = false;
+
+  function setDictationUI(listening, label){
+    isListening = listening;
+    const btn = q('#ne-dictate', view);
+    const ind = q('#ne-dictate-indicator', view);
+    if(btn){
+      btn.style.color = listening ? '#ffffff' : 'var(--red,#ef4444)';
+      btn.style.background = listening ? 'var(--red,#ef4444)' : 'var(--red-soft,#fee2e2)';
+    }
+    if(ind){
+      if(listening){
+        ind.style.display = 'inline-flex';
+        ind.style.alignItems = 'center';
+        ind.style.gap = '6px';
+        ind.style.margin = '0 6px';
+        ind.style.padding = '2px 8px';
+        ind.style.borderRadius = '99px';
+        ind.style.background = 'var(--red-soft, #fee2e2)';
+        ind.style.color = 'var(--red-deep, #b91c1c)';
+        ind.style.fontSize = '11px';
+        ind.style.fontWeight = '700';
+        ind.innerHTML = `<span style="width:7px;height:7px;border-radius:50%;background:#ef4444;box-shadow:0 0 6px #ef4444"></span> ${U.esc(label || 'Listening… Speak now')} <button class="icon-btn sm" id="ne-stop-rec" style="width:16px;height:16px;margin-left:2px;font-size:10px">&times;</button>`;
+        const stopBtn = q('#ne-stop-rec', ind);
+        if(stopBtn) stopBtn.onclick = (e) => { e.stopPropagation(); stopDictation(); };
+      } else {
+        ind.style.display = 'none';
+        ind.innerHTML = '';
+      }
+    }
+  }
+
+  function insertTextAtCursor(textarea, text){
+    if(!textarea || !text) return;
+    const start = textarea.selectionStart || textarea.value.length;
+    const end = textarea.selectionEnd || textarea.value.length;
+    const before = textarea.value.slice(0, start);
+    const after = textarea.value.slice(end);
+    const prefix = (start > 0 && !/\s$/.test(before)) ? ' ' : '';
+    const insertion = prefix + text;
+    textarea.value = before + insertion + after;
+    textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
+    textarea.focus();
+    textarea.dispatchEvent(new Event('input'));
+  }
+
+  function stopDictation(){
+    if(speechRec){
+      try { speechRec.stop(); } catch(e){}
+      speechRec = null;
+    }
+    setDictationUI(false);
+    NX.sfx.play('ok');
+    NX.toastOk('Dictation paused');
+  }
+
+  async function fallbackNativeASR(){
+    setDictationUI(true, 'Recording (Windows Speech)…');
+    NX.sfx.play('pop');
+    NX.toastInfo('🎙️ Listening via Windows Speech…', 'Speak into your microphone.');
+    try {
+      const text = await NX.native.asrRecord(15000);
+      setDictationUI(false);
+      if(text && text.trim()){
+        insertTextAtCursor(ta, text.trim() + ' ');
+        NX.sfx.play('ok');
+        NX.toastOk('Transcribed!', text.trim());
+      } else {
+        NX.toastInfo('No speech detected', 'Try speaking louder or closer to the microphone.');
+      }
+    } catch(err){
+      setDictationUI(false);
+      NX.toastErr('Dictation failed', String(err));
+    }
+  }
+
+  function startDictation(){
+    const SpeechClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(SpeechClass){
+      try {
+        speechRec = new SpeechClass();
+        speechRec.continuous = true;
+        speechRec.interimResults = true;
+        speechRec.lang = navigator.language || 'en-US';
+
+        speechRec.onstart = () => {
+          setDictationUI(true, 'Listening… Speak now');
+          NX.sfx.play('pop');
+          NX.toastOk('🎙️ Voice Dictation active', 'Speak clearly into your microphone.');
+        };
+
+        speechRec.onresult = (event) => {
+          let finalTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            }
+          }
+          if (finalTranscript) {
+            insertTextAtCursor(ta, finalTranscript.trim() + ' ');
+          }
+        };
+
+        speechRec.onerror = (e) => {
+          console.warn('[Dictation WebSpeech]', e);
+          if(e.error !== 'no-speech'){
+            stopDictation();
+            fallbackNativeASR();
+          }
+        };
+
+        speechRec.onend = () => {
+          if(isListening){
+            setDictationUI(false);
+          }
+        };
+
+        speechRec.start();
+        return;
+      } catch(e) {
+        console.warn('SpeechRecognition error, falling back', e);
+      }
+    }
+    fallbackNativeASR();
+  }
+
+  function toggleDictation(){
+    if(isListening) stopDictation();
+    else startDictation();
+  }
+
+  const dictateBtn = q('#ne-dictate', view);
+  if(dictateBtn) dictateBtn.onclick = toggleDictation;
+
+  view.addEventListener('keydown', (e) => {
+    if((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'd'){
+      e.preventDefault();
+      toggleDictation();
+    }
   });
 
   q('#nt-search', view).addEventListener('input', e => { listQuery = e.target.value; renderList(); });

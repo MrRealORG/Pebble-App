@@ -52,20 +52,55 @@ function handle(ev){
     }
     if(ev.kind === 'task' && ev.payload && ev.payload.title){
       const tasks = NX.store.get('tasks', []);
-      tasks.push({ id:U.uid('tk'), name:String(ev.payload.title).slice(0,140), col:'today', cat:'work',
-        note:String(ev.payload.note||''), created:Date.now(), timeLinked:0, done:false, fromExt:true });
+      tasks.push({
+        id: U.uid('tk'),
+        name: String(ev.payload.title).slice(0,140),
+        col: 'today',
+        cat: ev.payload.cat || 'work',
+        note: String(ev.payload.note||''),
+        due: ev.payload.due || '',
+        myDay: !!ev.payload.myDay,
+        important: !!ev.payload.important,
+        created: Date.now(),
+        timeLinked: 0,
+        done: false,
+        fromExt: true
+      });
       NX.store.set('tasks', tasks);
-      NX.pushNotif('Task from your browser', ev.payload.title, 'todo');
-      NX.toastOk('Task added from browser', ev.payload.title);
+      NX.refreshBadges && NX.refreshBadges();
+      NX.pushNotif('Task from MCP / Browser', ev.payload.title, 'todo');
+      NX.toastOk('Task added from MCP / Browser', ev.payload.title);
       return true;
+    }
+    if(ev.kind === 'task_complete' && ev.payload){
+      const tasks = NX.store.get('tasks', []);
+      const query = String(ev.payload.id || ev.payload.title || '').trim().toLowerCase();
+      const tk = tasks.find(t => t.id === query || (t.name || '').toLowerCase().includes(query));
+      if(tk){
+        tk.done = true;
+        tk.completedAt = Date.now();
+        NX.store.set('tasks', tasks);
+        NX.refreshBadges && NX.refreshBadges();
+        NX.toastOk('Task marked completed via MCP', tk.name);
+        return true;
+      }
     }
     if(ev.kind === 'note' && ev.payload && (ev.payload.title || ev.payload.body)){
       const notes = NX.store.get('notes', []);
-      notes.unshift({ id:U.uid('nt'), title:String(ev.payload.title||'Quick note').slice(0,120),
-        body:String(ev.payload.body||''), tags:['from-browser'], pinned:false, updated:Date.now(), fromExt:true });
+      const n = {
+        id: U.uid('nt'),
+        title: String(ev.payload.title||'Quick note').slice(0,120),
+        body: String(ev.payload.body||''),
+        tags: ev.payload.tags || ['mcp'],
+        folder: ev.payload.folder || '',
+        pinned: false,
+        updated: Date.now(),
+        fromExt: true
+      };
+      notes.unshift(n);
       NX.store.set('notes', notes);
-      NX.pushNotif('Note from your browser', ev.payload.title || 'Quick note', 'notes');
-      NX.toastOk('Note added from browser', ev.payload.title || 'Quick note');
+      NX.pushNotif('Note from MCP / Browser', n.title, 'notes');
+      NX.toastOk('Note added from MCP / Browser', n.title);
       return true;
     }
     if(ev.kind === 'prompt' && ev.payload && ev.payload.body){

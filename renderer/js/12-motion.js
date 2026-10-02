@@ -21,7 +21,14 @@ try{ REDUCED = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motio
 const M = NX.motion = {
   dir:'fwd', trail:[], recent:[], enabled:true
 };
-M.reduce = ()=> REDUCED || !M.enabled;
+/* Settings → Customize → Reduce motion overrides the OS preference,
+   so the switch actually does something (it never did before). */
+M.reduce = function(){
+  if(!M.enabled) return true;
+  try{ if(NX.store.get('settings', {}).reduceMotion) return true; }catch(e){}
+  return REDUCED;
+};
+M.osReduce = ()=> REDUCED;
 
 /* ============================================================
    RECENT ROUTES
@@ -159,9 +166,9 @@ M.rollTitle = function(text){
 };
 
 /* ---------------- sliding nav pill ---------------- */
-M.syncNav = function(){
+function placePill(target){
   const sb = q('.sidebar');
-  if(!sb) return;
+  if(!sb || !target) return;
   let pill = sb.querySelector('.nav-pill');
   if(!pill){
     pill = document.createElement('div');
@@ -169,14 +176,41 @@ M.syncNav = function(){
     pill.setAttribute('aria-hidden','true');
     sb.appendChild(pill);
   }
-  const active = q('.nav-item.on', sb);
-  if(!active || sb.classList.contains('mini')){ pill.style.opacity = '0'; return; }
-  const pr = sb.getBoundingClientRect(), ar = active.getBoundingClientRect();
+  const pr = sb.getBoundingClientRect(), ar = target.getBoundingClientRect();
   pill.style.height = ar.height + 'px';
   pill.style.width = ar.width + 'px';
   pill.style.transform = 'translateY(' + Math.round(ar.top - pr.top - sb.scrollTop) + 'px)';
   pill.style.opacity = '1';
+}
+
+/* the pill lands on the active item, previews wherever you hover,
+   and springs back when the pointer leaves the sidebar */
+M.syncNav = function(){
+  const sb = q('.sidebar');
+  if(!sb) return;
+  if(sb.classList.contains('mini')){
+    const p = sb.querySelector('.nav-pill');
+    if(p) p.style.opacity = '0';
+    return;
+  }
+  placePill(q('.nav-item.on', sb) || q('.nav-item', sb));
 };
+
+document.addEventListener('mouseover', e=>{
+  const sb = q('.sidebar');
+  if(!sb || sb.classList.contains('mini')) return;
+  const item = e.target.closest && e.target.closest('.nav-item[data-route]');
+  if(item && sb.contains(item)) placePill(item);
+});
+document.addEventListener('mouseleave', e=>{
+  const sb = q('.sidebar');
+  if(sb && sb.contains(e.target)) M.syncNav();
+}, true);
+document.addEventListener('mouseout', e=>{
+  const sb = q('.sidebar');
+  if(!sb || sb.classList.contains('mini')) return;
+  if(e.target.closest && e.target.closest('.nav-item[data-route]') && !e.relatedTarget) M.syncNav();
+});
 
 M.renderCrumbs = function(route){
   const host = q('#topbar-crumbs');
@@ -432,6 +466,62 @@ NX.openGlobalSearch = function(){
 };
 
 /* ============================================================
+   SHORTCUT SHEET  (?) / Ctrl+/
+   ============================================================ */
+const SHORTCUTS = [
+  ['Navigate', [
+    ['Ctrl / ⌘ + K',     'Command palette'],
+    ['Ctrl / ⌘ + ⇧ + K', 'Quick switcher — jump to any module'],
+    ['Ctrl / ⌘ + ⇧ + F', 'Search notes, tasks, prompts, chat'],
+    ['?  or  Ctrl + /',  'This shortcut sheet'],
+    ['Esc',              'Close menus, dialogs and overlays']
+  ]],
+  ['Focus', [
+    ['Ctrl / ⌘ + ⇧ + ⏎', 'Start or pause a focus round from anywhere'],
+    ['Ctrl / ⌘ + J',      'Cycle through all 13 themes'],
+    ['Ctrl / ⌘ + ⇧ + W',  'Toggle the desktop widget']
+  ]],
+  ['Writing', [
+    ['Enter',        'Send message (chat) · create (notes)'],
+    ['Shift + Enter','New line in a message'],
+    ['/',            'Notes slash menu'],
+    ['/',            'Games quick menu where available']
+  ]],
+  ['Arcade', [
+    ['← ↑ → ↓',      '2048 and Snake'],
+    ['Arrows + 1-9',  'Sudoku — move and fill'],
+    ['N',             'Sudoku — toggle pencil marks'],
+    ['1 – 9',         'Break the Code'],
+    ['Type along',    'Typing Speed starts the clock on your first key']
+  ]],
+  ['Sidebar', [
+    ['Right-click',   'Any module — pin it to the top or unpin'],
+    ['1 – 9',         'Quick switcher: open directly']
+  ]]
+];
+let sheetOpen = false;
+NX.openShortcuts = function(){
+  if(sheetOpen) return; sheetOpen = true;
+  const dlg = NX.modal({
+    title:'Keyboard shortcuts', icon:'command', size:'m-lg',
+    body: SHORTCUTS.map(([group, rows])=>`
+      <div class="sc-group">
+        <div class="sc-label">${U.esc(group)}</div>
+        ${rows.map(([k,d])=>`<div class="hotkey-row"><div class="hk-name">${U.esc(d)}</div>
+          <div class="kbd-combo">${U.esc(k).split(' + ').map(x=>`<kbd>${U.esc(x)}</kbd>`).join('')}</div></div>`).join('')}
+      </div>`).join(''),
+    footer:[{ label:'Got it', cls:'btn-green' }]
+  });
+  const back = dlg.closest('.modal-backdrop');
+  const close = ()=>{ sheetOpen = false; document.removeEventListener('keydown', hk); };
+  const hk = (e)=>{ if(e.key === 'Escape'){ close(); } };
+  document.addEventListener('keydown', hk);
+  if(back) back.addEventListener('remove', close);
+  return dlg;
+};
+NX.closeShortcuts = ()=>{ sheetOpen = false; };
+
+/* ============================================================
    HOOKS
    The shell is rebuilt on every navigation, so the transition
    has to be lifted above the router: snapshot the outgoing view
@@ -442,12 +532,15 @@ function enterRoute(name, args){
   if(!route) return _go.apply(NX.router, args);
   if(route.layout !== 'app') return _go.apply(NX.router, args);
 
-  /* snapshot the outgoing view — the shell is rebuilt by the router */
+  /* snapshot the outgoing view — the shell is rebuilt by the router.
+     Views holding a live canvas are skipped: a blurred fixed layer
+     would keep repainting them for the whole transition. */
   const view = q('#shell-view');
   const old = view ? view.firstElementChild : null;
+  const heavy = !!(old && old.querySelector && old.querySelector('canvas'));
   M.dir = directionFor(name);
   pushRecent(name);
-  const layer = (old && view.id === 'shell-view' && !M.reduce()) ? swapLayer(view, old) : null;
+  const layer = (old && !heavy && view.id === 'shell-view' && !M.reduce()) ? swapLayer(view, old) : null;
 
   const out = _go.apply(NX.router, args);
 
@@ -471,7 +564,19 @@ NX.router.go = function(name){
 /* global hotkeys */
 document.addEventListener('keydown', e=>{
   const mod = e.ctrlKey || e.metaKey;
-  if(!mod || !e.shiftKey) return;
+  const inField = e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable);
+
+  /* ? opens the sheet, but never while typing */
+  if(!inField && !mod && e.key === '?'){ e.preventDefault(); NX.openShortcuts(); return; }
+  if(!inField && mod && !e.shiftKey && e.key === '/'){ e.preventDefault(); NX.openShortcuts(); return; }
+
+  if(!mod) return;
+  if(e.shiftKey && e.key === 'Enter'){
+    e.preventDefault();
+    if(NX.pomo && NX.pomo.st) NX.pomo.pause(); else if(NX.pomo) NX.pomo.start();
+    return;
+  }
+  if(!e.shiftKey) return;
   const k = e.key.toLowerCase();
   if(k === 'k'){ e.preventDefault(); NX.openQuickSwitcher(); }
   else if(k === 'f'){ e.preventDefault(); NX.openGlobalSearch(); }

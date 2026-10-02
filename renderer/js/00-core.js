@@ -381,11 +381,38 @@ window.NX = window.NX || {};
     history:'M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2',
     code:'M16 18l6-6-6-6M8 6l-6 6 6 6',
     list:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
-    minus:'M5 12h14'
+    minus:'M5 12h14',
+    /* --- extended set: focus suite, arcade 2.0, navigation, system --- */
+    sun:'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42',
+    robot:'M12 8V4M12 4a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM6 8h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zM9 13h.01M15 13h.01M9.5 16.5h5',
+    brain:'M9.5 2A2.5 2.5 0 0 0 7 4.5v.4A3 3 0 0 0 4.5 8 3 3 0 0 0 5 13.6 3 3 0 0 0 8.5 16 2.5 2.5 0 0 0 11 18.5V4.5A2.5 2.5 0 0 0 9.5 2zM14.5 2A2.5 2.5 0 0 1 17 4.5v.4A3 3 0 0 1 19.5 8 3 3 0 0 1 19 13.6 3 3 0 0 1 15.5 16 2.5 2.5 0 0 1 13 18.5V4.5A2.5 2.5 0 0 1 14.5 2z',
+    wind:'M9.6 4.6A2 2 0 1 1 11 8H2M12.6 19.4A2 2 0 1 0 14 16H2M17.7 7.7A2.5 2.5 0 1 1 19.5 12H2',
+    timer:'M10 2h4M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 10v4l2.5 2.5',
+    moon:'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+    coffee:'M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4zM6 1v3M10 1v3M14 1v3',
+    keyboard:'M2 6h20v12H2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10',
+    bug:'M14 6a2 2 0 1 0-4 0v1H8a4 4 0 0 0-4 4v3a6 6 0 0 0 12 0v-3a4 4 0 0 0-4-4h-2zM3 13h5M16 13h5M8 6 6 4M16 6l2-2',
+    key:'M21 2l-2 2M11.39 11.61a5.5 5.5 0 1 1-7.78 7.78 5.5 5.5 0 0 1 7.78-7.78zM11.39 11.61L15.5 7.5M15.5 7.5l3 3L22 7l-3-3M15.5 7.5L19 4',
+    headphones:'M3 18v-6a9 9 0 0 1 18 0v6M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z',
+    inbox:'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
+    shield:'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+    lock:'M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM7 11V7a5 5 0 0 1 10 0v4',
+    link:'M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71',
+    sparkle:'M12 2.5l2.1 6.1 6.1 2.1-6.1 2.1-2.1 6.1-2.1-6.1L3.8 10.7l6.1-2.1zM19 17l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z',
+    gauge:'M12 14l4-4M3.34 19a10 10 0 1 1 17.32 0',
+    bar:'M6 20v-6M12 20V8M18 20V4',
+    award:'M12 15a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM8.21 13.89 7 23l5-3 5 3-1.21-9.12',
+    flag:'M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7',
+    command:'M6 8h12M6 16h12M9 8v8M15 8v8M9 4v4M15 4v4M9 16v4M15 16v4',
+    undo:'M3 7v6h6M3.5 13a9 9 0 1 0 2.1-9.4L3 7',
+    snooze:'M12 3a9 9 0 1 0 9 9M12 7v5l3.5 2M21 3l-6 6M21 9h-6'
   };
+  const missingIcons = {};
   NX.icon = function(name, size){
-    const d = P[name] || P.hash;
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${size?` style="width:${size}px;height:${size}px"`:''} aria-hidden="true"><path d="${d}"/></svg>`;
+    const d = P[name];
+    if(!d && !missingIcons[name]){ missingIcons[name] = true; console.warn('[NX.icon] unknown icon "'+name+'"'); }
+    const path = d || P.hash;
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"${size?` style="width:${size}px;height:${size}px"`:''} aria-hidden="true"><path d="${path}"/></svg>`;
   };
   // brand mark (pebble glyph)
   NX.brandMark = function(){

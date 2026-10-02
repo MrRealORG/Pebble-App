@@ -18,7 +18,36 @@ use std::net::TcpListener;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex};
 
+use std::path::PathBuf;
 use tauri::Manager;
+
+fn data_dir() -> PathBuf {
+    dirs::data_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("pebble")
+}
+
+fn workspace_file() -> PathBuf {
+    data_dir().join("workspace.json")
+}
+
+fn read_workspace_doc() -> Option<serde_json::Value> {
+    let p = workspace_file();
+    let raw = std::fs::read_to_string(p).ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
+fn get_collection(doc: &serde_json::Value, name: &str) -> Vec<serde_json::Value> {
+    let target = doc.get(name).or_else(|| doc.get("workspace").and_then(|w| w.get(name)));
+    match target {
+        Some(serde_json::Value::Array(arr)) => arr.clone(),
+        Some(serde_json::Value::String(s)) => {
+            serde_json::from_str(s).unwrap_or_default()
+        }
+        _ => Vec::new(),
+    }
+}
 
 static QUEUE: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
 static SEEN_SESSIONS: Mutex<Vec<serde_json::Value>> = Mutex::new(Vec::new());
@@ -421,6 +450,19 @@ fn handle_mcp(body: &[u8]) -> serde_json::Value {
             "result": {
                 "tools": [
                     {
+                        "name": "pebble_get_notes",
+                        "description": "List or search markdown notes in Pebble Notes vault with optional query, folder, or tag filters",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "query": { "type": "string", "description": "Optional search text to filter title or body" },
+                                "folder": { "type": "string", "description": "Optional folder name filter" },
+                                "tag": { "type": "string", "description": "Optional tag filter" },
+                                "limit": { "type": "number", "description": "Max notes to return (default 20)" }
+                            }
+                        }
+                    },
+                    {
                         "name": "pebble_create_note",
                         "description": "Create a new markdown note in Pebble Notes vault",
                         "inputSchema": {
@@ -431,6 +473,18 @@ fn handle_mcp(body: &[u8]) -> serde_json::Value {
                                 "folder": { "type": "string", "description": "Optional folder name" }
                             },
                             "required": ["title", "body"]
+                        }
+                    },
+                    {
+                        "name": "pebble_get_tasks",
+                        "description": "List or search tasks from Microsoft To-Do style lists in Pebble",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "list": { "type": "string", "description": "List filter: 'all', 'my-day', 'important', 'planned', 'completed'" },
+                                "query": { "type": "string", "description": "Optional search text in task title or note" },
+                                "limit": { "type": "number", "description": "Max tasks to return (default 30)" }
+                            }
                         }
                     },
                     {
@@ -449,6 +503,28 @@ fn handle_mcp(body: &[u8]) -> serde_json::Value {
                         }
                     },
                     {
+                        "name": "pebble_complete_task",
+                        "description": "Mark a task as completed in Pebble To-Do by ID or title substring",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "id": { "type": "string", "description": "Task ID or task title to mark as done" }
+                            },
+                            "required": ["id"]
+                        }
+                    },
+                    {
+                        "name": "pebble_get_prompts",
+                        "description": "List saved AI prompt templates from Pebble Prompt Saver",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "category": { "type": "string", "description": "Optional category (coding, writing, productivity, ai, system)" },
+                                "query": { "type": "string", "description": "Optional search term" }
+                            }
+                        }
+                    },
+                    {
                         "name": "pebble_create_prompt",
                         "description": "Save a reusable AI prompt in Pebble Prompt Saver",
                         "inputSchema": {
@@ -459,6 +535,14 @@ fn handle_mcp(body: &[u8]) -> serde_json::Value {
                                 "category": { "type": "string", "description": "Category (coding, writing, productivity, ai, system)" }
                             },
                             "required": ["title", "body"]
+                        }
+                    },
+                    {
+                        "name": "pebble_get_productivity_stats",
+                        "description": "Get today's productivity and Timeless tracking statistics, active window, and focus time",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {}
                         }
                     },
                     {
@@ -488,18 +572,110 @@ fn handle_mcp(body: &[u8]) -> serde_json::Value {
             let tool_name = params.get("name").and_then(|n| n.as_str()).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or(serde_json::json!({}));
             match tool_name {
+                "pebble_get_notes" => {
+                    let q = args.get("query").and_then(|s| s.as_str()).map(|s| s.to_lowercase());
+                    let folder = args.get("folder").and_then(|s| s.as_str());
+                    let tag = args.get("tag").and_then(|s| s.as_str());
+                    let limit = args.get("limit").and_then(|n| n.as_u64()).unwrap_or(20) as usize;
+
+                    let doc = read_workspace_doc().unwrap_or(serde_json::Value::Null);
+                    let all_notes = get_collection(&doc, "notes");
+
+                    let filtered: Vec<serde_json::Value> = all_notes.into_iter().filter(|n| {
+                        let is_trash = n.get("trash").and_then(|v| v.as_bool()).unwrap_or(false);
+                        if is_trash { return false; }
+                        if let Some(f) = folder {
+                            if n.get("folder").and_then(|v| v.as_str()).unwrap_or("") != f {
+                                return false;
+                            }
+                        }
+                        if let Some(t) = tag {
+                            let tags = n.get("tags").and_then(|v| v.as_array());
+                            let has_tag = tags.map_or(false, |arr| arr.iter().any(|x| x.as_str() == Some(t)));
+                            if !has_tag { return false; }
+                        }
+                        if let Some(ref query) = q {
+                            let title = n.get("title").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                            let body = n.get("body").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                            if !title.contains(query) && !body.contains(query) {
+                                return false;
+                            }
+                        }
+                        true
+                    }).take(limit).collect();
+
+                    let json_text = serde_json::to_string_pretty(&filtered).unwrap_or_else(|_| "[]".into());
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": json_text }]
+                        }
+                    })
+                },
                 "pebble_create_note" => {
                     let title = args.get("title").and_then(|s| s.as_str()).unwrap_or("Untitled Note");
                     let body = args.get("body").and_then(|s| s.as_str()).unwrap_or("");
+                    let folder = args.get("folder").and_then(|s| s.as_str()).unwrap_or("");
                     push_queue(serde_json::json!({
                         "kind": "note",
-                        "payload": { "title": title, "body": body }
+                        "payload": { "title": title, "body": body, "folder": folder }
                     }));
                     serde_json::json!({
                         "jsonrpc": "2.0",
                         "id": id,
                         "result": {
                             "content": [{ "type": "text", "text": format!("Note '{}' created in Pebble Notes", title) }]
+                        }
+                    })
+                },
+                "pebble_get_tasks" => {
+                    let list = args.get("list").and_then(|s| s.as_str()).unwrap_or("all");
+                    let q = args.get("query").and_then(|s| s.as_str()).map(|s| s.to_lowercase());
+                    let limit = args.get("limit").and_then(|n| n.as_u64()).unwrap_or(30) as usize;
+
+                    let doc = read_workspace_doc().unwrap_or(serde_json::Value::Null);
+                    let all_tasks = get_collection(&doc, "tasks");
+
+                    let filtered: Vec<serde_json::Value> = all_tasks.into_iter().filter(|t| {
+                        let is_done = t.get("done").and_then(|v| v.as_bool()).unwrap_or(false);
+                        match list {
+                            "completed" => if !is_done { return false; },
+                            "my-day" => {
+                                if is_done { return false; }
+                                let my_day = t.get("myDay").and_then(|v| v.as_bool()).unwrap_or(false);
+                                if !my_day { return false; }
+                            },
+                            "important" => {
+                                if is_done { return false; }
+                                let imp = t.get("important").and_then(|v| v.as_bool()).unwrap_or(false);
+                                if !imp { return false; }
+                            },
+                            "planned" => {
+                                if is_done { return false; }
+                                let due = t.get("due").and_then(|v| v.as_str()).unwrap_or("");
+                                if due.is_empty() { return false; }
+                            },
+                            _ => {
+                                if is_done && list != "all-with-completed" { return false; }
+                            }
+                        }
+                        if let Some(ref query) = q {
+                            let name = t.get("name").or_else(|| t.get("title")).and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                            let note = t.get("note").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                            if !name.contains(query) && !note.contains(query) {
+                                return false;
+                            }
+                        }
+                        true
+                    }).take(limit).collect();
+
+                    let json_text = serde_json::to_string_pretty(&filtered).unwrap_or_else(|_| "[]".into());
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": json_text }]
                         }
                     })
                 },
@@ -527,6 +703,52 @@ fn handle_mcp(body: &[u8]) -> serde_json::Value {
                         }
                     })
                 },
+                "pebble_complete_task" => {
+                    let task_id = args.get("id").or_else(|| args.get("title")).and_then(|s| s.as_str()).unwrap_or("");
+                    push_queue(serde_json::json!({
+                        "kind": "task_complete",
+                        "payload": { "id": task_id }
+                    }));
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": format!("Task '{}' marked as completed in Pebble", task_id) }]
+                        }
+                    })
+                },
+                "pebble_get_prompts" => {
+                    let cat = args.get("category").and_then(|s| s.as_str());
+                    let q = args.get("query").and_then(|s| s.as_str()).map(|s| s.to_lowercase());
+
+                    let doc = read_workspace_doc().unwrap_or(serde_json::Value::Null);
+                    let all_prompts = get_collection(&doc, "prompts");
+
+                    let filtered: Vec<serde_json::Value> = all_prompts.into_iter().filter(|p| {
+                        if let Some(c) = cat {
+                            if p.get("category").and_then(|v| v.as_str()).unwrap_or("") != c {
+                                return false;
+                            }
+                        }
+                        if let Some(ref query) = q {
+                            let title = p.get("title").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                            let body = p.get("body").and_then(|v| v.as_str()).unwrap_or("").to_lowercase();
+                            if !title.contains(query) && !body.contains(query) {
+                                return false;
+                            }
+                        }
+                        true
+                    }).collect();
+
+                    let json_text = serde_json::to_string_pretty(&filtered).unwrap_or_else(|_| "[]".into());
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": json_text }]
+                        }
+                    })
+                },
                 "pebble_create_prompt" => {
                     let title = args.get("title").and_then(|s| s.as_str()).unwrap_or("New Prompt");
                     let body = args.get("body").and_then(|s| s.as_str()).unwrap_or("");
@@ -540,6 +762,28 @@ fn handle_mcp(body: &[u8]) -> serde_json::Value {
                         "id": id,
                         "result": {
                             "content": [{ "type": "text", "text": format!("Prompt '{}' saved in Pebble Prompt Saver", title) }]
+                        }
+                    })
+                },
+                "pebble_get_productivity_stats" => {
+                    let doc = read_workspace_doc().unwrap_or(serde_json::Value::Null);
+                    let timelens = doc.get("timelens").or_else(|| doc.get("workspace").and_then(|w| w.get("timelens")));
+                    let sessions = SEEN_SESSIONS.lock().map(|s| s.clone()).unwrap_or_default();
+                    let stats = serde_json::json!({
+                        "app": "PebbleX",
+                        "version": env!("CARGO_PKG_VERSION"),
+                        "bridgeConnected": now_secs().saturating_sub(last_seen()) < 300,
+                        "lastSeenSecsAgo": now_secs().saturating_sub(last_seen()),
+                        "extSessionsToday": ext_sessions_today(),
+                        "recentSessions": sessions.iter().rev().take(10).cloned().collect::<Vec<_>>(),
+                        "todaySummary": timelens
+                    });
+                    let json_text = serde_json::to_string_pretty(&stats).unwrap_or_else(|_| "{}".into());
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": json_text }]
                         }
                     })
                 },

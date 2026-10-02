@@ -112,6 +112,12 @@ const native = {
     return !!(r && r.ok);
   },
 
+  /* speech recognition (native offline ASR) */
+  async asrRecord(timeoutMs){
+    const r = await this.invoke('asr_record', { timeout_ms: timeoutMs || 15000 });
+    return r && r.ok ? (r.data || '') : '';
+  },
+
   /* paths / shell */
   async appPaths(){ const r = await this.invoke('app_paths'); return r && r.ok ? r.data : null; },
   async openExternal(url){ const r = await this.invoke('open_external', { url }); return !!(r && r.ok && r.data); },

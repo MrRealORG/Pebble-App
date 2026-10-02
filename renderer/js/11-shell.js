@@ -163,6 +163,7 @@ function renderTopbar(host){
     </div>
     <button class="icon-btn" data-tip="Module grid" id="tp-grid">${icon('grid')}</button>
     <button class="icon-btn" data-tip="Ask Pebble AI Copilot (Ctrl+Shift+A)" id="tp-copilot" style="color:var(--green)">${icon('robot', 18)}</button>
+    <button class="icon-btn" data-tip="Bug Reporter & Diagnostics" id="tp-bug" style="color:var(--orange)">${icon('activity', 17)}</button>
     <span class="bell-wrap">
       <button class="icon-btn" data-tip="Notifications" id="tp-bell">${icon('bell')}</button>
       ${unread? `<span class="bell-badge" id="tp-bell-badge">${unread>9?'9+':unread}</span>`:''}
@@ -172,6 +173,8 @@ function renderTopbar(host){
   bar.querySelector('#tp-search').onclick = ()=> (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette());
   bar.querySelector('#tp-search').onkeydown = (e)=>{ if(e.key==='Enter') (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette()); };
   bar.querySelector('#tp-copilot').onclick = ()=> NX.openAskPebble && NX.openAskPebble();
+  const bugBtn = bar.querySelector('#tp-bug');
+  if(bugBtn) bugBtn.onclick = ()=> NX.openBugReporter && NX.openBugReporter();
   bar.querySelector('#tp-grid').onclick = (e)=>NX.menu(e.currentTarget, NAV.flatMap(g=>[{label:g.group, header:true}].concat(g.items.map(it=>({ label:it.n, icon:it.ic, onClick:()=>NX.router.go(it.r) })))));
   bar.querySelector('#tp-bell').onclick = (e)=>NX.openNotifCenter(e.currentTarget);
   bar.querySelector('#tp-new').onclick = (e)=>NX.menu(e.currentTarget, [

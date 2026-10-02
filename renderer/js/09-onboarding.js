@@ -85,16 +85,22 @@ function startWizard(){
     }
 
     if(step === 2){
+      const done = NX.store.get('pomoStats', { done:0 }).done || 0;
       card.innerHTML = `
         <div class="ob-logo">${NX.brandMark()}</div>
         <h1 class="ob-h">Everything, in one calm place</h1>
-        <p class="ob-p">The PebbleX feature set — all running locally on your machine.</p>
+        <p class="ob-p">Eleven modules, fourteen games and a focus suite — all running locally on your machine.</p>
         <div class="ob-feats">
           ${featureCard('chat',   '#7CD56E', 'Chat, ultra simple', 'Discord-style channels — or flip on Simple mode for one clean column. @Pel answers with a real LLM, streaming live.')}
           ${featureCard('notes',  '#5EB8FF', 'Notes like Notion', 'Press / for headings, to-dos, quotes, code & tables. Every note is a REAL .md file in a real folder on disk — and imports .md files.')}
+          ${featureCard('todo',   '#0FA3A3', 'Tasks, Microsoft To Do style', 'My Day, Important, Planned — subtasks, due dates, repeats, lists and a slide-over detail panel. Mark one done and hit Undo if you change your mind.')}
+          ${featureCard('target', '#E8853D', 'Focus suite', 'A pomodoro timer you can fire from any tab (Ctrl+⇧+Enter), box breathing, on-device ambient noise and 20-20-20 eye breaks.')}
+          ${featureCard('game',   '#8B5CF6', 'Arcade — 14 games, zero loading', '2048, Minesweeper, Sudoku, Typing Speed, Color Match and more. Every skill game here makes the rest of the app faster to use.')}
+          ${featureCard('clock',  '#B98900', 'Timeless + graphs', 'System-wide app & site tracking with real icons, re-categorization that sticks, 7-day trend graphs and a focus donut.')}
           ${featureCard('star',   '#E25C4A', 'Prompt Saver', 'Keep the prompts you type over and over — one click to copy, tag, send to Pel or share into chat.')}
-          ${featureCard('clock',  '#8B5CF6', 'Timeless + graphs', 'System-wide app & site tracking with real icons, re-categorization that sticks, 7-day trend graphs and a focus donut.')}
+          ${featureCard('bell',   '#E05C9C', 'Reminders & widget', 'Native reminders, a notification centre, and an always-on desktop widget for your clock and quick capture.')}
         </div>
+        <div class="ob-hint">${done?'':'Tip — press <b>?</b> any time for the full keyboard shortcut sheet.'}</div>
         <div class="ob-actions">
           <button class="btn btn-soft" id="ob-back">Back</button>
           <button class="btn btn-green" id="ob-next3">Continue ${icon('chevR')}</button>

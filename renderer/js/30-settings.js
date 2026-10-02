@@ -10,6 +10,7 @@ const { h, q, qa, util:U, icon } = NX;
 const SECTIONS = [
   { id:'themes',    n:'Themes',       ic:'palette' },
   { id:'profile',   n:'Profile',      ic:'user' },
+  { id:'mcp',       n:'MCP & AI',     ic:'api' },
   { id:'customize', n:'Customize',    ic:'sliders' },
   { id:'sound',     n:'Sound',        ic:'volume' },
   { id:'hotkeys',   n:'Hotkeys',      ic:'zap' },
@@ -94,6 +95,86 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
       };
     }
 
+    if(curSec === 'mcp'){
+      host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm" style="background:var(--blue-soft);color:var(--blue)">${icon('api')}</div>
+        <div><div class="c-title">Model Context Protocol (MCP) Server</div><div class="c-sub">Connect Claude Desktop, Antigravity, or Cursor directly to Pebble</div></div></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+          <div class="card" style="padding:12px;background:var(--bg-2);display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:10px;height:10px;border-radius:50%;background:#4caf50;box-shadow:0 0 8px #4caf50"></span>
+              <div>
+                <b style="font-size:13.5px">MCP JSON-RPC 2.0 Server Active</b>
+                <div class="faint tiny">Endpoint: <code>http://127.0.0.1:47615/api/mcp</code> (or SSE at <code>/mcp/sse</code>)</div>
+              </div>
+            </div>
+            <span class="pill green sm">Port 47615</span>
+          </div>
+
+          <div style="font-size:13px;line-height:1.5;color:var(--ink-2)">
+            Pebble exposes standardized MCP tools so external AI coding assistants can:
+            <ul style="margin:6px 0 0 18px;font-size:12.5px;color:var(--ink-3)">
+              <li><code>pebble_get_notes</code> — Read and search your markdown notes vault</li>
+              <li><code>pebble_create_note</code> — Create new notes from AI chat</li>
+              <li><code>pebble_get_tasks</code> — List active, My Day, and planned tasks</li>
+              <li><code>pebble_create_task</code> — Schedule action items to Microsoft To-Do</li>
+              <li><code>pebble_complete_task</code> — Check off tasks programmatically</li>
+              <li><code>pebble_get_productivity_stats</code> — Inspect tracked app focus hours</li>
+            </ul>
+          </div>
+
+          <div class="field">
+            <label class="faint tiny bold">Claude Desktop Configuration (claude_desktop_config.json)</label>
+            <div style="position:relative">
+              <pre class="md-pre" id="mcp-claude-cfg" style="font-size:11.5px;max-height:130px;overflow-y:auto">{
+  "mcpServers": {
+    "pebble": {
+      "command": "node",
+      "args": ["g:/Apps dev/Pebble/scripts/mcp-server.js"]
+    }
+  }
+}</pre>
+              <button class="btn btn-sm btn-soft" id="mcp-copy-claude" style="position:absolute;top:6px;right:6px">${icon('copy',12)} Copy JSON</button>
+            </div>
+          </div>
+
+          <div class="row gap-8">
+            <button class="btn btn-green btn-sm" id="mcp-test-tools">${icon('zap',12)} Test MCP Tools Sandbox</button>
+            <button class="btn btn-soft btn-sm" id="mcp-open-bridge">${icon('monitor',12)} Open Bridge Dashboard</button>
+          </div>
+        </div></div>`;
+
+      q('#mcp-copy-claude', host).onclick = () => {
+        const text = q('#mcp-claude-cfg', host).textContent;
+        NX.native.clipboardWrite(text).then(() => {
+          NX.toastOk('Copied Claude Config', 'Paste into claude_desktop_config.json');
+          NX.sfx.play('ok');
+        });
+      };
+
+      q('#mcp-open-bridge', host).onclick = () => {
+        NX.native.openExternal('http://127.0.0.1:47615');
+      };
+
+      q('#mcp-test-tools', host).onclick = async () => {
+        try {
+          const resp = await fetch('http://127.0.0.1:47615/api/mcp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+          });
+          const data = await resp.json();
+          NX.modal({
+            title: 'MCP Server Tools (Live Response)',
+            icon: 'api',
+            body: `<pre class="md-pre" style="max-height:300px;overflow-y:auto;font-size:11.5px">${U.esc(JSON.stringify(data, null, 2))}</pre>`,
+            footer: [{ label:'Close', cls:'btn-soft' }]
+          });
+        } catch(err){
+          NX.toastErr('MCP Error', 'Could not reach local bridge on 127.0.0.1:47615');
+        }
+      };
+    }
+
     if(curSec === 'customize'){
       host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm">${icon('sliders')}</div>
         <div><div class="c-title">Customize</div><div class="c-sub">Make Pebble feel like yours</div></div></div>
@@ -142,19 +223,61 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
     if(curSec === 'hotkeys'){
       const HK = [
         ['Ctrl / ⌘ + K','Command palette — jump anywhere'],
+        ['Ctrl / ⌘ + ⇧ + K','Quick switcher — jump to a module in two keystrokes'],
+        ['Ctrl / ⌘ + ⇧ + F','Search notes, tasks, prompts, reminders & chat'],
+        ['Ctrl / ⌘ + ⇧ + ⏎','Start or pause a focus round from any tab'],
         ['Ctrl / ⌘ + J','Cycle through all 13 themes'],
-        ['Ctrl / ⌘ + Shift + W','Toggle desktop widget'],
+        ['Ctrl / ⌘ + ⇧ + W','Toggle desktop widget'],
+        ['?  or  Ctrl + /','Open this shortcut sheet'],
         ['Enter','Send message (in chat)'],
         ['Shift + Enter','New line in message'],
         ['Esc','Close menus & dialogs'],
         ['← ↑ → ↓','Play 2048 & Snake'],
+        ['Arrows + 1 – 9','Sudoku — move and fill · N for pencil marks'],
+        ['1 – 9','Break the Code · Ctrl+⇧K then 1–9 opens a module'],
+        ['Right-click','Any sidebar module — pin it to the top'],
       ];
-      host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm">${icon('zap')}</div>
-        <div><div class="c-title">Keyboard shortcuts</div><div class="sr-d">Speed is a feature</div></div></div>
+      host.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px">
+        <div class="card"><div class="card-h"><div class="tile sm">${icon('zap')}</div>
+        <div><div class="c-title">Keyboard shortcuts</div><div class="sr-d">Speed is a feature</div></div>
+        <div class="spacer"></div>
+        <button class="btn btn-soft btn-sm" id="hk-open">${icon('command')} Show sheet</button></div>
         <div class="card-b" style="padding-top:6px">
           ${HK.map(([k,d])=>`<div class="hotkey-row"><div><div class="hk-name">${U.esc(d.split('—')[0].trim())}</div><div class="hk-desc">${U.esc(d)}</div></div>
             <div class="kbd-combo">${k.split(' + ').map(x=>`<kbd>${U.esc(x)}</kbd>`).join('')}</div></div>`).join('')}
-        </div></div>`;
+        </div></div>
+        <div class="card">
+          <div class="card-h"><div class="tile sm">${icon('flag')}</div>
+            <div><div class="c-title">Pinned & recent</div><div class="sr-d">Right-click any sidebar module to pin it to the top</div></div></div>
+          <div class="card-b" style="padding-top:4px">
+            <div class="set-row"><div class="sr-l"><div class="sr-t">Pinned modules</div><div class="sr-d" id="hk-pins">—</div></div>
+              <button class="btn btn-soft btn-sm" id="hk-unpin">Unpin all</button></div>
+            <div class="set-row"><div class="sr-l"><div class="sr-t">Recent modules</div><div class="sr-d" id="hk-recent">—</div></div>
+              <button class="btn btn-soft btn-sm" id="hk-clear-recent">Clear history</button></div>
+          </div>
+        </div>
+      </div>`;
+      q('#hk-open', host).onclick = ()=>NX.openShortcuts && NX.openShortcuts();
+      const p = NX.store.get('pinnedRoutes', []) || [];
+      q('#hk-pins', host).textContent = p.length ? p.map(r=>{
+        const m = NX.motion && NX.motion.navFor ? NX.motion.navFor(r) : null;
+        return m ? m.item.n : r;
+      }).join(' · ') : 'Nothing pinned yet';
+      const rec = (NX.motion && NX.motion.recent) || [];
+      q('#hk-recent', host).textContent = rec.length ? rec.map(r=>{
+        const m = NX.motion && NX.motion.navFor ? NX.motion.navFor(r) : null;
+        return m ? m.item.n : r;
+      }).join(' · ') : 'No history yet';
+      const unpin = q('#hk-unpin', host);
+      if(unpin){
+        unpin.disabled = !p.length;
+        unpin.onclick = ()=>{ NX.store.set('pinnedRoutes', []); NX.toastOk('Unpinned everything'); renderBody(); };
+      }
+      const clr = q('#hk-clear-recent', host);
+      if(clr){
+        clr.disabled = !rec.length;
+        clr.onclick = ()=>{ NX.motion.recent = []; NX.store.set('recentRoutes', []); NX.toastOk('Recent history cleared'); renderBody(); };
+      }
     }
 
     if(curSec === 'reliability'){
