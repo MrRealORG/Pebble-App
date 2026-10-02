@@ -161,6 +161,7 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
     const cfg = pomoCfg();
     const cur = NX.pomo.st;
     const mode = cur && cur.mode === 'focus' ? 'break' : 'focus';
+    NX.pomo.start();
     NX.pomo.st = { mode, left: (mode === 'focus' ? (cfg.len||25) : (cfg.breakLen||5))*60, running:true };
     NX.events.emit('pomo:changed');
   }
@@ -172,43 +173,63 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
     const t = NX.totals();
     const total = roundTotal(st);
     const pct = st ? Math.max(0, Math.min(100, (1 - st.left/total)*100)) : 0;
-    host.innerHTML = `
-      <div class="card-h">
-        <div class="tile">${icon('clock')}</div>
-        <div><div class="c-title">Focus timer</div>
-          <div class="c-sub">${st ? (st.mode === 'focus' ? 'Deep work round' : 'Break round') : 'Ready when you are'}</div></div>
-        <div class="spacer"></div>
-        <button class="icon-btn sm" id="fx-skip" data-tip="Skip to next round">${icon('chevR')}</button>
-      </div>
-      <div class="card-b">
-        <div class="fx-clock ${st && !st.running ? 'paused' : ''}">${U.fmtClock(st ? st.left : (cfg.len||25)*60)}</div>
-        <div class="fx-state">${st ? (st.running ? st.mode : 'paused') : 'ready'}</div>
-        <div class="meter fx-meter"><i style="width:${pct.toFixed(1)}%"></i></div>
-        <div class="fx-lens">
-          ${[15,25,45,60].map(n=>`<button class="chip ${(cfg.len||25)===n?'active':''}" data-len="${n}">${n}m</button>`).join('')}
+
+    /* build the chrome once — the clock ticks every second, so only
+       the dynamic nodes get touched afterwards (no focus/hover loss) */
+    if(!host.dataset.built){
+      host.innerHTML = `
+        <div class="card-h">
+          <div class="tile">${icon('clock')}</div>
+          <div><div class="c-title">Focus timer</div><div class="c-sub" id="fx-t-sub">Ready when you are</div></div>
+          <div class="spacer"></div>
+          <button class="icon-btn sm" id="fx-skip" data-tip="Skip to next round">${icon('chevR')}</button>
         </div>
-        <div class="row gap-8" style="justify-content:center">
-          ${st
-            ? `<button class="btn btn-green btn-lg" id="fx-run">${icon(st.running?'pause':'play')} ${st.running?'Pause':'Resume'}</button>
-               <button class="btn btn-soft" id="fx-reset">Reset</button>`
-            : `<button class="btn btn-green btn-lg" id="fx-run">${icon('play')} Start focus</button>`}
-        </div>
-        <div class="row gap-8" style="justify-content:center;flex-wrap:wrap;margin-top:12px">
-          <span class="pill gray">${stats.done} rounds all-time</span>
-          <span class="pill green">${Math.round(t.prod/60)} min focused today</span>
-        </div>
-      </div>`;
-    const run = q('#fx-run', host);
-    if(run) run.onclick = ()=>{ st ? NX.pomo.pause() : NX.pomo.start(); };
-    const rst = q('#fx-reset', host);
-    if(rst) rst.onclick = ()=>NX.pomo.reset();
-    q('#fx-skip', host).onclick = skipRound;
-    qa('[data-len]', host).forEach(b=>b.onclick = ()=>{
-      const cfg2 = pomoCfg(); cfg2.len = +b.dataset.len;
-      NX.store.set('pomo', cfg2);
-      if(NX.pomo.st && NX.pomo.st.mode === 'focus') NX.pomo.reset();
-      renderTimer();
-    });
+        <div class="card-b">
+          <div class="fx-clock" id="fx-t-clock">${U.fmtClock((cfg.len||25)*60)}</div>
+          <div class="fx-state" id="fx-t-state">ready</div>
+          <div class="meter fx-meter"><i id="fx-t-bar" style="width:0%"></i></div>
+          <div class="fx-lens">
+            ${[15,25,45,60].map(n=>`<button class="chip" data-len="${n}">${n}m</button>`).join('')}
+          </div>
+          <div class="row gap-8" style="justify-content:center" id="fx-t-acts"></div>
+          <div class="row gap-8" style="justify-content:center;flex-wrap:wrap;margin-top:12px" id="fx-t-pills"></div>
+        </div>`;
+      host.dataset.built = '1';
+      q('#fx-skip', host).onclick = skipRound;
+      qa('[data-len]', host).forEach(b=>b.onclick = ()=>{
+        const c2 = pomoCfg(); c2.len = +b.dataset.len;
+        NX.store.set('pomo', c2);
+        if(NX.pomo.st && NX.pomo.st.mode === 'focus') NX.pomo.reset();
+        renderTimer();
+      });
+      host._actsKey = null;
+    }
+
+    const left = st ? st.left : (cfg.len||25)*60;
+    const clock = q('#fx-t-clock', host);
+    clock.textContent = U.fmtClock(left);
+    clock.classList.toggle('paused', !!st && !st.running);
+    q('#fx-t-state', host).textContent = st ? (st.running ? st.mode : 'paused') : 'ready';
+    q('#fx-t-sub', host).textContent = st ? (st.mode === 'focus' ? 'Deep work round' : 'Break round') : 'Ready when you are';
+    q('#fx-t-bar', host).style.width = pct.toFixed(1) + '%';
+
+    qa('[data-len]', host).forEach(b=>b.classList.toggle('active', +b.dataset.len === (cfg.len||25)));
+
+    const actsKey = st ? (st.mode + (st.running ? '|run' : '|pause')) : 'idle';
+    if(host._actsKey !== actsKey){
+      host._actsKey = actsKey;
+      q('#fx-t-acts', host).innerHTML = st
+        ? `<button class="btn btn-green btn-lg" id="fx-run">${icon(st.running?'pause':'play')} ${st.running?'Pause':'Resume'}</button>
+           <button class="btn btn-soft" id="fx-reset">Reset</button>`
+        : `<button class="btn btn-green btn-lg" id="fx-run">${icon('play')} Start focus</button>`;
+      const run = q('#fx-run', host);
+      if(run) run.onclick = ()=>{ NX.pomo.st ? NX.pomo.pause() : NX.pomo.start(); };
+      const rst = q('#fx-reset', host);
+      if(rst) rst.onclick = ()=>NX.pomo.reset();
+    }
+    q('#fx-t-pills', host).innerHTML =
+      `<span class="pill gray">${stats.done} rounds all-time</span>
+       <span class="pill green">${Math.round(t.prod/60)} min focused today</span>`;
   }
 
   /* ================= BREATHING ================= */

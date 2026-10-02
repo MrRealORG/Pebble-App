@@ -159,32 +159,71 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
 
     if(curSec === 'reliability'){
       host.innerHTML = `<div style="display:flex;flex-direction:column;gap:16px">
+        <!-- Self-Repair & DB Health -->
+        <div class="card">
+          <div class="card-h">
+            <div class="tile sm" style="background:var(--green-soft, rgba(124,213,110,.12));color:var(--green)">${icon('check')}</div>
+            <div><div class="c-title">System Diagnostics &amp; Health</div><div class="c-sub">Verify collections, clean cache and repair any inconsistent state</div></div>
+            <div class="spacer"></div>
+            <button class="btn btn-green btn-sm" id="cr-repair-db">${icon('refresh')} Check &amp; Repair DB</button>
+            <button class="btn btn-soft btn-sm" id="cr-open-diag">${icon('activity')} Open Bug Reporter</button>
+          </div>
+          <div class="card-b" id="cr-health-status" style="padding-top:8px">
+            <div class="ok-line">${icon('check')} Database online: ${NX.store.stats().notesCount} notes, ${NX.store.stats().tasksCount} tasks, ${NX.store.stats().daysTracked} tracked days.</div>
+          </div>
+        </div>
+
+        <!-- Native Crash Reports -->
         <div class="card">
           <div class="card-h"><div class="tile sm" style="background:var(--red-soft, rgba(226,92,74,.12));color:var(--red)">${icon('activity')}</div>
-            <div><div class="c-title">Crash reports</div><div class="c-sub">Native panic-hook logs from the last crashes</div></div>
+            <div><div class="c-title">Native crash reports</div><div class="c-sub">Panic-hook logs recorded by Rust core</div></div>
             <div class="spacer"></div><button class="btn btn-soft btn-sm" id="cr-refresh">${icon('refresh')} Refresh</button>
             <button class="btn btn-soft btn-sm" id="cr-clear">${icon('trash')} Clear</button></div>
           <div class="card-b" id="cr-list" style="padding-top:8px"><div class="faint small">Checking…</div></div>
         </div>
+
+        <!-- Live JS Error Log -->
+        <div class="card">
+          <div class="card-h"><div class="tile sm" style="background:var(--orange-soft, rgba(232,133,61,.12));color:var(--orange)">${icon('tag')}</div>
+            <div><div class="c-title">Frontend error trail</div><div class="c-sub">Live JavaScript runtime exceptions and unhandled rejections</div></div>
+            <div class="spacer"></div>
+            <button class="btn btn-soft btn-sm" id="js-err-clear">${icon('trash')} Clear</button></div>
+          <div class="card-b" id="js-err-list" style="padding-top:8px"></div>
+        </div>
+
+        <!-- Bug Reporter -->
         <div class="card">
           <div class="card-h"><div class="tile sm" style="background:var(--blue-soft, rgba(94,184,255,.12));color:var(--blue)">${icon('edit')}</div>
-            <div><div class="c-title">Report a bug</div><div class="c-sub">Tell us what broke — saved locally & exportable as a file</div></div></div>
+            <div><div class="c-title">Report a bug</div><div class="c-sub">Tell us what broke — auto-attaches system diagnostics and logs</div></div></div>
           <div class="card-b" style="display:flex;flex-direction:column;gap:10px;max-width:560px">
             <div class="field"><label>What happened?</label><input class="input" id="bg-title" maxlength="100" placeholder="Short summary, e.g. Chat keeps scrolling up"></div>
             <div class="field"><label>Steps to reproduce</label><textarea class="input" id="bg-steps" rows="3" placeholder="1. Open…\n2. Click…"></textarea></div>
             <div class="field"><label>Severity</label><select class="select" id="bg-sev">
               <option>Minor — cosmetic</option><option selected>Normal — annoying but usable</option><option>Major — feature broken</option><option>Critical — app crashes / data loss</option></select></div>
-            <div class="row gap-8"><button class="btn btn-green" id="bg-send">${icon('check')} Submit report</button></div>
+            <div class="row gap-8">
+              <button class="btn btn-green" id="bg-send">${icon('check')} Submit report</button>
+              <button class="btn btn-soft" id="bg-copy-diag">${icon('copy')} Copy Diagnostics</button>
+            </div>
             <div id="bg-list"></div>
           </div>
         </div>
       </div>`;
 
+      // Database repair button
+      q('#cr-repair-db', host).onclick = ()=>{
+        const res = NX.repairDatabase();
+        q('#cr-health-status', host).innerHTML = `<div class="ok-line">${icon('check')} Verified all data collections. Healed/repaired ${res.repaired} item${res.repaired===1?'':'s'}. Database clean!</div>`;
+        NX.sfx.play('ok');
+        NX.toastOk('Database Repaired', `Repaired ${res.repaired} items`);
+      };
+
+      q('#cr-open-diag', host).onclick = ()=>NX.openBugReporter();
+
       async function renderCrashes(){
         const listEl = q('#cr-list', host); if(!listEl) return;
         const logs = NX.native.available ? await NX.native.crashLogs() : [];
         if(!logs.length){
-          listEl.innerHTML = `<div class="ok-line">${icon('check')} No crashes recorded — Pebble is running clean.</div>`;
+          listEl.innerHTML = `<div class="ok-line">${icon('check')} No native crashes recorded — PebbleX is running clean.</div>`;
         } else {
           listEl.innerHTML = logs.map(l=>
             `<details class="crash-item"><summary><span class="pill red">crash</span><code class="small">${U.esc(l.file)}</code><span class="faint small" style="margin-left:auto">${U.esc(l.content.split('\n')[0].slice(0,90))}</span></summary><pre class="crash-pre">${U.esc(l.content.slice(0, 2400))}</pre></details>`
@@ -195,19 +234,59 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
       q('#cr-refresh', host).onclick = renderCrashes;
       q('#cr-clear', host).onclick = async ()=>{ await NX.native.clearCrashLogs(); renderCrashes(); NX.toastOk('Crash logs cleared'); };
 
+      function renderJsErrors(){
+        const list = q('#js-err-list', host); if(!list) return;
+        const errs = NX.store.get('jsErrors', []);
+        if(!errs.length){
+          list.innerHTML = `<div class="ok-line">${icon('check')} Zero JavaScript exceptions recorded in this session.</div>`;
+        } else {
+          list.innerHTML = errs.slice(0, 8).map(e=>`
+            <div class="diag-err-item">
+              <span class="pill red" style="height:18px;font-size:10px">ERR</span>
+              <code>${U.esc(e.msg)}</code>
+              <span class="faint tiny" style="margin-left:auto">${U.esc(e.src||'app')}:${e.line||0} · ${U.relTime(e.ts)}</span>
+            </div>
+          `).join('');
+        }
+      }
+      renderJsErrors();
+      q('#js-err-clear', host).onclick = ()=>{
+        NX.store.set('jsErrors', []);
+        renderJsErrors();
+        NX.toastOk('Error log cleared');
+      };
+
       function renderBugList(){
         const bugs = NX.store.get('bugReports', []);
         const el = q('#bg-list', host); if(!el) return;
         el.innerHTML = bugs.length
-          ? bugs.slice(0,8).map((b,i)=>`<div class="app-row"><div class="ar-ic" style="background:var(--surface-3);color:var(--ink-2)">${icon('tag')}</div>
-              <div style="min-width:0;flex:1"><div class="ar-name ellipsis">${U.esc(b.title)}</div><div class="ar-cat">${U.esc(b.sev)} · ${U.esc(U.relTime(b.ts))}</div></div>
-              <button class="icon-btn sm" data-bgexp="${i}" data-tip="Export as file">${icon('download')}</button></div>`).join('')
-          : `<div class="faint small">No reports yet.</div>`;
+          ? bugs.slice(0,12).map((b,i)=>`<div class="app-row" style="padding:10px 12px"><div class="ar-ic" style="background:var(--surface-3);color:var(--ink-2)">${icon('tag')}</div>
+              <div style="min-width:0;flex:1">
+                <div class="ar-name ellipsis" style="font-weight:700">${U.esc(b.title)}</div>
+                <div class="ar-cat">${U.esc(b.sev)} · ${U.esc(U.relTime(b.ts))} · <span class="pill ${b.status==='Resolved'?'green':'yellow'}" style="height:16px;font-size:10px">${U.esc(b.status||'Open')}</span></div>
+              </div>
+              <button class="btn btn-soft btn-sm" data-bgstat="${i}">${b.status==='Resolved'?'Reopen':'Resolve'}</button>
+              <button class="icon-btn sm" data-bgexp="${i}" data-tip="Export as file">${icon('download')}</button>
+              <button class="icon-btn sm" data-bgdel="${i}" data-tip="Delete report" style="color:var(--ink-3)">${icon('trash')}</button>
+            </div>`).join('')
+          : `<div class="faint small">No reports logged yet.</div>`;
         qa('[data-bgexp]', el).forEach(btn=>btn.onclick = async ()=>{
           const b = bugs[+btn.dataset.bgexp];
-          const txt = `Pebble bug report\n=================\nWhen: ${new Date(b.ts).toLocaleString()}\nSeverity: ${b.sev}\n\n${b.title}\n\nSteps:\n${b.steps}\n\nApp version: ${'0.1.0 (PebbleX)'}\nRuntime: ${NX.native.mode}`;
-          if(NX.native.available && NX.native.saveTextFile){ await NX.native.saveTextFile('pebble-bug-'+b.ts+'.txt', txt); NX.toastOk('Saved', 'Check Downloads/Pebble'); }
+          const txt = `Pebble bug report\n=================\nWhen: ${new Date(b.ts).toLocaleString()}\nSeverity: ${b.sev}\nStatus: ${b.status||'Open'}\n\n${b.title}\n\nSteps:\n${b.steps}\n\nDiagnostics:\n${JSON.stringify(b.diag||{}, null, 2)}\n\nApp version: 0.1.0 (PebbleX)\nRuntime: ${NX.native.mode}`;
+          if(NX.native.available && NX.native.saveFile){ await NX.native.saveFile('pebble-bug-'+b.ts+'.txt', txt, false); NX.toastOk('Saved', 'Check Downloads/Pebble'); }
           else U.download('pebble-bug-'+b.ts+'.txt', txt);
+        });
+        qa('[data-bgstat]', el).forEach(btn=>btn.onclick = ()=>{
+          const idx = +btn.dataset.bgstat;
+          bugs[idx].status = bugs[idx].status === 'Resolved' ? 'Open' : 'Resolved';
+          NX.store.set('bugReports', bugs);
+          renderBugList();
+        });
+        qa('[data-bgdel]', el).forEach(btn=>btn.onclick = ()=>{
+          bugs.splice(+btn.dataset.bgdel, 1);
+          NX.store.set('bugReports', bugs);
+          renderBugList();
+          NX.toastOk('Report deleted');
         });
       }
       renderBugList();
@@ -215,13 +294,34 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
         const title = q('#bg-title', host).value.trim();
         if(!title){ NX.toastErr('Add a summary', 'Tell us what happened first.'); return; }
         const bugs = NX.store.get('bugReports', []);
-        bugs.unshift({ id:U.uid('bg'), title, steps:q('#bg-steps', host).value.trim(), sev:q('#bg-sev', host).value, ts:Date.now() });
+        bugs.unshift({
+          id:U.uid('bg'),
+          title,
+          steps:q('#bg-steps', host).value.trim(),
+          sev:q('#bg-sev', host).value,
+          status:'Open',
+          ts:Date.now()
+        });
         NX.store.set('bugReports', bugs.slice(0,50));
         q('#bg-title', host).value = ''; q('#bg-steps', host).value = '';
         renderBugList();
         NX.pushNotif('Bug report saved', title, 'tag');
-        NX.toastOk('Report saved', 'Thanks! Export it from the list below.');
+        NX.toastOk('Report saved', 'Thanks! Export or review it below.');
         NX.sfx.play('ok');
+      };
+      q('#bg-copy-diag', host).onclick = ()=>{
+        const diag = {
+          version: '0.1.0 (PebbleX)',
+          mode: NX.native.mode,
+          platform: 'win32',
+          resolution: `${innerWidth}x${innerHeight}`,
+          stats: NX.store.stats(),
+          activeApp: NX.timeless && NX.timeless.live ? NX.timeless.live.app : 'unknown',
+          recentErrors: (NX.store.get('jsErrors', [])).slice(0, 5)
+        };
+        navigator.clipboard.writeText(JSON.stringify(diag, null, 2)).then(()=>{
+          NX.toastOk('Diagnostics copied', 'Ready to paste into GitHub or issue tracker');
+        }).catch(()=>{});
       };
     }
 
@@ -287,6 +387,170 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
 
   renderNav(); renderBody();
 });
+
+NX.repairDatabase = function(){
+  let fixed = 0;
+  try {
+    const notes = NX.store.get('notes', []);
+    if(Array.isArray(notes)){
+      notes.forEach(n=>{
+        if(!n.id) { n.id = NX.util.uid('nt'); fixed++; }
+        if(typeof n.tags === 'string') { n.tags = n.tags.split(',').map(s=>s.trim()).filter(Boolean); fixed++; }
+        if(!n.title) { n.title = 'Untitled Note'; fixed++; }
+        if(typeof n.body !== 'string') { n.body = ''; fixed++; }
+      });
+      NX.store.set('notes', notes);
+    } else {
+      NX.store.set('notes', NX.defaults.notes || []);
+      fixed++;
+    }
+
+    const tasks = NX.store.get('tasks', []);
+    if(Array.isArray(tasks)){
+      tasks.forEach(t=>{
+        if(!t.id) { t.id = NX.util.uid('tk'); fixed++; }
+        if(typeof t.done !== 'boolean') { t.done = false; fixed++; }
+        if(!t.name) { t.name = 'Task'; fixed++; }
+      });
+      NX.store.set('tasks', tasks);
+    } else {
+      NX.store.set('tasks', NX.defaults.tasks || []);
+      fixed++;
+    }
+
+    const prompts = NX.store.get('prompts', []);
+    if(!Array.isArray(prompts)){
+      NX.store.set('prompts', []);
+      fixed++;
+    }
+
+    const tl = NX.store.get('timeless', {});
+    if(typeof tl !== 'object' || tl === null || Array.isArray(tl)){
+      NX.store.set('timeless', {});
+      fixed++;
+    }
+
+    if(NX.store && NX.store.flush) NX.store.flush();
+  } catch(e){
+    console.error('repairDatabase error', e);
+  }
+  return { ok: true, repaired: fixed };
+};
+
+NX.openBugReporter = async function(prefill={}){
+  const sysInfo = {
+    version: '0.1.0 (PebbleX)',
+    mode: NX.native.mode,
+    platform: 'win32',
+    screen: `${window.innerWidth}x${window.innerHeight}`,
+    theme: document.documentElement.getAttribute('data-theme')||'default',
+    route: NX.router.currentName || 'dashboard',
+    activeApp: NX.timeless && NX.timeless.live ? NX.timeless.live.app : 'unknown',
+    storageStats: NX.store.stats(),
+    recentErrors: (NX.store.get('jsErrors', [])).slice(0, 5)
+  };
+
+  const crashLogs = NX.native.available ? await NX.native.crashLogs() : [];
+  if(crashLogs.length > 0){
+    sysInfo.recentCrash = crashLogs[0].content.slice(0, 300);
+  }
+
+  const diagJson = JSON.stringify(sysInfo, null, 2);
+
+  const body = NX.h(`
+    <div style="display:flex;flex-direction:column;gap:12px;max-height:70vh;overflow-y:auto;padding-right:4px">
+      <div class="field"><label>What happened?</label>
+        <input class="input" id="diag-bg-title" placeholder="Short description, e.g. Notes list did not load" value="${NX.util.esc(prefill.title||'')}">
+      </div>
+      <div class="field"><label>Steps to reproduce</label>
+        <textarea class="input" id="diag-bg-steps" rows="3" placeholder="1. What did you click?\n2. What happened?\n3. What did you expect to happen?">${NX.util.esc(prefill.steps||'')}</textarea>
+      </div>
+      <div class="row gap-10">
+        <div class="field" style="flex:1"><label>Severity</label>
+          <select class="select" id="diag-bg-sev">
+            <option>Minor — cosmetic UI glitch</option>
+            <option selected>Normal — annoying but usable</option>
+            <option>Major — feature broken</option>
+            <option>Critical — crash / data loss</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1"><label>Self-Repair</label>
+          <button class="btn btn-soft btn-full" id="diag-repair-btn" style="height:36px;margin-top:1px">${NX.icon('refresh')} Check &amp; Repair DB</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="row" style="justify-content:space-between;margin-bottom:4px">
+          <label style="margin:0">System &amp; Error Diagnostic Bundle (auto-generated)</label>
+          <button class="btn btn-soft btn-sm" id="diag-copy-btn">${NX.icon('copy')} Copy</button>
+        </div>
+        <pre class="diag-bundle-pre" id="diag-preview">${NX.util.esc(diagJson)}</pre>
+      </div>
+    </div>
+  `);
+
+  NX.modal({
+    title: 'PebbleX Diagnostic & Bug Reporter',
+    icon: 'activity',
+    body,
+    footer: [
+      { label: 'Cancel', cls: 'btn-soft' },
+      { label: 'Export Report (.txt)', cls: 'btn-soft', onClick: async ()=>{
+          const title = NX.q('#diag-bg-title', body).value.trim() || 'Bug Report';
+          const steps = NX.q('#diag-bg-steps', body).value.trim();
+          const sev = NX.q('#diag-bg-sev', body).value;
+          const fullReport = `PEBBLE-X BUG REPORT\n===================\nDate: ${new Date().toISOString()}\nTitle: ${title}\nSeverity: ${sev}\nSteps:\n${steps}\n\nDIAGNOSTICS:\n${diagJson}\n`;
+          if(NX.native.available && NX.native.saveFile){
+            await NX.native.saveFile('pebble-bug-' + Date.now() + '.txt', fullReport, false);
+            NX.toastOk('Saved', 'Saved to Downloads/Pebble');
+          } else {
+            NX.util.download('pebble-bug-' + Date.now() + '.txt', fullReport);
+          }
+        }
+      },
+      { label: 'Submit Bug Report', cls: 'btn-green', onClick: ()=>{
+          const title = NX.q('#diag-bg-title', body).value.trim();
+          if(!title){ NX.toastErr('Enter a summary', 'Please tell us what went wrong.'); return; }
+          const steps = NX.q('#diag-bg-steps', body).value.trim();
+          const sev = NX.q('#diag-bg-sev', body).value;
+          const bugs = NX.store.get('bugReports', []);
+          bugs.unshift({
+            id: NX.util.uid('bg'),
+            title, steps, sev,
+            diag: sysInfo,
+            status: 'Open',
+            ts: Date.now()
+          });
+          NX.store.set('bugReports', bugs.slice(0, 50));
+          if(NX.store && NX.store.flush) NX.store.flush();
+          NX.closeAllModals();
+          NX.toastOk('Bug report logged', 'Saved to local reliability history.');
+          NX.sfx.play('ok');
+        }
+      }
+    ]
+  });
+
+  const repBtn = NX.q('#diag-repair-btn', body);
+  if(repBtn){
+    repBtn.onclick = ()=>{
+      const res = NX.repairDatabase();
+      NX.toastOk('Repair complete', `Checked collections. Repaired ${res.repaired} items.`);
+      NX.sfx.play('ok');
+    };
+  }
+
+  const cpBtn = NX.q('#diag-copy-btn', body);
+  if(cpBtn){
+    cpBtn.onclick = ()=>{
+      const title = NX.q('#diag-bg-title', body).value.trim() || 'Diagnostic Report';
+      const steps = NX.q('#diag-bg-steps', body).value.trim();
+      const txt = `## PebbleX Bug Report: ${title}\n- **Severity**: ${NX.q('#diag-bg-sev', body).value}\n- **Steps**: ${steps}\n\n\`\`\`json\n${diagJson}\n\`\`\``;
+      navigator.clipboard.writeText(txt).then(()=>{
+        NX.toastOk('Copied to clipboard', 'Ready to paste');
+      }).catch(()=>{});
+    };
+  }
+};
 
 NX.exportWorkspace = function(){
   U.download('pebble-workspace-' + U.todayKey() + '.json', JSON.stringify(NX.store.dump(), null, 2));

@@ -244,6 +244,7 @@ document.addEventListener('keydown', (e)=>{
   if(mod && e.key.toLowerCase() === 'k'){ e.preventDefault(); NX.openCommandPalette(); }
   else if(mod && e.key.toLowerCase() === 'j'){ e.preventDefault(); NX.cycleTheme(); }
   else if(mod && e.key.toLowerCase() === 'w' && e.shiftKey){ e.preventDefault(); NX.widget && NX.widget.toggle(); }
+  else if(mod && e.shiftKey && e.key.toLowerCase() === 'b'){ e.preventDefault(); NX.openBugReporter && NX.openBugReporter(); }
   else if(e.key === 'Escape'){ NX.closeMenu(); }
 });
 

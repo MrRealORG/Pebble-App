@@ -223,9 +223,9 @@ window.NX = window.NX || {};
       const palette = ['#7CD56E','#5EB8FF','#E8853D','#8B5CF6','#E05C9C','#0FA3A3','#E25C4A','#D4A017','#4A90D9','#67B26F'];
       return palette[U.hashCode(String(s)) % palette.length];
     },
-    download(filename, text){
+    download(filename, text, mime='application/json'){
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([text], {type:'application/json'}));
+      a.href = URL.createObjectURL(new Blob([text], {type: mime}));
       a.download = filename;
       document.body.appendChild(a); a.click();
       setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 400);

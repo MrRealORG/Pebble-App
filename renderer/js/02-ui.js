@@ -133,6 +133,8 @@ NX.openCommandPalette = function(){
       { name:'Toggle widget',   hint:'Action', icon:'widget',  run:()=>NX.widget && NX.widget.toggle() },
       { name:'Start Pomodoro',  hint:'Timeless', icon:'clock', run:()=>{ NX.router.go('timeless'); setTimeout(()=>NX.pomo && NX.pomo.start(), 80); } },
       { name:'Take a screenshot',hint:'Media', icon:'camera',  run:()=>{ NX.router.go('media'); setTimeout(()=>NX.capture && NX.capture(), 80); } },
+      { name:'Report a bug / Diagnostics', hint:'System', icon:'activity', run:()=>NX.openBugReporter && NX.openBugReporter() },
+      { name:'Repair database',            hint:'System', icon:'refresh',  run:()=>NX.repairDatabase && NX.repairDatabase() },
       { name:'Export workspace',hint:'Data',  icon:'download',run:()=>NX.exportWorkspace && NX.exportWorkspace() },
       { name:'Play a game',     hint:'Fun',   icon:'game',    run:()=>NX.router.go('games') }
     ]);

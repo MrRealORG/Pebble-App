@@ -18,6 +18,7 @@ const CATS = {
   distr: { l:'Distraction', cls:'cat-distr', pill:'red' }
 };
 let currentFilter = 'all', currentKind = 'all', currentDay = 0;   // 0=today, 1=yesterday
+let appSearchQuery = '';
 
 /* ---------------- real icon engine ---------------- */
 const _iconCache = new Map();      // key -> html (<img>) or null
@@ -164,6 +165,38 @@ function filteredDayTotals(){
   return { prod, neut, distr, total:prod+neut+distr };
 }
 function score(){ const t = totals(); return Math.round(t.prod / Math.max(1, t.prod + t.distr) * 100); }
+function streakCount(){
+  const all = NX.store.get('timeless', {});
+  const set = NX.store.get('settings', {});
+  const goalSec = (set.focusGoalMin || 240) * 60;
+  let streak = 0;
+  const getDayProd = (dKey) => {
+    const d = all[dKey] || {};
+    let prod = 0;
+    Object.entries(d).forEach(([k, a]) => {
+      if(k !== '__hours' && a && a.cat === 'prod' && a.sec) prod += a.sec;
+    });
+    return prod;
+  };
+  const todayKey = U.todayKey();
+  const todayProd = getDayProd(todayKey);
+  let checkDay = 1;
+  if(todayProd >= Math.min(3600, goalSec * 0.4)){
+    streak++;
+  }
+  while(checkDay < 60){
+    const dKey = U.todayKey(new Date(Date.now() - checkDay * 86400e3));
+    if(!all[dKey]) break;
+    const prod = getDayProd(dKey);
+    if(prod >= Math.min(3600, goalSec * 0.4)){
+      streak++;
+      checkDay++;
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
 NX.totals = totals;
 
 /* last 7 days series for the trend graph */
@@ -283,6 +316,7 @@ function renderPage(view){
   const set = NX.store.get('settings', {});
   const goalMin = set.focusGoalMin || 240;
   const distLimit = set.distractionLimitMin || 120;
+  const streak = streakCount();
 
   const goalPct = Math.min(100, Math.round((ft.prod/60)/goalMin*100));
   const distPct = Math.min(100, Math.round((ft.distr/60)/distLimit*100));
@@ -297,6 +331,9 @@ function renderPage(view){
     <div class="stat"><div class="tile">${icon('eye')}</div>
       <div><div class="s-label">Distraction${currentDay?' · day':''}</div><div class="s-num">${U.fmtTime(ft.distr)}</div></div>
       <span class="delta ${distPct>=100?'down':'up'}" style="margin-left:auto">${distPct}% of limit</span></div>
+    <div class="stat"><div class="tile">${icon('fire')}</div>
+      <div><div class="s-label">Focus streak</div><div class="s-num">${streak} ${streak===1?'day':'days'}</div></div>
+      <span class="tl-streak-chip" style="margin-left:auto">${streak>=3?'🔥 On fire':streak>=1?'⚡ Alive':'🌱 Start'}</span></div>
     <div class="stat"><div class="tile">${icon('activity')}</div>
       <div><div class="s-label">Tracked${currentDay?' · day':' today'}</div><div class="s-num">${U.fmtTime(ft.total)}</div></div></div>
   </div>
@@ -315,16 +352,24 @@ function renderPage(view){
 
       <div class="card anim-in" style="animation-delay:.08s">
         <div class="card-h"><div class="tile sm">${icon('layers')}</div>
-          <div><div class="c-title">Apps &amp; sites</div><div class="c-sub">Real icons · auto-detected · re-categorize anytime</div></div>
+          <div><div class="c-title">Apps &amp; sites</div><div class="c-sub">Real icons · auto-detected · 1-click re-categorize</div></div>
           <div class="spacer"></div>
           <div class="seg" id="tl-day-seg"></div>
           <div id="tl-kind-seg"></div></div>
         <div class="card-b" style="padding-top:8px">
+          <div class="tl-toolbar">
+            <div class="tl-search-wrap">
+              ${icon('search')}
+              <input id="tl-app-search" placeholder="Search apps, sites, or categories…" value="${U.esc(appSearchQuery)}">
+            </div>
+            <button class="btn btn-soft btn-sm" id="tl-export-report" data-tip="Export markdown summary report">${icon('download')} Export report</button>
+          </div>
           <div class="todo-filters" id="tl-filters" style="margin-bottom:6px"></div>
           <div class="tl-cat-legend" style="margin-bottom:8px">
             <span class="lg"><i class="cat-prod"></i> Productive</span>
             <span class="lg"><i class="cat-neut"></i> Neutral</span>
             <span class="lg"><i class="cat-distr"></i> Distraction</span>
+            <span class="faint tiny" style="margin-left:auto">Click pill to cycle category</span>
           </div>
           <div id="tl-apps"></div>
         </div>
@@ -338,8 +383,8 @@ function renderPage(view){
 
       <div class="card anim-in" style="animation-delay:.14s">
         <div class="card-h"><div class="tile sm">${icon('clock')}</div>
-          <div><div class="c-title">Activity by hour</div><div class="c-sub">Where the day actually went</div></div></div>
-        <div class="card-b"><div id="tl-hours" style="display:flex;align-items:flex-end;gap:6px;height:120px"></div></div>
+          <div><div class="c-title">24-hour visual activity</div><div class="c-sub">Hover any hour column to view exact tracked duration</div></div></div>
+        <div class="card-b"><div id="tl-hours"></div></div>
       </div>
     </div>
 
@@ -398,6 +443,58 @@ function renderPage(view){
   const seg = NX.seg([{v:'all',l:'All'},{v:'app',l:'Apps'},{v:'site',l:'Sites'}], 'all', v=>{ currentKind = v; renderApps(view); });
   q('#tl-kind-seg', page).appendChild(seg);
 
+  /* search input binding */
+  const searchEl = q('#tl-app-search', page);
+  if(searchEl){
+    searchEl.oninput = (e)=>{
+      appSearchQuery = e.target.value.trim();
+      renderApps(page);
+    };
+  }
+
+  /* export report handler */
+  const expBtn = q('#tl-export-report', page);
+  if(expBtn){
+    expBtn.onclick = ()=>{
+      const targetDayKey = U.todayKey(new Date(Date.now() - currentDay * 86400e3));
+      const ft = filteredDayTotals();
+      const d = dayData(currentDay);
+      const items = Object.entries(d).filter(([k,a])=>k!=='__hours' && a && a.sec>=2).sort((a,b)=>b[1].sec-a[1].sec);
+      const slots = d.__hours || {};
+
+      let md = `# Pebble Timeless Productivity Report\n\n`;
+      md += `- **Date:** ${targetDayKey} (${currentDay === 0 ? 'Today' : 'Yesterday'})\n`;
+      md += `- **Focus Score:** ${score()}%\n`;
+      md += `- **Total Tracked Time:** ${U.fmtTime(ft.total)}\n`;
+      md += `- **Productive:** ${U.fmtTime(ft.prod)} (${Math.round(ft.prod/Math.max(1,ft.total)*100)}%)\n`;
+      md += `- **Neutral:** ${U.fmtTime(ft.neut)} (${Math.round(ft.neut/Math.max(1,ft.total)*100)}%)\n`;
+      md += `- **Distraction:** ${U.fmtTime(ft.distr)} (${Math.round(ft.distr/Math.max(1,ft.total)*100)}%)\n\n`;
+      
+      md += `## Applications & Sites Breakdown\n\n`;
+      md += `| Name | Type | Category | Tracked Time | % Share |\n`;
+      md += `| :--- | :--- | :--- | :--- | :--- |\n`;
+      items.forEach(([k, a])=>{
+        const pct = Math.round(a.sec / Math.max(1, ft.total) * 100);
+        md += `| ${a.name || k} | ${a.isSite ? 'Site' : 'App'} | ${CATS[a.cat].l} | ${U.fmtTime(a.sec)} | ${pct}% |\n`;
+      });
+
+      md += `\n## Hourly Activity Summary\n\n`;
+      md += `| Hour | Tracked Time |\n`;
+      md += `| :--- | :--- |\n`;
+      for(let hh=0; hh<24; hh++){
+        if(slots[hh]){
+          md += `| ${String(hh).padStart(2,'0')}:00 - ${String(hh).padStart(2,'0')}:59 | ${U.fmtTime(slots[hh])} |\n`;
+        }
+      }
+      md += `\n*Generated by PebbleX Desktop Productivity Suite*\n`;
+
+      const fname = `Pebble-Timeless-Report-${targetDayKey}.md`;
+      U.download(fname, md, 'text/markdown');
+      NX.toastOk('Report exported', fname);
+      NX.sfx.play('pop');
+    };
+  }
+
   /* filters (3 nature filters) — counts follow the selected day */
   function renderFilters(){
     const f = q('#tl-filters', page);
@@ -412,26 +509,81 @@ function renderPage(view){
   function renderApps(view2){
     const host = q('#tl-apps', page); if(!host) return;
     const d = dayData(currentDay);
-    const items = Object.entries(d).filter(([k,a])=>k!=='__hours' && a && a.sec>=3)
+    let items = Object.entries(d).filter(([k,a])=>k!=='__hours' && a && a.sec>=2)
       .filter(([k,a])=>currentFilter==='all' || a.cat===currentFilter)
-      .filter(([k,a])=>currentKind==='all' || (currentKind==='site' ? a.isSite : !a.isSite))
-      .sort((a,b)=>b[1].sec-a[1].sec);
+      .filter(([k,a])=>currentKind==='all' || (currentKind==='site' ? a.isSite : !a.isSite));
+
+    if(appSearchQuery){
+      const qry = appSearchQuery.toLowerCase();
+      items = items.filter(([k,a])=> k.includes(qry) || (a.name||'').toLowerCase().includes(qry) || (CATS[a.cat] && CATS[a.cat].l.toLowerCase().includes(qry)));
+    }
+
+    items.sort((a,b)=>b[1].sec-a[1].sec);
     const max = Math.max(1, ...items.map(x=>x[1].sec));
     const total = Math.max(1, items.reduce((s,x)=>s+x[1].sec, 0));
     if(!items.length){
-      host.innerHTML = `<div class="empty" style="padding:26px"><div class="e-title">No data ${currentDay?'for yesterday':'yet'}</div><div class="e-sub">Keep PebbleX open — every app and site you use appears here automatically, with real icons.</div></div>`;
+      host.innerHTML = `<div class="empty" style="padding:26px"><div class="e-title">${appSearchQuery ? 'No matching apps or sites' : 'No data ' + (currentDay?'for yesterday':'yet')}</div><div class="e-sub">${appSearchQuery ? 'Try clearing your search query' : 'Keep PebbleX open — every app and site you use appears here automatically, with real icons.'}</div></div>`;
       return;
     }
     host.innerHTML = items.map(([k,a])=>`
       <div class="app-row" data-k="${U.esc(k)}">
         ${iconHTML(k, a)}
-        <div style="min-width:0;width:150px"><div class="ar-name">${U.esc(a.name)}</div>
-          <div class="ar-cat">${a.isSite?'Site':'App'} · <span class="pill ${CATS[a.cat].pill}" style="height:16px;font-size:9.5px">${CATS[a.cat].l}</span></div></div>
+        <div style="min-width:0;width:150px">
+          <div class="ar-name" title="${U.esc(a.name)}">${U.esc(a.name)}</div>
+          <div class="ar-cat">${a.isSite?'Site':'App'} · 
+            <button class="tl-cat-switch-btn" data-cat-cycle="${U.esc(k)}" data-tip="Click to cycle: Productive ➔ Neutral ➔ Distraction">
+              <span class="pill ${CATS[a.cat].pill}" style="height:16px;font-size:9.5px;cursor:pointer">${CATS[a.cat].l}</span>
+            </button>
+          </div>
+        </div>
         <div class="ar-bar meter"><i style="width:${Math.round(a.sec/max*100)}%;background:${a.cat==='prod'?'var(--green)':a.cat==='distr'?'var(--red)':'var(--yellow)'}"></i></div>
         <span class="ar-pct">${Math.round(a.sec/total*100)}%</span>
         <span class="ar-time">${U.fmtTime(a.sec)}</span>
-        <button class="icon-btn sm" data-re="${U.esc(k)}" data-tip="Re-categorize / link">${icon('dots')}</button>
+        <div style="display:flex;align-items:center;gap:2px">
+          <button class="icon-btn sm" data-re="${U.esc(k)}" data-tip="Re-categorize / link">${icon('dots')}</button>
+          <button class="icon-btn sm" data-del-app="${U.esc(k)}" data-tip="Remove from log" style="color:var(--ink-4)">${icon('x')}</button>
+        </div>
       </div>`).join('');
+
+    qa('[data-cat-cycle]', host).forEach(b=>{
+      b.onclick = (e)=>{
+        e.stopPropagation();
+        const key = b.dataset.catCycle;
+        const a = dayData(currentDay)[key];
+        if(!a) return;
+        const nextCat = a.cat === 'prod' ? 'neut' : (a.cat === 'neut' ? 'distr' : 'prod');
+        setCat(key, nextCat);
+      };
+    });
+
+    qa('[data-del-app]', host).forEach(b=>{
+      b.onclick = (e)=>{
+        e.stopPropagation();
+        const key = b.dataset.delApp;
+        const rec = dayData(currentDay)[key];
+        if(!rec) return;
+        NX.modal({
+          title: 'Remove from history',
+          icon: 'trash',
+          body: NX.h(`<p>Remove <b>${U.esc(rec.name || key)}</b> (${U.fmtTime(rec.sec)}) from ${currentDay ? 'yesterday\'s' : 'today\'s'} log?</p>`),
+          footer: [
+            { label: 'Cancel', cls: 'btn-soft' },
+            { label: 'Remove', cls: 'btn-red', onClick: () => {
+                const all = NX.store.get('timeless', {});
+                const targetDayKey = U.todayKey(new Date(Date.now() - currentDay * 86400e3));
+                if(all[targetDayKey] && all[targetDayKey][key]){
+                  delete all[targetDayKey][key];
+                  NX.store.set('timeless', all);
+                }
+                NX.closeAllModals();
+                renderPage(view);
+                NX.toastOk('Removed', `Excluded ${rec.name || key} from log.`);
+            }}
+          ]
+        });
+      };
+    });
+
     qa('[data-re]', host).forEach(b=>{
       b.onclick = (e)=>{
         const key = b.dataset.re, a = dayData(currentDay)[key];
@@ -442,6 +594,16 @@ function renderPage(view){
           '-',
           { label:'Reset to automatic rule', icon:'refresh', onClick:()=>{ const locks = NX.store.get('catLocks',{}); delete locks[key]; NX.store.set('catLocks', locks); bumpReclass(key); renderApps(page); renderFilters(); } },
           { label:'Link to a task…', icon:'todo', onClick:()=>linkToTask(key, a.sec) },
+          { label:'Remove from log…', icon:'trash', onClick:()=>{
+              const all = NX.store.get('timeless', {});
+              const targetDayKey = U.todayKey(new Date(Date.now() - currentDay * 86400e3));
+              if(all[targetDayKey] && all[targetDayKey][key]){
+                delete all[targetDayKey][key];
+                NX.store.set('timeless', all);
+              }
+              renderPage(view);
+              NX.toastOk('Removed', `Excluded ${key} from log.`);
+          } }
         ]);
       };
     });
@@ -501,10 +663,27 @@ function renderPage(view){
 
   q('#tl-rule-add', page).onclick = ()=>{
     const body = h(`<div>
-      <div class="field" style="margin-bottom:10px"><label>Match (app or site name contains…)</label><input class="input" id="nr-match" placeholder="e.g. figma"></div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Match (app or site name contains…)</label>
+        <input class="input" id="nr-match" placeholder="e.g. figma, github, youtube">
+        <div id="nr-preview" class="small faint" style="margin-top:6px;min-height:18px"></div>
+      </div>
       <div class="field"><label>Counts as</label><select class="select" id="nr-cat">
         <option value="prod">Productive</option><option value="neut">Neutral</option><option value="distr">Distraction</option></select></div>
     </div>`);
+    const matchInput = q('#nr-match', body);
+    const prevEl = q('#nr-preview', body);
+    matchInput.oninput = ()=>{
+      const val = matchInput.value.trim().toLowerCase();
+      if(!val){ prevEl.textContent = ''; return; }
+      const currentApps = Object.keys(dayData(0)).concat(Object.keys(dayData(1)));
+      const matches = Array.from(new Set(currentApps)).filter(k => k !== '__hours' && k.includes(val));
+      if(matches.length){
+        prevEl.innerHTML = `<span style="color:var(--green);font-weight:600">✓ Matches active: ${matches.slice(0, 4).map(m=>U.esc(m)).join(', ')}${matches.length > 4 ? ` (+${matches.length - 4} more)` : ''}</span>`;
+      } else {
+        prevEl.textContent = 'Will apply automatically once launched.';
+      }
+    };
     NX.modal({ title:'New rule', icon:'filter', body, footer:[
       { label:'Cancel', cls:'btn-soft' },
       { label:'Save rule', cls:'btn-green', onClick:()=>{
@@ -531,17 +710,29 @@ function renderPage(view){
     ]});
   };
 
-  /* hours chart */
+  /* 24-hour visual activity timeline */
   function renderHours(){
     const host = q('#tl-hours', page); if(!host) return;
     const slots = dayData(currentDay).__hours || {};
     const cols = [];
-    for(let hh=0; hh<24; hh+=2){ cols.push({ h:hh, v: slots[hh]+(slots[hh+1]||0) }); }
-    const max = Math.max(60, ...cols.map(c=>c.v));
-    const has = Object.keys(slots).length > 0;
-    host.innerHTML = cols.map(c=>`<div class="bar-col" data-tip="${String(c.h).padStart(2,'0')}:00 — ${U.fmtTime(c.v)}">
-      <div class="bar ${c.v===Math.max(...cols.map(x=>x.v))&&c.v>0?'hot':''}" style="height:${has? Math.max(4, c.v/max*100) : 6}%;opacity:${has?1:.4}"></div>
-      <div class="bar-label">${String(c.h).padStart(2,'0')}</div></div>`).join('');
+    for(let hh=0; hh<24; hh++){
+      cols.push({ h: hh, v: slots[hh] || 0 });
+    }
+    const max = Math.max(120, ...cols.map(c=>c.v));
+    const nowHour = new Date().getHours();
+    host.className = 'tl-hours-24';
+    host.innerHTML = cols.map(c=>{
+      const pct = Math.max(c.v > 0 ? 8 : 3, Math.round(c.v / max * 100));
+      const isCurrent = currentDay === 0 && c.h === nowHour;
+      const bg = c.v > 0 ? (c.v >= 1800 ? 'var(--green)' : 'linear-gradient(to top, var(--green-soft), var(--green))') : 'var(--surface-3)';
+      const timeStr = String(c.h).padStart(2,'0') + ':00';
+      const label = (c.h % 4 === 0 || c.h === 23) ? timeStr : '';
+      return `<div class="tl-hour-col">
+        <div class="tl-hour-bar" data-tip="${timeStr} — ${U.fmtTime(c.v)}${isCurrent ? ' (current hour)' : ''}"
+             style="height:${pct}%;background:${bg};opacity:${c.v>0?1:0.35}"></div>
+        <div class="tl-hour-label">${label}</div>
+      </div>`;
+    }).join('');
   }
 
   /* 7-day stacked trend graph (pure CSS bars, no deps) */
