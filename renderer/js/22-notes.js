@@ -18,10 +18,18 @@ let curNoteId = null, listQuery = '', curFolder = '', curTag = 'all', viewMode =
 let vault = { root:'', files:[], folders:[] };
 
 /* ---------------- Enhanced Markdown -> HTML Renderer ---------------- */
+function highlightCode(code, lang){
+  let safe = U.esc(code);
+  safe = safe.replace(/\b(const|let|var|function|return|import|export|from|class|fn|pub|mut|struct|enum|impl|async|await|if|else|for|while|match|try|catch|true|false|null|undefined)\b/g, '<span style="color:#d55fde;font-weight:700">$1</span>');
+  safe = safe.replace(/(&quot;.*?&quot;|&#39;.*?&#39;|`.*?`)/g, '<span style="color:#89ca78">$1</span>');
+  safe = safe.replace(/(\/\/.*$|\/\*[\s\S]*?\*\/)/gm, '<span style="color:#7a839b;font-style:italic">$1</span>');
+  return safe;
+}
+
 function mdRender(src){
   const rawText = String(src || '');
   const lines = rawText.split('\n');
-  let html = '', inCode = false, codeLang = '', codeBuf = [], listMode = null, inTable = false, tableBuf = [];
+  let html = '', inCode = false, codeLang = '', codeBuf = [], listMode = null, inTable = false, tableBuf = [], inToggle = false;
   
   const flushList = ()=>{ if(listMode){ html += `</${listMode}>`; listMode = null; } };
   const flushTable = ()=>{
@@ -31,16 +39,18 @@ function mdRender(src){
       inTable = false;
     }
   };
+  const flushToggle = ()=>{ if(inToggle){ html += '</div></details>'; inToggle = false; } };
 
   const inline = s => {
     let out = U.esc(s);
+    out = out.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="md-img" loading="lazy">');
     out = out.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
     out = out.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
     out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>');
     out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
     out = out.replace(/==([^=]+)==/g, '<mark class="md-mark">$1</mark>');
     out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">$1</a>');
-    out = out.replace(/#([a-zA-Z0-9_-]{2,24})/g, '<span class="tagchip">#$1</span>');
+    out = out.replace(/#([a-zA-Z0-9_-]{2,24})/g, '<span class="tagchip" style="cursor:pointer" data-tag="$1">#$1</span>');
     out = out.replace(/\$([^\$\n]+)\$/g, '<code class="md-math">$1</code>');
     return out;
   };
@@ -53,7 +63,7 @@ function mdRender(src){
     // Code blocks
     if(/^```/.test(trimmed)){
       if(inCode){
-        const codeContent = U.esc(codeBuf.join('\n'));
+        const codeContent = highlightCode(codeBuf.join('\n'), codeLang);
         html += `<div class="md-codeblock">
           <div class="md-codeblock-h"><span>${U.esc(codeLang||'code')}</span><button class="md-copy-btn" onclick="navigator.clipboard.writeText(this.closest('.md-codeblock').querySelector('pre').innerText);NX.toastOk('Copied code','');">Copy</button></div>
           <pre class="md-pre"><code>${codeContent}</code></pre>
@@ -78,8 +88,20 @@ function mdRender(src){
       flushTable();
     }
 
-    // Headings
+    // Collapsible Toggle: > ? Title or +++ Title
     let m;
+    if(m = line.match(/^>\s*\?\s+(.*)$/)){
+      flushList(); flushToggle();
+      html += `<details class="md-toggle" open><summary>${inline(m[1])}</summary><div class="md-toggle-body">`;
+      inToggle = true;
+      continue;
+    }
+    if(trimmed === '>>>' || trimmed === '</details>'){
+      flushToggle();
+      continue;
+    }
+
+    // Headings
     if(m = line.match(/^(#{1,3})\s+(.*)$/)){
       flushList();
       const level = m[1].length;
@@ -87,11 +109,12 @@ function mdRender(src){
       continue;
     }
 
-    // Checkboxes / Tasks (with data-line for interactive clicking!)
+    // Checkboxes / Tasks (with nested indentation and data-line)
     if(m = line.match(/^(\s*)[-*]\s+\[([ xX])\]\s+(.*)$/)){
       if(listMode !== 'tasklist'){ flushList(); html += '<div class="md-tasklist">'; listMode = 'tasklist'; }
       const isDone = m[2].toLowerCase() === 'x';
-      html += `<label class="md-task ${isDone?'done':''}" data-line="${i}">
+      const indent = Math.min(4, Math.floor((m[1]||'').length / 2));
+      html += `<label class="md-task ${isDone?'done':''}" data-line="${i}" style="${indent ? `margin-left:${indent*16}px`:''}">
         <input type="checkbox" ${isDone?'checked':''} class="md-task-cb" data-line="${i}">
         <span>${inline(m[3])}</span>
       </label>`;
@@ -112,11 +135,11 @@ function mdRender(src){
       continue;
     }
 
-    // Callout boxes: > !tip, > !warning, > !info, > !success
+    // Callout boxes: > !tip, > !warning, > !info, > !danger, > !success, > !note
     if(m = line.match(/^>\s+!(\w+)\s+(.*)$/)){
       flushList();
       const type = m[1].toLowerCase();
-      const iconsMap = { tip:'✨', warning:'⚠️', info:'💡', danger:'🚨', note:'📝', success:'✅' };
+      const iconsMap = { tip:'✨', warning:'⚠️', warn:'⚠️', info:'💡', danger:'🚨', note:'📝', success:'✅' };
       const sym = iconsMap[type] || '💡';
       html += `<div class="md-callout md-callout-${type}"><span class="md-co-icon">${sym}</span><div class="md-co-content">${inline(m[2])}</div></div>`;
       continue;
@@ -156,7 +179,8 @@ function mdRender(src){
 
   flushList();
   flushTable();
-  if(inCode) html += `<pre class="md-pre">${U.esc(codeBuf.join('\n'))}</pre>`;
+  flushToggle();
+  if(inCode) html += `<pre class="md-pre">${highlightCode(codeBuf.join('\n'), codeLang)}</pre>`;
   return html;
 }
 
@@ -330,6 +354,7 @@ const SLASH_ITEMS = [
   { l:'Tip Callout',      k:'TIP',ic:'star',   ins:'> !tip ',              tip:'Highlighted tip box' },
   { l:'Warning Callout',  k:'WRN',ic:'bell',   ins:'> !warning ',          tip:'Warning highlight' },
   { l:'Info Callout',     k:'INF',ic:'eye',    ins:'> !info ',             tip:'Informational notice' },
+  { l:'Toggle section',   k:'TOG',ic:'chevL',  ins:'> ? Toggle Title\nToggle content here...\n>>>\n', tip:'Collapsible block' },
   { l:'Quote',            k:'QT', ic:'chat',   ins:'> ',                   tip:'Blockquote style' },
   { l:'Code block',       k:'CD', ic:'code',   ins:'```javascript\n\n```', caretBack:4, tip:'Code snippet' },
   { l:'Table (3x3)',      k:'TB', ic:'grid',   ins:'\n| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| Item A | Value 1 | Active |\n| Item B | Value 2 | Done |\n', tip:'Data table' },
@@ -349,6 +374,7 @@ function slashMenuFor(textarea){
       <span class="sm-ic">${icon(it.ic,14)}</span>
       <span class="sm-body"><b>${U.esc(it.l)}</b><span>${U.esc(it.tip)}</span></span>
       <span class="sm-kbd">${U.esc(it.k)}</span></button>`);
+    el._data = it;
     el.onmousedown = (e)=>{
       e.preventDefault();
       applySlash(textarea, it);
@@ -392,6 +418,9 @@ function applySlash(textarea, it){
   if(it.date){
     insert = new Date().toLocaleDateString(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' }) + ' ';
   }
+  if(/^([#>|\-\$]|`)/.test(insert) && pos > 0 && v[pos-1] !== '\n'){
+    insert = '\n' + insert;
+  }
 
   const caret = it.caretBack ? pos + insert.length - it.caretBack : pos + insert.length;
   textarea.value = v.slice(0, pos) + insert + v.slice(pos);
@@ -434,7 +463,14 @@ function openTemplateModal(textarea){
 }
 
 /* ---------------- Note Creation ---------------- */
+let globalSaveTimer = null;
+let globalPersistFn = null;
+
 NX.newNote = function(folder){
+  if(globalSaveTimer && globalPersistFn){
+    clearTimeout(globalSaveTimer);
+    globalPersistFn();
+  }
   const n = {
     id: U.uid('nt'),
     title: 'Untitled Note',
@@ -450,8 +486,11 @@ NX.newNote = function(folder){
   curNoteId = n.id;
   NX.sfx.play('pop');
   syncToDisk(n);
-  if(NX.router.currentName === 'notes') NX.router.go('notes');
-  else NX.router.go('notes');
+  if(NX.router.currentName === 'notes' && window.__nx_refreshNotesView){
+    window.__nx_refreshNotesView();
+  } else {
+    NX.router.go('notes');
+  }
 };
 
 /* ---------------- Notes Module View ---------------- */
@@ -517,7 +556,8 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
             </div>
             <button class="icon-btn sm" id="ne-folder" data-tip="Move to folder">${icon('layers')}</button>
             <button class="icon-btn sm" id="ne-pin" data-tip="Pin note to top">${icon('pin')}</button>
-            <button class="icon-btn sm" id="ne-copy" data-tip="Copy note text">${icon('copy')}</button>
+            <button class="icon-btn sm" id="ne-copy" data-tip="Copy note markdown">${icon('copy')}</button>
+            <button class="icon-btn sm" id="ne-dup" data-tip="Duplicate note">${icon('plus')}</button>
             <button class="icon-btn sm" id="ne-export" data-tip="Export note as .md">${icon('download')}</button>
             <button class="icon-btn sm" id="ne-del" data-tip="Delete note" style="color:var(--red)">${icon('trash')}</button>
           </div>
@@ -576,8 +616,26 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     notes().forEach(n => { const f = n.folder || ''; counts[f] = (counts[f]||0) + 1; });
     host.innerHTML = `
       <button class="nt-folder ${curFolder===''?'on':''}" data-f="">${icon('notes',14)} All notes <span class="n">${notes().length}</span></button>
-      ${allFolders.map(f=>`<button class="nt-folder ${curFolder===f?'on':''}" data-f="${U.esc(f)}"><span class="fld-ic">${icon('layers',14)}</span> ${U.esc(f)} <span class="n">${counts[f]||0}</span></button>`).join('')}`;
+      ${allFolders.map(f=>`<button class="nt-folder ${curFolder===f?'on':''}" data-f="${U.esc(f)}"><span class="fld-ic">${icon('layers',14)}</span> ${U.esc(f)} <span class="n">${counts[f]||0}</span></button>`).join('')}
+      ${curTag !== 'all' ? `<div style="padding:6px 4px 2px"><button class="chip active" id="nt-clear-tag" style="height:24px;font-size:11px">Filter: #${U.esc(curTag)} <span style="font-weight:900;margin-left:4px">&times;</span></button></div>` : ''}
+    `;
     qa('.nt-folder', host).forEach(b => b.onclick = () => { curFolder = b.dataset.f; renderFolders(); renderList(); });
+    const clearTagBtn = q('#nt-clear-tag', host);
+    if(clearTagBtn){
+      clearTagBtn.onclick = () => { curTag = 'all'; renderFolders(); renderList(); };
+    }
+  }
+
+  function selectNote(noteId){
+    if(curNoteId === noteId) return;
+    if(globalSaveTimer && globalPersistFn){
+      clearTimeout(globalSaveTimer);
+      globalPersistFn();
+    }
+    curNoteId = noteId;
+    renderList();
+    loadEditor();
+    NX.sfx.play('click');
   }
 
   function renderList(){
@@ -595,7 +653,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         <div class="nc-meta">${n.folder ? `<span class="fld-chip">${U.esc(n.folder)}</span>` : ''}${(n.tags||[]).map(t=>`<span class="tagchip">#${U.esc(t)}</span>`).join('')}
           <span class="faint tiny" style="margin-left:auto">${n.mdRel ? '<span class="disk-dot" title="Synced to disk"></span>' : ''}${U.esc(U.relTime(n.updated))}</span></div>
       </div>`);
-      el.onclick = () => { curNoteId = n.id; renderList(); loadEditor(); NX.sfx.play('click'); };
+      el.onclick = () => selectNote(n.id);
       host.appendChild(el);
     });
   }
@@ -643,21 +701,44 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   function persist(){
     const n = current();
     if(!n) return;
-    n.title = q('#ne-title', view).value || 'Untitled';
+    let titleVal = (q('#ne-title', view)?.value || '').trim();
     n.body = ta.value;
+    // Auto-sync title from first # Heading if title was untitled/empty
+    if(!titleVal || titleVal === 'Untitled Note'){
+      const h1Match = n.body.match(/^#\s+(.+)$/m);
+      if(h1Match && h1Match[1].trim()){
+        titleVal = h1Match[1].trim();
+        const titleEl = q('#ne-title', view);
+        if(titleEl) titleEl.value = titleVal;
+      }
+    }
+    n.title = titleVal || 'Untitled Note';
     const foundTags = new Set((n.body.match(/#[a-zA-Z0-9_-]{2,20}/g)||[]).map(t=>t.slice(1).toLowerCase()));
     n.tags = Array.from(foundTags).slice(0, 8);
     n.updated = Date.now();
     saveNotes(notes());
-    q('#ne-saved', view).textContent = 'Saved just now';
-    q('#ne-stats', view).textContent = calculateStats(n.body);
-    q('#ne-tags', view).innerHTML = n.tags.map(t=>`<span class="tagchip">#${U.esc(t)}</span>`).join(' ');
+    const savedEl = q('#ne-saved', view);
+    if(savedEl) savedEl.textContent = 'Saved just now';
+    const statsEl = q('#ne-stats', view);
+    if(statsEl) statsEl.textContent = calculateStats(n.body);
+    const tagsEl = q('#ne-tags', view);
+    if(tagsEl){
+      tagsEl.innerHTML = n.tags.map(t=>`<span class="tagchip" style="cursor:pointer" data-tag="${U.esc(t)}">#${U.esc(t)}</span>`).join(' ');
+      qa('.tagchip', tagsEl).forEach(chip => {
+        chip.onclick = () => { curTag = chip.dataset.tag; renderFolders(); renderList(); };
+      });
+    }
     syncToDisk(n);
     refreshPreview();
   }
 
+  globalPersistFn = persist;
   let saveTimer = null;
-  const autosave = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => { persist(); renderList(); }, 350); };
+  const autosave = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => { persist(); renderList(); }, 350);
+    globalSaveTimer = saveTimer;
+  };
 
   q('#ne-title', view).addEventListener('input', autosave);
   ta.addEventListener('input', () => { autosave(); maybeSlash(ta); });
@@ -691,19 +772,22 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   ta.addEventListener('keydown', e => {
     if(e.key === 'Escape') removeSlashMenu();
     const menu = q('#slash-menu');
-    if(menu && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter')){
-      e.preventDefault();
-      const items = qa('.sm-item', menu);
-      let idx = items.findIndex(x=>x.classList.contains('on'));
-      if(e.key === 'Enter' && idx >= 0){
-        applySlash(ta, SLASH_ITEMS[idx]);
+    if(menu && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Tab')){
+      const visible = qa('.sm-item', menu).filter(x => x.style.display !== 'none');
+      if(visible.length){
+        e.preventDefault();
+        let idx = visible.findIndex(x => x.classList.contains('on'));
+        if(idx < 0) idx = 0;
+        if(e.key === 'Enter' || e.key === 'Tab'){
+          applySlash(ta, visible[idx]._data);
+          return;
+        }
+        const nextIdx = e.key === 'ArrowDown' ? (idx + 1) % visible.length : (idx - 1 + visible.length) % visible.length;
+        visible.forEach(x => x.classList.remove('on'));
+        visible[nextIdx].classList.add('on');
+        visible[nextIdx].scrollIntoView({ block:'nearest' });
         return;
       }
-      const next = e.key === 'ArrowDown' ? (idx+1) % items.length : (idx-1+items.length) % items.length;
-      items.forEach(x=>x.classList.remove('on'));
-      items[next].classList.add('on');
-      items[next].scrollIntoView({ block:'nearest' });
-      return;
     }
     if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b'){
       e.preventDefault(); wrapSelection('**', '**');
@@ -729,15 +813,15 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       const menu = slashMenuFor(textarea);
       positionSlashMenu(menu, textarea);
       const typed = m[2].toLowerCase();
-      qa('.sm-item', menu).forEach((el, i) => {
-        const it = SLASH_ITEMS[i];
+      const items = qa('.sm-item', menu);
+      items.forEach(el => {
+        const it = el._data;
         const match = !typed || it.l.toLowerCase().includes(typed) || it.k.toLowerCase().includes(typed);
         el.style.display = match ? 'flex' : 'none';
-        if(i === 0) el.classList.add('on');
+        el.classList.remove('on');
       });
-      const first = qa('.sm-item', menu).find(el => el.style.display !== 'none');
+      const first = items.find(el => el.style.display !== 'none');
       if(first){
-        qa('.sm-item', menu).forEach(x=>x.classList.remove('on'));
         first.classList.add('on');
       }
     }
@@ -772,6 +856,30 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   q('#ne-copy', view).onclick = () => {
     const n = current();
     if(n) NX.native.clipboardWrite(n.title + '\n\n' + n.body).then(()=>NX.toastOk('Copied to clipboard',''));
+  };
+  q('#ne-dup', view).onclick = () => {
+    const n = current();
+    if(!n) return;
+    if(saveTimer){ clearTimeout(saveTimer); persist(); }
+    const clone = {
+      id: U.uid('nt'),
+      title: (n.title || 'Untitled') + ' (Copy)',
+      body: n.body,
+      tags: [...(n.tags||[])],
+      folder: n.folder || '',
+      pinned: false,
+      updated: Date.now()
+    };
+    const list = notes();
+    list.unshift(clone);
+    saveNotes(list);
+    curNoteId = clone.id;
+    renderFolders();
+    renderList();
+    loadEditor();
+    syncToDisk(clone);
+    NX.toastOk('Note duplicated', clone.title);
+    NX.sfx.play('pop');
   };
   q('#ne-export', view).onclick = () => {
     const n = current();
@@ -871,6 +979,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     NX.toastInfo('Vault', 'Notes are stored locally on your machine.');
   };
 
+  window.__nx_refreshNotesView = () => { renderFolders(); renderList(); loadEditor(); };
   renderFolders();
   renderList();
   loadEditor();

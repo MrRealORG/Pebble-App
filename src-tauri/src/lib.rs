@@ -35,7 +35,7 @@ fn single_instance_guard() -> bool {
         let mut name: Vec<u16> = "Global\\PebbleX_App_Instance_Mutex".encode_utf16().collect();
         name.push(0);
         let handle = CreateMutexW(std::ptr::null(), 0, name.as_ptr());
-        if handle.is_null() {
+        if (handle as usize) == 0 {
             return true;
         }
         if GetLastError() == ERROR_ALREADY_EXISTS {
@@ -204,7 +204,7 @@ fn install_panic_hook() {
         }
         let _ = fs::write(&file, msg);
         // keep only the newest 30 crash logs
-        if let Ok(mut entries) = fs::read_dir(crash_dir()) {
+        if let Ok(entries) = fs::read_dir(crash_dir()) {
             let mut files: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
             files.sort();
             if files.len() > 30 {
@@ -253,7 +253,7 @@ struct CrashEntry {
 #[tauri::command]
 fn read_crash_logs() -> Vec<CrashEntry> {
     let mut out = Vec::new();
-    if let Ok(mut entries) = fs::read_dir(crash_dir()) {
+    if let Ok(entries) = fs::read_dir(crash_dir()) {
         let mut paths: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).filter(|p| p.extension().map(|x| x == "log").unwrap_or(false)).collect();
         paths.sort();
         paths.reverse();
@@ -477,7 +477,7 @@ fn extract_icon_png(exe_path: &str) -> Option<PathBuf> {
                         if let Some(dyn_img) = img {
                             let small = dyn_img.resize_exact(64, 64, image::imageops::FilterType::Lanczos3);
                             let mut png = Vec::new();
-                            let mut enc = image::codecs::png::PngEncoder::new(std::io::Cursor::new(&mut png));
+                            let enc = image::codecs::png::PngEncoder::new(std::io::Cursor::new(&mut png));
                             use image::ImageEncoder as _;
                             if enc
                                 .write_image(
@@ -622,7 +622,7 @@ fn capture_monitor(hide_self: bool, app: AppHandle) -> Result<String, String> {
         let img = mon.capture_image().map_err(|e| e.to_string())?;
         let dyn_img = image::DynamicImage::ImageRgba8(img);
         let mut png = Vec::new();
-        let mut enc = image::codecs::png::PngEncoder::new(std::io::Cursor::new(&mut png));
+        let enc = image::codecs::png::PngEncoder::new(std::io::Cursor::new(&mut png));
         use image::ImageEncoder as _;
         enc.write_image(
             dyn_img.to_rgba8().as_raw(),
@@ -701,7 +701,7 @@ fn read_clipboard_image() -> ClipImgResult {
                         .unwrap_or_else(|| image::RgbaImage::new(1, 1)),
                 );
                 let mut png = Vec::new();
-                let mut enc = image::codecs::png::PngEncoder::new(std::io::Cursor::new(&mut png));
+                let enc = image::codecs::png::PngEncoder::new(std::io::Cursor::new(&mut png));
                 use image::ImageEncoder as _;
                 if enc
                     .write_image(dyn_img.to_rgba8().as_raw(), dyn_img.width(), dyn_img.height(), image::ExtendedColorType::Rgba8)

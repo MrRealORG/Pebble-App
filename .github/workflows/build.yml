@@ -39,6 +39,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Build frontend bundles
+        run: node scripts/build.js
+
       - name: Build Tauri App (Installer + Binaries)
         uses: tauri-apps/tauri-action@v0
         env:

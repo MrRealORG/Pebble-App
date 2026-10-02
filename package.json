@@ -8,24 +8,14 @@
   "license": "MIT",
   "scripts": {
     "build": "node scripts/build.js",
-    "start": "node scripts/build.js && electron .",
-    "web": "node scripts/build.js && node tools/serve.js",
-    "pack": "node scripts/build.js && electron-builder --dir",
-    "dist": "node scripts/build.js && electron-builder",
-    "dist:win": "node scripts/build.js && electron-builder --win",
-    "dist:mac": "node scripts/build.js && electron-builder --mac",
-    "dist:linux": "node scripts/build.js && electron-builder --linux",
     "test": "node scripts/smoke-test.js",
     "icons": "python3 scripts/make_icons.py",
-    "package": "node scripts/package-desktop.js",
     "tauri": "tauri",
     "tauri:dev": "node scripts/build.js && tauri dev",
     "tauri:build": "node scripts/build.js && tauri build"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0",
-    "electron": "^31.7.7",
-    "electron-builder": "^24.13.3"
+    "@tauri-apps/cli": "^2.0.0"
   },
   "build": {
     "appId": "com.nexadesk.app",
