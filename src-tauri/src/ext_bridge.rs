@@ -346,6 +346,24 @@ pub fn spawn_bridge() {
                 return;
             }
 
+            if line.starts_with("POST /mcp") || line.starts_with("POST /api/mcp") {
+                let res = handle_mcp(&body);
+                let _ = stream.write_all(&json_response(res.to_string()));
+                return;
+            }
+
+            if line.starts_with("GET /mcp") || line.starts_with("GET /api/mcp") {
+                let b = serde_json::json!({
+                    "status": "online",
+                    "protocol": "Model Context Protocol (MCP) JSON-RPC 2.0",
+                    "endpoint": "POST /mcp",
+                    "app": "PebbleX",
+                    "version": env!("CARGO_PKG_VERSION")
+                });
+                let _ = stream.write_all(&json_response(b.to_string()));
+                return;
+            }
+
             if line.starts_with("GET / ") || line.starts_with("GET /index") || line.starts_with("GET /dashboard") {
                 let status = serde_json::json!({
                     "queued": queued(),
@@ -361,4 +379,234 @@ pub fn spawn_bridge() {
             });
         }
     });
+}
+
+fn handle_mcp(body: &[u8]) -> serde_json::Value {
+    let req: serde_json::Value = match serde_json::from_slice(body) {
+        Ok(v) => v,
+        Err(_) => return serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": null,
+            "error": { "code": -32700, "message": "Parse error" }
+        }),
+    };
+
+    let id = req.get("id").cloned().unwrap_or(serde_json::Value::Null);
+    let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
+    let params = req.get("params").cloned().unwrap_or(serde_json::json!({}));
+
+    match method {
+        "initialize" => serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "protocolVersion": "2024-11-05",
+                "serverInfo": {
+                    "name": "pebble-mcp",
+                    "version": env!("CARGO_PKG_VERSION")
+                },
+                "capabilities": {
+                    "tools": {},
+                    "resources": {},
+                    "prompts": {}
+                }
+            }
+        }),
+        "notifications/initialized" => serde_json::json!({
+            "jsonrpc": "2.0"
+        }),
+        "tools/list" => serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "tools": [
+                    {
+                        "name": "pebble_create_note",
+                        "description": "Create a new markdown note in Pebble Notes vault",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "title": { "type": "string", "description": "Title of the note" },
+                                "body": { "type": "string", "description": "Markdown body content" },
+                                "folder": { "type": "string", "description": "Optional folder name" }
+                            },
+                            "required": ["title", "body"]
+                        }
+                    },
+                    {
+                        "name": "pebble_create_task",
+                        "description": "Create a new task in Pebble / Microsoft To Do",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "title": { "type": "string", "description": "Task name or action item" },
+                                "note": { "type": "string", "description": "Optional details or subtext" },
+                                "due": { "type": "string", "description": "Optional due date (YYYY-MM-DD)" },
+                                "myDay": { "type": "boolean", "description": "Whether to add to My Day" },
+                                "important": { "type": "boolean", "description": "Whether to mark important" }
+                            },
+                            "required": ["title"]
+                        }
+                    },
+                    {
+                        "name": "pebble_create_prompt",
+                        "description": "Save a reusable AI prompt in Pebble Prompt Saver",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "title": { "type": "string", "description": "Prompt title" },
+                                "body": { "type": "string", "description": "Prompt text with optional {placeholders}" },
+                                "category": { "type": "string", "description": "Category (coding, writing, productivity, ai, system)" }
+                            },
+                            "required": ["title", "body"]
+                        }
+                    },
+                    {
+                        "name": "pebble_send_chat",
+                        "description": "Send a message to a team chat channel in Pebble",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {
+                                "text": { "type": "string", "description": "Message text" },
+                                "channel": { "type": "string", "description": "Channel name (e.g. general)" }
+                            },
+                            "required": ["text"]
+                        }
+                    },
+                    {
+                        "name": "pebble_get_status",
+                        "description": "Get current Pebble activity, active app, focus metrics, and queue status",
+                        "inputSchema": {
+                            "type": "object",
+                            "properties": {}
+                        }
+                    }
+                ]
+            }
+        }),
+        "tools/call" => {
+            let tool_name = params.get("name").and_then(|n| n.as_str()).unwrap_or("");
+            let args = params.get("arguments").cloned().unwrap_or(serde_json::json!({}));
+            match tool_name {
+                "pebble_create_note" => {
+                    let title = args.get("title").and_then(|s| s.as_str()).unwrap_or("Untitled Note");
+                    let body = args.get("body").and_then(|s| s.as_str()).unwrap_or("");
+                    push_queue(serde_json::json!({
+                        "kind": "note",
+                        "payload": { "title": title, "body": body }
+                    }));
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": format!("Note '{}' created in Pebble Notes", title) }]
+                        }
+                    })
+                },
+                "pebble_create_task" => {
+                    let title = args.get("title").and_then(|s| s.as_str()).unwrap_or("New Task");
+                    let note = args.get("note").and_then(|s| s.as_str()).unwrap_or("");
+                    let due = args.get("due").and_then(|s| s.as_str()).unwrap_or("");
+                    let my_day = args.get("myDay").and_then(|b| b.as_bool()).unwrap_or(false);
+                    let important = args.get("important").and_then(|b| b.as_bool()).unwrap_or(false);
+                    push_queue(serde_json::json!({
+                        "kind": "task",
+                        "payload": {
+                            "title": title,
+                            "note": note,
+                            "due": due,
+                            "myDay": my_day,
+                            "important": important
+                        }
+                    }));
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": format!("Task '{}' created in Pebble To-Do", title) }]
+                        }
+                    })
+                },
+                "pebble_create_prompt" => {
+                    let title = args.get("title").and_then(|s| s.as_str()).unwrap_or("New Prompt");
+                    let body = args.get("body").and_then(|s| s.as_str()).unwrap_or("");
+                    let category = args.get("category").and_then(|s| s.as_str()).unwrap_or("ai");
+                    push_queue(serde_json::json!({
+                        "kind": "prompt",
+                        "payload": { "title": title, "body": body, "category": category }
+                    }));
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": format!("Prompt '{}' saved in Pebble Prompt Saver", title) }]
+                        }
+                    })
+                },
+                "pebble_send_chat" => {
+                    let text = args.get("text").and_then(|s| s.as_str()).unwrap_or("");
+                    let channel = args.get("channel").and_then(|s| s.as_str()).unwrap_or("general");
+                    push_queue(serde_json::json!({
+                        "kind": "message",
+                        "payload": { "text": text, "channel": channel }
+                    }));
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": format!("Message sent to #{}", channel) }]
+                        }
+                    })
+                },
+                "pebble_get_status" => {
+                    let status = serde_json::json!({
+                        "app": "PebbleX",
+                        "version": env!("CARGO_PKG_VERSION"),
+                        "lastSeen": last_seen(),
+                        "queued": queued(),
+                        "extSessionsToday": ext_sessions_today()
+                    });
+                    serde_json::json!({
+                        "jsonrpc": "2.0",
+                        "id": id,
+                        "result": {
+                            "content": [{ "type": "text", "text": status.to_string() }]
+                        }
+                    })
+                },
+                _ => serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "error": { "code": -32601, "message": format!("Tool '{}' not found", tool_name) }
+                })
+            }
+        },
+        "resources/list" => serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "resources": [
+                    { "uri": "pebble://notes", "name": "Notes Vault", "description": "Markdown notes in Pebble local vault", "mimeType": "text/markdown" },
+                    { "uri": "pebble://tasks", "name": "Tasks & To-Do", "description": "Microsoft To-Do style tasks in Pebble", "mimeType": "application/json" },
+                    { "uri": "pebble://prompts", "name": "Prompt Saver", "description": "Saved reusable prompts and templates", "mimeType": "application/json" }
+                ]
+            }
+        }),
+        "prompts/list" => serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "prompts": [
+                    { "name": "code_review", "description": "Senior code review & security audit prompt" },
+                    { "name": "bug_analysis", "description": "Root cause bug analysis and fix prompt" },
+                    { "name": "daily_standup", "description": "Daily standup report prompt" }
+                ]
+            }
+        }),
+        _ => serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": { "code": -32601, "message": format!("Method '{}' not found", method) }
+        })
+    }
 }

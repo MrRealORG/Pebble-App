@@ -377,13 +377,22 @@ function renderGrid(){
     };
   });
 
+  qa('.pr-card', host).forEach(card => {
+    card.onclick = (e) => {
+      if(e.target.closest('button')) return;
+      const p = prompts().find(x => x.id === card.dataset.id);
+      if(p) openPromptDrawer(p);
+    };
+  });
+
   qa('[data-menu]', host).forEach(b => {
     b.onclick = (e) => {
       e.stopPropagation();
       const p = prompts().find(x => x.id === b.dataset.menu);
       if(!p) return;
       NX.menu(e.currentTarget, [
-        { label:'Edit prompt', icon:'edit', onClick:()=>NX.newPrompt(p) },
+        { label:'View & Edit on side', icon:'eye', onClick:()=>openPromptDrawer(p) },
+        { label:'Edit in modal', icon:'edit', onClick:()=>NX.newPrompt(p) },
         { label:'Duplicate', icon:'copy', onClick:()=>{
           const list = prompts();
           list.unshift({ ...p, id:U.uid('pr'), title:p.title + ' (Copy)', used:0, created:Date.now() });
@@ -425,7 +434,7 @@ NX.routeInShell('prompts', 'Prompts', 'star', function(view){
   ];
 
   view.innerHTML = `
-  <div class="page">
+  <div class="page" style="height:100%;overflow-y:auto;position:relative">
     <div class="row gap-8" style="flex-wrap:wrap;margin-bottom:14px">
       <div class="search-box" style="width:240px">
         ${icon('search')}<input id="pr-search" placeholder="Search prompts or {vars}…">
@@ -446,6 +455,10 @@ NX.routeInShell('prompts', 'Prompts', 'star', function(view){
       <div class="e-sub">Create your first reusable prompt with dynamic {placeholders}.</div>
       <button class="btn btn-green" id="pr-empty-create" style="margin-top:12px">${icon('plus')} Create prompt</button>
     </div>
+
+    <!-- Side Drawer & Backdrop -->
+    <div class="prompt-drawer-backdrop" id="pr-drawer-backdrop"></div>
+    <div class="prompt-drawer-wrap" id="pr-drawer"></div>
   </div>`;
 
   q('#pr-search', view).addEventListener('input', e => { listQuery = e.target.value; renderGrid(); });
@@ -475,6 +488,190 @@ NX.routeInShell('prompts', 'Prompts', 'star', function(view){
       NX.toastOk('Exported Prompts', res && res.path ? res.path : 'PebbleX-Prompts.md');
     });
   };
+
+  let activeDrawerPrompt = null;
+  const drawerEl = q('#pr-drawer', view);
+  const backdropEl = q('#pr-drawer-backdrop', view);
+
+  function closePromptDrawer(){
+    if(drawerEl) drawerEl.classList.remove('open');
+    if(backdropEl) backdropEl.classList.remove('open');
+    activeDrawerPrompt = null;
+  }
+
+  if(backdropEl) backdropEl.onclick = closePromptDrawer;
+
+  function openPromptDrawer(p){
+    activeDrawerPrompt = p;
+    if(!drawerEl || !p) return;
+
+    const vars = extractVariables(p.body);
+    const varValues = {};
+    vars.forEach(v => { varValues[v] = ''; });
+
+    function getResolvedText(){
+      let text = p.body;
+      vars.forEach(v => {
+        const val = varValues[v] || `{${v}}`;
+        text = text.split(`{${v}}`).join(val);
+      });
+      return text;
+    }
+
+    drawerEl.innerHTML = `
+      <div class="prompt-drawer-head">
+        <div class="tile sm" style="background:var(--orange-soft);color:var(--orange-deep)">${icon('star',16)}</div>
+        <div style="flex:1;min-width:0">
+          <input class="input" id="pdr-title" value="${U.esc(p.title)}" style="font-size:15px;font-weight:800;border:none;background:none;padding:0;width:100%">
+        </div>
+        <button class="mstodo-star-btn ${p.favorite?'starred':''}" id="pdr-fav-btn" style="font-size:18px">${p.favorite?'★':'☆'}</button>
+        <button class="icon-btn sm" id="pdr-close-btn">&times;</button>
+      </div>
+
+      <div class="prompt-drawer-body">
+        <div class="row gap-8">
+          <div class="field grow">
+            <label class="faint tiny bold">Category</label>
+            <select class="select sm" id="pdr-cat" style="font-size:12px">
+              <option value="coding" ${p.category==='coding'?'selected':''}>Coding</option>
+              <option value="writing" ${p.category==='writing'?'selected':''}>Writing</option>
+              <option value="productivity" ${p.category==='productivity'?'selected':''}>Work</option>
+              <option value="ai" ${p.category==='ai'?'selected':''}>AI</option>
+              <option value="system" ${p.category==='system'?'selected':''}>System</option>
+            </select>
+          </div>
+          <div class="field grow">
+            <label class="faint tiny bold">Tags (comma-separated)</label>
+            <input class="input sm" id="pdr-tags" value="${U.esc((p.tags||[]).join(', '))}" style="font-size:12px">
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="row gap-6" style="justify-content:space-between;margin-bottom:4px">
+            <label class="faint tiny bold" style="text-transform:uppercase;letter-spacing:.05em">Prompt Template</label>
+            <span class="faint tiny">Edit body directly</span>
+          </div>
+          <textarea class="textarea" id="pdr-body" rows="10" style="font-family:monospace;font-size:12px;line-height:1.5">${U.esc(p.body)}</textarea>
+        </div>
+
+        ${vars.length ? `
+          <div class="card" style="padding:12px;background:var(--surface-2);border-radius:12px">
+            <span class="faint tiny bold" style="text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:8px">Live Variables ({placeholders})</span>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              ${vars.map(v => `
+                <div class="field">
+                  <label class="faint tiny">{${U.esc(v)}}</label>
+                  <input class="input sm" data-pdr-var="${U.esc(v)}" placeholder="Enter value for {${U.esc(v)}}…" style="font-size:12px">
+                </div>
+              `).join('')}
+            </div>
+            <div class="field" style="margin-top:10px">
+              <label class="faint tiny bold">Live Output Preview</label>
+              <div id="pdr-live-preview" style="font-family:monospace;font-size:11.5px;padding:8px 10px;background:var(--surface);border-radius:8px;max-height:120px;overflow-y:auto;white-space:pre-wrap;border:1px solid var(--line)">${U.esc(p.body)}</div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+
+      <div class="prompt-drawer-foot">
+        <button class="btn btn-green btn-sm" id="pdr-give-ai" style="font-weight:700">${icon('ai',13)} Give to Pel AI</button>
+        <button class="btn btn-soft btn-sm" id="pdr-copy-btn">${icon('copy',13)} Copy</button>
+        <button class="btn btn-soft btn-sm" id="pdr-save-btn">${icon('check',13)} Save</button>
+        <span style="flex:1"></span>
+        <button class="icon-btn sm" id="pdr-del-btn" style="color:var(--red)" data-tip="Delete">${icon('trash',13)}</button>
+      </div>`;
+
+    drawerEl.classList.add('open');
+    if(backdropEl) backdropEl.classList.add('open');
+
+    // Wire variables
+    qa('[data-pdr-var]', drawerEl).forEach(inp => {
+      inp.oninput = () => {
+        varValues[inp.dataset.pdrVar] = inp.value;
+        const prev = q('#pdr-live-preview', drawerEl);
+        if(prev) prev.textContent = getResolvedText();
+      };
+    });
+
+    // Wire Title & Body changes
+    q('#pdr-title', drawerEl).oninput = (e) => {
+      p.title = e.target.value.trim() || 'Untitled Prompt';
+      savePrompts(prompts());
+      renderGrid();
+    };
+
+    q('#pdr-body', drawerEl).oninput = (e) => {
+      p.body = e.target.value;
+      savePrompts(prompts());
+      renderGrid();
+    };
+
+    q('#pdr-cat', drawerEl).onchange = (e) => {
+      p.category = e.target.value;
+      savePrompts(prompts());
+      renderGrid();
+    };
+
+    q('#pdr-tags', drawerEl).onchange = (e) => {
+      p.tags = e.target.value.split(',').map(t=>t.trim().toLowerCase().replace(/^#/,'')).filter(Boolean);
+      savePrompts(prompts());
+      renderGrid();
+    };
+
+    q('#pdr-fav-btn', drawerEl).onclick = () => {
+      p.favorite = !p.favorite;
+      savePrompts(prompts());
+      renderGrid();
+      openPromptDrawer(p);
+      NX.sfx.play('pop');
+    };
+
+    q('#pdr-close-btn', drawerEl).onclick = closePromptDrawer;
+
+    // Give to Pel AI
+    q('#pdr-give-ai', drawerEl).onclick = () => {
+      const finalContent = getResolvedText();
+      p.used = (p.used || 0) + 1;
+      savePrompts(prompts());
+      const cfg = NX.store.get('ai', { model:'openai', context:true, history:[] });
+      cfg.history = cfg.history || [];
+      cfg.history.push({ role:'user', content:finalContent });
+      NX.store.set('ai', cfg);
+      closePromptDrawer();
+      NX.router.go('ai');
+      NX.toastOk('Sent to Pel AI', p.title);
+    };
+
+    // Copy
+    q('#pdr-copy-btn', drawerEl).onclick = () => {
+      const finalContent = getResolvedText();
+      p.used = (p.used || 0) + 1;
+      savePrompts(prompts());
+      NX.native.clipboardWrite(finalContent).then(() => NX.toastOk('Copied to clipboard', ''));
+    };
+
+    // Save
+    q('#pdr-save-btn', drawerEl).onclick = () => {
+      p.title = q('#pdr-title', drawerEl).value.trim() || 'Untitled Prompt';
+      p.body = q('#pdr-body', drawerEl).value;
+      p.category = q('#pdr-cat', drawerEl).value;
+      p.tags = q('#pdr-tags', drawerEl).value.split(',').map(t=>t.trim().toLowerCase().replace(/^#/,'')).filter(Boolean);
+      savePrompts(prompts());
+      renderGrid();
+      NX.toastOk('Prompt saved', p.title);
+      NX.sfx.play('ok');
+    };
+
+    // Delete
+    q('#pdr-del-btn', drawerEl).onclick = () => {
+      NX.confirm('Delete Prompt?', `Permanently delete "${p.title}"?`, () => {
+        savePrompts(prompts().filter(x => x.id !== p.id));
+        closePromptDrawer();
+        renderGrid();
+        NX.toastOk('Prompt deleted');
+      });
+    };
+  }
 
   renderGrid();
 });

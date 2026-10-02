@@ -113,12 +113,12 @@ const tracker = {
       const now = Date.now();
       const dt = Math.min(10, Math.round((now - this.lastTick)/1000));
       this.lastTick = now;
-      if(document.hidden) return;                       // don't count background time
       const w = await this.currentWindow();
-      if(w){
+      if(w && w.name){
         this.nativeOk = true;
         const lower = String(w.name||'').toLowerCase();
-        const isBrowser = ['chrome','msedge','edge','firefox','brave','opera','vivaldi','arc'].some(b=>lower.includes(b));
+        const rawLower = String(w.rawName||w.exe||'').toLowerCase();
+        const isBrowser = ['chrome','msedge','edge','firefox','brave','opera','vivaldi','arc'].some(b=>lower.includes(b) || rawLower.includes(b));
         if(isBrowser && w.url){
           // the site gets the time — the browser itself is just the shell
           const host = String(w.url).replace(/^www\./,'');
@@ -129,6 +129,7 @@ const tracker = {
           this.bump(w.name, dt, false, { exe:w.exe, path:w.path });
         }
       } else {
+        if(document.hidden) return; // only fallback to Pebble route when actually focused
         const route = NX.router.currentName;
         const label = 'Pebble — ' + (NX.router.routes[route] ? (NX.router.routes[route].title || route) : route);
         this.live = { app: label, cat:'prod', isSite:false, started:this.live.started, url:'', iconKey:'' };

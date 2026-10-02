@@ -205,9 +205,14 @@ NX.mdRender = mdRender;
 /* ---------------- Store helpers ---------------- */
 function notes(){ return NX.store.get('notes', []); }
 function saveNotes(n){ NX.store.set('notes', n); NX.store.set('notesAutoSavedAt', Date.now()); }
-function current(){ return notes().find(n=>n.id === curNoteId) || notes()[0]; }
+function current(){
+  if(curFolder === '__trash'){
+    return notes().find(n=>n.id === curNoteId && n.trash) || notes().find(n=>n.trash);
+  }
+  return notes().find(n=>n.id === curNoteId && !n.trash) || notes().find(n=>!n.trash) || notes()[0];
+}
 function folders(){
-  const set = new Set(notes().map(n=>n.folder || '').filter(Boolean));
+  const set = new Set(notes().filter(n=>!n.trash).map(n=>n.folder || '').filter(Boolean));
   (vault.folders||[]).forEach(f=>set.add(f));
   return Array.from(set).sort();
 }
@@ -522,17 +527,17 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   }
 
   if(!curNoteId || !notes().find(n=>n.id===curNoteId)){
-    curNoteId = current() ? current().id : null;
-  }
+  const isCollapsed = !!NX.store.get('ui:notesSidebarCollapsed', false);
 
   view.innerHTML = `
   <div class="page" style="height:100%;padding-bottom:0">
-    <div class="notes-layout">
+    <div class="notes-layout ${isCollapsed ? 'collapsed' : ''}" id="nt-layout">
       <!-- Left sidebar: Search, Folders, Notes list -->
       <div class="notes-list-col">
         <div class="row gap-8">
           <div class="search-box" style="flex:1;width:auto">${icon('search')}<input id="nt-search" placeholder="Search notes…"></div>
           <button class="btn btn-dark" id="nt-new" data-tip="New note">${icon('plus')} New</button>
+          <button class="icon-btn sm" id="nt-collapse-sidebar" data-tip="Hide notes list" style="flex:none">${icon('chevL',14)}</button>
         </div>
         <div class="nt-folders" id="nt-folders"></div>
         <div class="notes-scroll" id="nt-list"></div>
@@ -546,7 +551,9 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
       <!-- Right Editor: Toolbar, Split views, Stats -->
       <div class="card note-editor anim-in">
+        <div id="ne-trash-banner-host"></div>
         <div class="ne-head">
+          <button class="icon-btn sm" id="nt-expand-sidebar" data-tip="Show notes list" style="margin-right:4px;display:${isCollapsed ? 'inline-flex' : 'none'}">${icon('chevR',14)}</button>
           <input class="ne-title" id="ne-title" placeholder="Note title">
           <div class="nt-tools">
             <div class="seg sm" id="ne-view-modes" role="tablist" style="margin-right:6px">
@@ -603,23 +610,176 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
   function filtered(){
     const s = listQuery.toLowerCase();
-    return notes().filter(n => (curFolder ? (n.folder || '') === curFolder : true))
+    const all = notes();
+    if(curFolder === '__trash'){
+      return all.filter(n => n.trash)
+        .filter(n => !s || (n.title + ' ' + n.body + ' ' + (n.tags || []).join(' ')).toLowerCase().includes(s))
+        .sort((a,b) => (b.trashedAt || b.updated) - (a.trashedAt || a.updated));
+    }
+    return all.filter(n => !n.trash)
+      .filter(n => (curFolder ? (n.folder || '') === curFolder : true))
       .filter(n => curTag === 'all' || (n.tags || []).includes(curTag))
       .filter(n => !s || (n.title + ' ' + n.body + ' ' + (n.tags || []).join(' ')).toLowerCase().includes(s))
       .sort((a,b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updated - a.updated);
   }
 
+  function promptNewFolder(){
+    const body = h(`<div><div class="field"><label>New Folder Name</label><input class="input" id="new-fld-name" placeholder="e.g. Projects, Personal, Work"></div></div>`);
+    NX.modal({
+      title: 'Create Folder',
+      icon: 'layers',
+      body,
+      footer: [
+        { label: 'Cancel', cls: 'btn-soft' },
+        { label: 'Create', cls: 'btn-green', onClick: () => {
+          const name = q('#new-fld-name', body).value.trim();
+          if(!name) return;
+          vault.folders = vault.folders || [];
+          if(!vault.folders.includes(name)) vault.folders.push(name);
+          NX.store.set('vault_folders', vault.folders);
+          curFolder = name;
+          NX.closeAllModals();
+          renderFolders(); renderList();
+          NX.toastOk('Folder created', name);
+        }}
+      ]
+    });
+    setTimeout(() => q('#new-fld-name', body) && q('#new-fld-name', body).focus(), 40);
+  }
+
+  function promptRenameFolder(oldName){
+    const body = h(`<div><div class="field"><label>Rename Folder</label><input class="input" id="ren-fld-name" value="${U.esc(oldName)}"></div></div>`);
+    NX.modal({
+      title: 'Rename Folder',
+      icon: 'edit',
+      body,
+      footer: [
+        { label: 'Cancel', cls: 'btn-soft' },
+        { label: 'Save', cls: 'btn-green', onClick: () => {
+          const newName = q('#ren-fld-name', body).value.trim();
+          if(!newName || newName === oldName) return;
+          const all = notes();
+          all.forEach(n => { if((n.folder||'') === oldName) n.folder = newName; });
+          saveNotes(all);
+          vault.folders = (vault.folders || []).map(f => f === oldName ? newName : f);
+          NX.store.set('vault_folders', vault.folders);
+          if(curFolder === oldName) curFolder = newName;
+          NX.closeAllModals();
+          renderFolders(); renderList(); loadEditor();
+          NX.toastOk('Folder renamed', newName);
+        }}
+      ]
+    });
+  }
+
+  function promptDeleteFolder(folderName){
+    NX.confirm('Delete Folder?', `Delete folder "${folderName}"? Notes inside will be moved to root.`, () => {
+      const all = notes();
+      all.forEach(n => { if((n.folder||'') === folderName) n.folder = ''; });
+      saveNotes(all);
+      vault.folders = (vault.folders || []).filter(f => f !== folderName);
+      NX.store.set('vault_folders', vault.folders);
+      if(curFolder === folderName) curFolder = '';
+      renderFolders(); renderList(); loadEditor();
+      NX.toastOk('Folder deleted');
+    });
+  }
+
   function renderFolders(){
     const host = q('#nt-folders', view);
+    if(!host) return;
     const allFolders = folders();
+    const allNotes = notes();
+    const activeNotes = allNotes.filter(n => !n.trash);
+    const trashCount = allNotes.filter(n => n.trash).length;
     const counts = {};
-    notes().forEach(n => { const f = n.folder || ''; counts[f] = (counts[f]||0) + 1; });
+    activeNotes.forEach(n => { const f = n.folder || ''; counts[f] = (counts[f]||0) + 1; });
+
     host.innerHTML = `
-      <button class="nt-folder ${curFolder===''?'on':''}" data-f="">${icon('notes',14)} All notes <span class="n">${notes().length}</span></button>
-      ${allFolders.map(f=>`<button class="nt-folder ${curFolder===f?'on':''}" data-f="${U.esc(f)}"><span class="fld-ic">${icon('layers',14)}</span> ${U.esc(f)} <span class="n">${counts[f]||0}</span></button>`).join('')}
-      ${curTag !== 'all' ? `<div style="padding:6px 4px 2px"><button class="chip active" id="nt-clear-tag" style="height:24px;font-size:11px">Filter: #${U.esc(curTag)} <span style="font-weight:900;margin-left:4px">&times;</span></button></div>` : ''}
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 4px 6px">
+        <span class="faint tiny bold" style="text-transform:uppercase;letter-spacing:.05em">Folders</span>
+        <button class="icon-btn sm" id="nt-add-folder" data-tip="New folder" style="width:22px;height:22px">${icon('plus',12)}</button>
+      </div>
+      <button class="nt-folder ${curFolder===''?'on':''}" data-f="">${icon('notes',14)} All notes <span class="n">${activeNotes.length}</span></button>
+      ${allFolders.map(f=>`
+        <button class="nt-folder ${curFolder===f?'on':''}" data-f="${U.esc(f)}" data-folder-name="${U.esc(f)}">
+          <span class="fld-ic">${icon('layers',14)}</span> <span class="ellipsis" style="flex:1">${U.esc(f)}</span>
+          <span class="n">${counts[f]||0}</span>
+        </button>
+      `).join('')}
+      ${curTag !== 'all' ? `<div style="padding:4px 2px"><button class="chip active" id="nt-clear-tag" style="height:24px;font-size:11px">Filter: #${U.esc(curTag)} <span style="font-weight:900;margin-left:4px">&times;</span></button></div>` : ''}
+      <div style="height:1px;background:var(--line);margin:6px 0"></div>
+      <button class="nt-folder ${curFolder==='__trash'?'on':''}" data-f="__trash" style="color:${trashCount>0?'var(--red)':'var(--ink-3)'}">
+        ${icon('trash',14)} Trash <span class="n" style="${trashCount>0?'color:var(--red);font-weight:700':''}">${trashCount}</span>
+      </button>
     `;
-    qa('.nt-folder', host).forEach(b => b.onclick = () => { curFolder = b.dataset.f; renderFolders(); renderList(); });
+
+    const addFldBtn = q('#nt-add-folder', host);
+    if(addFldBtn) addFldBtn.onclick = () => promptNewFolder();
+
+    qa('.nt-folder', host).forEach(b => {
+      b.onclick = () => { curFolder = b.dataset.f; renderFolders(); renderList(); };
+
+      // Right-click on folder
+      b.oncontextmenu = (e) => {
+        e.preventDefault();
+        const fName = b.dataset.folderName;
+        if(b.dataset.f === '__trash'){
+          if(trashCount > 0){
+            NX.menu(e, [{ label: 'Empty Trash', icon: 'trash', danger: true, onClick: emptyTrash }]);
+          }
+          return;
+        }
+        if(!fName){
+          NX.menu(e, [
+            { label: 'New Note', icon: 'plus', onClick: () => NX.newNote() },
+            { label: 'New Folder…', icon: 'folder', onClick: promptNewFolder }
+          ]);
+          return;
+        }
+        NX.menu(e, [
+          { label: 'New Note in "' + fName + '"', icon: 'plus', onClick: () => NX.newNote(fName) },
+          { label: 'Rename folder…', icon: 'edit', onClick: () => promptRenameFolder(fName) },
+          '-',
+          { label: 'Delete folder', icon: 'trash', danger: true, onClick: () => promptDeleteFolder(fName) }
+        ]);
+      };
+
+      // Drag and drop target on folder
+      b.ondragover = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        b.classList.add('drag-target');
+      };
+      b.ondragleave = () => b.classList.remove('drag-target');
+      b.ondrop = (e) => {
+        e.preventDefault();
+        b.classList.remove('drag-target');
+        const noteId = e.dataTransfer.getData('text/plain') || window.__draggedNoteId;
+        if(!noteId) return;
+        const all = notes();
+        const n = all.find(x => x.id === noteId);
+        if(!n) return;
+        if(b.dataset.f === '__trash'){
+          n.trash = true;
+          n.trashedAt = Date.now();
+          saveNotes(all);
+          renderFolders(); renderList(); loadEditor();
+          NX.sfx.play('pop');
+          NX.toastOk('Note moved to Trash', n.title);
+        } else {
+          n.folder = b.dataset.f || '';
+          n.trash = false;
+          n.updated = Date.now();
+          saveNotes(all);
+          syncToDisk(n);
+          renderFolders(); renderList(); loadEditor();
+          NX.sfx.play('pop');
+          NX.toastOk('Moved to ' + (n.folder || 'All notes'), n.title);
+        }
+      };
+    });
+
     const clearTagBtn = q('#nt-clear-tag', host);
     if(clearTagBtn){
       clearTagBtn.onclick = () => { curTag = 'all'; renderFolders(); renderList(); };
@@ -638,28 +798,97 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     NX.sfx.play('click');
   }
 
+  function openNoteContextMenu(e, n){
+    if(n.trash){
+      NX.menu(e, [
+        { label: 'Restore Note', icon: 'refresh', onClick: () => restoreNote(n) },
+        '-',
+        { label: 'Delete Permanently', icon: 'trash', danger: true, onClick: () => permanentlyDeleteNote(n) }
+      ]);
+      return;
+    }
+    NX.menu(e, [
+      { label: n.pinned ? 'Unpin from top' : 'Pin to top', icon: 'pin', onClick: () => {
+        n.pinned = !n.pinned; saveNotes(notes()); renderList(); loadEditor(); NX.sfx.play('pop');
+      }},
+      { label: 'Move to folder…', icon: 'layers', onClick: () => moveNoteModal(n) },
+      { label: 'Duplicate', icon: 'plus', onClick: () => duplicateNote(n) },
+      { label: 'Copy Markdown', icon: 'copy', onClick: () => NX.native.clipboardWrite(n.body).then(()=>NX.toastOk('Copied to clipboard')) },
+      { label: 'Export as .md', icon: 'download', onClick: () => exportNote(n) },
+      '-',
+      { label: 'Move to Trash', icon: 'trash', danger: true, onClick: () => trashNote(n) }
+    ]);
+  }
+
   function renderList(){
     const host = q('#nt-list', view);
     const f = filtered();
     host.innerHTML = '';
+
+    if(curFolder === '__trash' && f.length){
+      const topBar = h(`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px 6px">
+        <span class="faint tiny bold" style="color:var(--red)">Trash (${f.length})</span>
+        <button class="btn btn-sm btn-soft" id="nt-empty-trash" style="color:var(--red);height:24px;font-size:11px">${icon('trash',12)} Empty</button>
+      </div>`);
+      host.appendChild(topBar);
+      q('#nt-empty-trash', topBar).onclick = emptyTrash;
+    }
+
     if(!f.length){
-      host.innerHTML = `<div class="empty" style="padding:24px"><div class="e-sub">No notes found. Click "+ New" to create one.</div></div>`;
+      host.innerHTML = `<div class="empty" style="padding:24px"><div class="e-sub">${curFolder==='__trash'?'Trash is empty.':'No notes found. Click "+ New" to create one.'}</div></div>`;
       return;
     }
+
     f.forEach(n => {
-      const el = h(`<div class="note-card ${n.id===curNoteId?'on':''}">
+      const el = h(`<div class="note-card ${n.id===curNoteId?'on':''}" draggable="true" data-id="${n.id}">
         <div class="nc-title">${n.pinned ? `<span class="pin" style="color:var(--orange)">${icon('pin',13)}</span> ` : ''}${U.esc(n.title || 'Untitled')}</div>
         <div class="nc-prev">${U.esc((n.body||'').replace(/[#>*`\-\[\]]/g,'').slice(0, 100) || 'Empty note')}</div>
         <div class="nc-meta">${n.folder ? `<span class="fld-chip">${U.esc(n.folder)}</span>` : ''}${(n.tags||[]).map(t=>`<span class="tagchip">#${U.esc(t)}</span>`).join('')}
           <span class="faint tiny" style="margin-left:auto">${n.mdRel ? '<span class="disk-dot" title="Synced to disk"></span>' : ''}${U.esc(U.relTime(n.updated))}</span></div>
       </div>`);
+
       el.onclick = () => selectNote(n.id);
+
+      el.ondragstart = (e) => {
+        el.classList.add('dragging');
+        window.__draggedNoteId = n.id;
+        e.dataTransfer.setData('text/plain', n.id);
+        e.dataTransfer.effectAllowed = 'move';
+      };
+      el.ondragend = () => {
+        el.classList.remove('dragging');
+        window.__draggedNoteId = null;
+      };
+
+      el.oncontextmenu = (e) => {
+        e.preventDefault();
+        openNoteContextMenu(e, n);
+      };
+
       host.appendChild(el);
     });
   }
 
   function loadEditor(){
     const n = current();
+    const bannerHost = q('#ne-trash-banner-host', view);
+    if(bannerHost){
+      if(n && n.trash){
+        bannerHost.innerHTML = `
+          <div class="note-trash-banner">
+            <span>${icon('trash',14)} <b>Note is in Trash.</b> Restore it to edit or keep.</span>
+            <div class="row gap-6">
+              <button class="btn btn-sm btn-soft" id="ne-restore-btn">${icon('refresh',12)} Restore</button>
+              <button class="btn btn-sm btn-soft" id="ne-purge-btn" style="color:var(--red)">${icon('trash',12)} Delete Permanently</button>
+            </div>
+          </div>`;
+        q('#ne-restore-btn', bannerHost).onclick = () => restoreNote(n);
+        q('#ne-purge-btn', bannerHost).onclick = () => permanentlyDeleteNote(n);
+      } else {
+        bannerHost.innerHTML = '';
+      }
+    }
+
     if(!n){
       q('#ne-title', view).value = '';
       ta.value = '';
@@ -849,16 +1078,96 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   q('#nt-search', view).addEventListener('input', e => { listQuery = e.target.value; renderList(); });
   q('#nt-new', view).onclick = () => NX.newNote();
   q('#nt-template', view).onclick = () => openTemplateModal(ta);
-  q('#ne-pin', view).onclick = () => {
-    const n = current();
-    if(n){ n.pinned = !n.pinned; saveNotes(notes()); renderList(); loadEditor(); NX.sfx.play('pop'); }
-  };
-  q('#ne-copy', view).onclick = () => {
-    const n = current();
-    if(n) NX.native.clipboardWrite(n.title + '\n\n' + n.body).then(()=>NX.toastOk('Copied to clipboard',''));
-  };
-  q('#ne-dup', view).onclick = () => {
-    const n = current();
+  function setSidebarCollapsed(collapsed){
+    const layout = q('#nt-layout', view);
+    const expandBtn = q('#nt-expand-sidebar', view);
+    if(layout) layout.classList.toggle('collapsed', collapsed);
+    if(expandBtn) expandBtn.style.display = collapsed ? 'inline-flex' : 'none';
+    NX.store.set('ui:notesSidebarCollapsed', collapsed);
+  }
+
+  const collapseBtn = q('#nt-collapse-sidebar', view);
+  if(collapseBtn) collapseBtn.onclick = () => setSidebarCollapsed(true);
+  const expandBtn = q('#nt-expand-sidebar', view);
+  if(expandBtn) expandBtn.onclick = () => setSidebarCollapsed(false);
+
+  // Right-click on empty list area
+  const listEl = q('#nt-list', view);
+  if(listEl){
+    listEl.oncontextmenu = (e) => {
+      if(e.target === listEl || e.target.closest('.empty')){
+        e.preventDefault();
+        NX.menu(e, [
+          { label: 'New Note', icon: 'plus', onClick: () => NX.newNote(curFolder === '__trash' ? '' : curFolder) },
+          { label: 'New Folder…', icon: 'folder', onClick: promptNewFolder }
+        ]);
+      }
+    };
+  }
+
+  function trashNote(n){
+    if(!n) return;
+    n.trash = true;
+    n.trashedAt = Date.now();
+    saveNotes(notes());
+    renderFolders();
+    renderList();
+    if(curNoteId === n.id){
+      const remaining = filtered();
+      curNoteId = remaining.length ? remaining[0].id : null;
+      loadEditor();
+    }
+    NX.toastOk('Note moved to Trash', n.title);
+  }
+
+  function restoreNote(n){
+    if(!n) return;
+    n.trash = false;
+    delete n.trashedAt;
+    saveNotes(notes());
+    renderFolders();
+    renderList();
+    loadEditor();
+    NX.toastOk('Note restored', n.title);
+  }
+
+  async function permanentlyDeleteNote(n){
+    if(!n) return;
+    NX.confirm('Permanently Delete?', `"${n.title || 'Untitled'}" will be permanently removed. This cannot be undone.`, async () => {
+      if(n.mdRel && NX.native.available && NX.native.mode === 'tauri'){
+        await NX.native.invoke('note_delete_file', { rel: n.mdRel });
+      }
+      saveNotes(notes().filter(x => x.id !== n.id));
+      if(curNoteId === n.id){
+        const remaining = filtered();
+        curNoteId = remaining.length ? remaining[0].id : null;
+      }
+      renderFolders();
+      renderList();
+      loadEditor();
+      NX.toastOk('Note permanently deleted');
+    });
+  }
+
+  async function emptyTrash(){
+    const trashed = notes().filter(n => n.trash);
+    if(!trashed.length) return;
+    NX.confirm('Empty Trash?', `Permanently delete all ${trashed.length} note(s) in Trash? This cannot be undone.`, async () => {
+      for(const n of trashed){
+        if(n.mdRel && NX.native.available && NX.native.mode === 'tauri'){
+          await NX.native.invoke('note_delete_file', { rel: n.mdRel });
+        }
+      }
+      saveNotes(notes().filter(n => !n.trash));
+      curNoteId = null;
+      renderFolders();
+      renderList();
+      loadEditor();
+      NX.toastOk('Trash emptied');
+    });
+  }
+
+  function duplicateNote(n){
     if(!n) return;
     if(saveTimer){ clearTimeout(saveTimer); persist(); }
     const clone = {
@@ -880,31 +1189,17 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     syncToDisk(clone);
     NX.toastOk('Note duplicated', clone.title);
     NX.sfx.play('pop');
-  };
-  q('#ne-export', view).onclick = () => {
-    const n = current();
+  }
+
+  function exportNote(n){
     if(!n) return;
     const name = (n.title || 'note').replace(/[\\/:*?"<>|]/g, '-') + '.md';
     Promise.resolve(NX.native.saveTextFile(name, mdContent(n))).then(res => {
       NX.toastOk('Exported .md', res && res.path ? res.path : name);
     });
-  };
-  q('#ne-del', view).onclick = () => {
-    const n = current();
-    if(!n) return;
-    NX.confirm('Delete Note?', `"${n.title || 'Untitled'}" will be moved to trash.`, async ()=>{
-      if(n.mdRel && NX.native.available && NX.native.mode === 'tauri'){
-        await NX.native.invoke('note_delete_file', { rel: n.mdRel });
-      }
-      saveNotes(notes().filter(x=>x.id !== n.id));
-      curNoteId = null;
-      renderFolders(); renderList(); loadEditor();
-      NX.toastOk('Note deleted');
-    });
-  };
+  }
 
-  q('#ne-folder', view).onclick = () => {
-    const n = current();
+  function moveNoteModal(n){
     if(!n) return;
     const all = folders();
     const body = h(`<div>
@@ -918,7 +1213,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         { label:'Cancel', cls:'btn-soft' },
         { label:'Move', cls:'btn-green', onClick: async () => {
           const name = q('#nf-name', body).value.trim();
-          n.folder = name; n.updated = Date.now();
+          n.folder = name; n.trash = false; n.updated = Date.now();
           saveNotes(notes());
           syncToDisk(n);
           NX.closeAllModals();
@@ -927,7 +1222,29 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         }}
       ]
     });
+  }
+
+  q('#ne-pin', view).onclick = () => {
+    const n = current();
+    if(n){ n.pinned = !n.pinned; saveNotes(notes()); renderList(); loadEditor(); NX.sfx.play('pop'); }
   };
+  q('#ne-copy', view).onclick = () => {
+    const n = current();
+    if(n) NX.native.clipboardWrite(n.title + '\n\n' + n.body).then(()=>NX.toastOk('Copied to clipboard',''));
+  };
+  q('#ne-dup', view).onclick = () => duplicateNote(current());
+  q('#ne-export', view).onclick = () => exportNote(current());
+  q('#ne-del', view).onclick = () => {
+    const n = current();
+    if(!n) return;
+    if(n.trash){
+      permanentlyDeleteNote(n);
+    } else {
+      trashNote(n);
+    }
+  };
+
+  q('#ne-folder', view).onclick = () => moveNoteModal(current());
 
   q('#nt-import', view).onclick = async () => {
     if(NX.native.available && NX.native.mode === 'tauri'){
@@ -980,6 +1297,15 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   };
 
   window.__nx_refreshNotesView = () => { renderFolders(); renderList(); loadEditor(); };
+  window.__nx_selectNote = (id) => {
+    const target = notes().find(n => n.id === id);
+    if(target){
+      if(target.trash) curFolder = '__trash';
+      else if(target.folder) curFolder = target.folder;
+      else curFolder = '';
+      selectNote(id);
+    }
+  };
   renderFolders();
   renderList();
   loadEditor();

@@ -342,12 +342,13 @@ fn active_window_impl() -> Option<serde_json::Value> {
             return None;
         }
         let len = GetWindowTextLengthW(hwnd);
-        if len <= 0 {
-            return None;
-        }
-        let mut buf = vec![0u16; (len + 1) as usize];
-        GetWindowTextW(hwnd, buf.as_mut_ptr(), len + 1);
-        let title = String::from_utf16_lossy(&buf[..len as usize]);
+        let title = if len > 0 {
+            let mut buf = vec![0u16; (len + 1) as usize];
+            GetWindowTextW(hwnd, buf.as_mut_ptr(), len + 1);
+            String::from_utf16_lossy(&buf[..len as usize])
+        } else {
+            String::new()
+        };
 
         let mut pid: u32 = 0;
         windows_sys::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(hwnd, &mut pid);
@@ -377,8 +378,33 @@ fn active_window_impl() -> Option<serde_json::Value> {
         if exe_name.is_empty() {
             return None;
         }
-        let name = exe_name.trim_end_matches(".exe").to_string();
-        let lower = name.to_lowercase();
+        let raw_name = exe_name.trim_end_matches(".exe").trim_end_matches(".EXE").to_string();
+        let lower = raw_name.to_lowercase();
+        let name = match lower.as_str() {
+            "antigravity" => "Antigravity".to_string(),
+            "brave" => "Brave Browser".to_string(),
+            "explorer" => "File Explorer".to_string(),
+            "code" => "Visual Studio Code".to_string(),
+            "chrome" => "Google Chrome".to_string(),
+            "msedge" => "Microsoft Edge".to_string(),
+            "firefox" => "Firefox".to_string(),
+            "windowsterminal" => "Windows Terminal".to_string(),
+            "powershell" => "PowerShell".to_string(),
+            "cmd" => "Command Prompt".to_string(),
+            "taskmgr" => "Task Manager".to_string(),
+            "slack" => "Slack".to_string(),
+            "discord" => "Discord".to_string(),
+            "spotify" => "Spotify".to_string(),
+            "notion" => "Notion".to_string(),
+            _ => {
+                let mut c = raw_name.chars();
+                match c.next() {
+                    None => raw_name.clone(),
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                }
+            }
+        };
+
         let url = if BROWSERS.iter().any(|b| lower.contains(b)) {
             browser_site_from_title(&title).unwrap_or_default()
         } else {
@@ -387,9 +413,11 @@ fn active_window_impl() -> Option<serde_json::Value> {
         // record name -> path for icon extraction
         if !full_path.is_empty() {
             ext_bridge::remember_exe(name.clone(), full_path.clone());
+            ext_bridge::remember_exe(raw_name.clone(), full_path.clone());
+            ext_bridge::remember_exe(lower.clone(), full_path.clone());
         }
         Some(serde_json::json!({
-            "name": name, "exe": exe_name, "path": full_path,
+            "name": name, "rawName": raw_name, "exe": exe_name, "path": full_path,
             "title": title, "url": url, "pid": pid
         }))
     }
@@ -561,8 +589,17 @@ fn app_icon(exe: String, name: String) -> IconResult {
     }
     match extract_icon_png(&path) {
         Some(p) => {
-            let enc = urlencoding_lite(&p.to_string_lossy());
-            IconResult { ok: true, url: Some(format!("http://asset.localhost/{}", enc)) }
+            match fs::read(&p) {
+                Ok(bytes) => {
+                    use base64::Engine;
+                    let b64 = base64::prelude::BASE64_STANDARD.encode(&bytes);
+                    IconResult { ok: true, url: Some(format!("data:image/png;base64,{}", b64)) }
+                }
+                Err(_) => {
+                    let enc = urlencoding_lite(&p.to_string_lossy());
+                    IconResult { ok: true, url: Some(format!("http://asset.localhost/{}", enc)) }
+                }
+            }
         }
         None => IconResult { ok: false, url: None },
     }
