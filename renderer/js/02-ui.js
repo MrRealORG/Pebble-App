@@ -123,36 +123,64 @@ NX.openCommandPalette = function(){
   const actions = ()=> {
     const mods = Object.keys(NX.router.routes).filter(k=>NX.router.routes[k].layout==='app').map(k=>({
       name: NX.router.routes[k].title || k, hint:'Module', icon: NX.router.routes[k].icon || 'grid',
-      run: ()=>NX.router.go(k)
+      group:'Jump to', run: ()=>NX.router.go(k)
     }));
-    return mods.concat([
-      { name:'New note',        hint:'Action', icon:'notes',   run:()=>{ NX.router.go('notes'); setTimeout(()=>NX.newNote && NX.newNote(), 60); } },
-      { name:'New task',        hint:'Action', icon:'todo',    run:()=>{ NX.router.go('todo'); setTimeout(()=>NX.newTask && NX.newTask(), 60); } },
-      { name:'New reminder',    hint:'Action', icon:'bell',    run:()=>{ NX.router.go('reminders'); setTimeout(()=>NX.newReminder && NX.newReminder(), 60); } },
-      { name:'Toggle theme',    hint:'Action', icon:'palette', run:()=>NX.cycleTheme && NX.cycleTheme() },
-      { name:'Toggle widget',   hint:'Action', icon:'widget',  run:()=>NX.widget && NX.widget.toggle() },
-      { name:'Start Pomodoro',  hint:'Timeless', icon:'clock', run:()=>{ NX.router.go('timeless'); setTimeout(()=>NX.pomo && NX.pomo.start(), 80); } },
-      { name:'Take a screenshot',hint:'Media', icon:'camera',  run:()=>{ NX.router.go('media'); setTimeout(()=>NX.capture && NX.capture(), 80); } },
-      { name:'Report a bug / Diagnostics', hint:'System', icon:'activity', run:()=>NX.openBugReporter && NX.openBugReporter() },
-      { name:'Repair database',            hint:'System', icon:'refresh',  run:()=>NX.repairDatabase && NX.repairDatabase() },
-      { name:'Export workspace',hint:'Data',  icon:'download',run:()=>NX.exportWorkspace && NX.exportWorkspace() },
-      { name:'Play a game',     hint:'Fun',   icon:'game',    run:()=>NX.router.go('games') }
-    ]);
+    const act = [
+      { name:'Quick-Capture Spotlight', hint:'Alt Space', icon:'search', group:'Find', run:()=>NX.openSpotlight && NX.openSpotlight() },
+      { name:'Ask Pebble AI Copilot', hint:'Ctrl ⇧ A', icon:'robot', group:'AI', run:()=>NX.openAskPebble && NX.openAskPebble() },
+      { name:'Knowledge Graph View', hint:'Notes', icon:'activity', group:'Notes', run:()=>NX.openNotesGraph && NX.openNotesGraph() },
+      { name:'Search everything',  hint:'Ctrl ⇧ F', icon:'search', group:'Find', run:()=>NX.openGlobalSearch && NX.openGlobalSearch() },
+      { name:'Quick switcher',     hint:'Ctrl ⇧ K', icon:'grid',   group:'Find', run:()=>NX.openQuickSwitcher && NX.openQuickSwitcher() },
+      { name:'New note',        hint:'Action', icon:'notes',   group:'Create', run:()=>{ NX.router.go('notes'); setTimeout(()=>NX.newNote && NX.newNote(), 60); } },
+      { name:'New task',        hint:'Action', icon:'todo',    group:'Create', run:()=>{ NX.router.go('todo'); setTimeout(()=>NX.newTask && NX.newTask(), 60); } },
+      { name:'New reminder',    hint:'Action', icon:'bell',    group:'Create', run:()=>{ NX.router.go('reminders'); setTimeout(()=>NX.newReminder && NX.newReminder(), 60); } },
+      { name:'New prompt',      hint:'Action', icon:'star',    group:'Create', run:()=>{ NX.router.go('prompts'); setTimeout(()=>NX.newPrompt && NX.newPrompt(), 60); } },
+      { name:'Start a focus round', hint:'Focus', icon:'target', group:'Focus', run:()=>{ NX.router.go('focus'); setTimeout(()=>{ NX.pomo && NX.pomo.start(); }, 120); } },
+      { name:'Breathing 4-7-8', hint:'Focus', icon:'activity', group:'Focus', run:()=>NX.router.go('focus') },
+      { name:'Toggle theme',    hint:'Action', icon:'palette', group:'System', run:()=>NX.cycleTheme && NX.cycleTheme() },
+      { name:'Toggle widget',   hint:'Action', icon:'widget',  group:'System', run:()=>NX.widget && NX.widget.toggle() },
+      { name:'Start Pomodoro',  hint:'Timeless', icon:'clock', group:'Focus', run:()=>{ NX.router.go('timeless'); setTimeout(()=>NX.pomo && NX.pomo.start(), 80); } },
+      { name:'Take a screenshot',hint:'Media', icon:'camera',  group:'Media', run:()=>{ NX.router.go('media'); setTimeout(()=>NX.capture && NX.capture(), 80); } },
+      { name:'Report a bug / Diagnostics', hint:'System', icon:'activity', group:'System', run:()=>NX.openBugReporter && NX.openBugReporter() },
+      { name:'Repair database',            hint:'System', icon:'refresh',  group:'System', run:()=>NX.repairDatabase && NX.repairDatabase() },
+      { name:'Export workspace',hint:'Data',  icon:'download', group:'Data', run:()=>NX.exportWorkspace && NX.exportWorkspace() },
+      { name:'Play a game',     hint:'Fun',   icon:'game',    group:'Fun', run:()=>NX.router.go('games') }
+    ];
+    const recent = ((NX.motion && NX.motion.recent) || []).map(r=>{
+      const meta = NX.motion && NX.motion.navFor ? NX.motion.navFor(r) : null;
+      if(!meta) return null;
+      return { name: meta.item.n, hint:'Recent', icon: meta.item.ic, group:'Recent', run:()=>NX.router.go(r) };
+    }).filter(Boolean);
+    return { mods, act, recent };
   };
 
   function renderList(qry){
-    const all = actions();
-    results = qry ? all.filter(a=>(a.name+' '+a.hint).toLowerCase().includes(qry.toLowerCase())) : all.slice(0, 9);
+    const A = actions();
+    let rows;
+    if(qry){
+      const pool = A.mods.concat(A.act);
+      rows = pool.filter(a => (a.name + ' ' + a.hint).toLowerCase().indexOf(qry.toLowerCase()) > -1);
+    } else {
+      rows = A.recent.slice(0, 4)
+        .concat(A.mods.slice(0, 8))
+        .concat(A.act.filter(a => a.group === 'Create' || a.group === 'Find' || a.group === 'Focus'));
+    }
+    results = rows;
     sel = U.clamp(sel, 0, Math.max(0, results.length-1));
     list.innerHTML = results.length
-      ? results.map((a,i)=>`<div class="cmdk-item ${i===sel?'on':''}" data-i="${i}">
+      ? results.map((a,i)=>{
+          const head = (i===0 || results[i-1].group !== a.group) ? `<div class="cmdk-head">${U.esc(a.group || '')}</div>` : '';
+          return head + `<div class="cmdk-item ${i===sel?'on':''}" data-i="${i}">
           <div class="ck-ic">${icon(a.icon)}</div>
           <div style="min-width:0"><div class="ck-name">${U.esc(a.name)}</div><div class="ck-hint">${U.esc(a.hint)}</div></div>
-          <span class="ck-go">↵</span></div>`).join('')
+          <span class="ck-go">↵</span></div>`;
+        }).join('')
       : `<div class="cmdk-empty">Nothing matches “${U.esc(qry)}”</div>`;
     qa('.cmdk-item', list).forEach(el=>{
       el.onclick = ()=>{ const a = results[+el.dataset.i]; close(); a.run(); };
     });
+    const on = list.querySelector('.cmdk-item.on');
+    if(on) on.scrollIntoView({ block:'nearest' });
   }
   function close(){ cmdkOpen = false; back.remove(); document.removeEventListener('keydown', keyH); }
   function keyH(e){

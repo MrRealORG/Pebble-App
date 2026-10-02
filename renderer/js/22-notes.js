@@ -49,6 +49,11 @@ function mdRender(src){
     out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>');
     out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
     out = out.replace(/==([^=]+)==/g, '<mark class="md-mark">$1</mark>');
+    out = out.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (m0, noteTitle, customLabel) => {
+      const title = (noteTitle || '').trim();
+      const label = (customLabel || title).trim();
+      return `<a class="md-wikilink" data-wikilink="${U.esc(title)}" href="javascript:void(0)" title="Jump to note: ${U.esc(title)}"><span class="md-wiki-ic">📄</span> ${U.esc(label)}</a>`;
+    });
     out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">$1</a>');
     out = out.replace(/#([a-zA-Z0-9_-]{2,24})/g, '<span class="tagchip" style="cursor:pointer" data-tag="$1">#$1</span>');
     out = out.replace(/\$([^\$\n]+)\$/g, '<code class="md-math">$1</code>');
@@ -546,6 +551,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         <div class="row gap-6" style="margin-top:8px">
           <button class="btn btn-soft btn-sm" id="nt-import" style="flex:1">${icon('download')} Import .md</button>
           <button class="btn btn-soft btn-sm" id="nt-template">${icon('folder')} Templates</button>
+          <button class="btn btn-soft btn-sm" id="nt-graph" data-tip="Knowledge Graph View">${icon('activity',13)} Graph</button>
           <button class="icon-btn sm" id="nt-open-vault" data-tip="Open real notes folder on disk">${icon('folder')}</button>
         </div>
         <div class="nt-disk faint tiny" id="nt-disk"></div>
@@ -581,13 +587,14 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           <button class="nt-fmt" data-fmt="code" data-tip="Inline code">&lt;/&gt;</button>
           <button class="nt-fmt" data-fmt="mark" data-tip="Highlight text">🖍️</button>
           <span style="flex:1"></span>
-          <span class="faint tiny">Type <b>/</b> for Notion blocks</span>
+          <span class="faint tiny">Type <b>/</b> for Notion blocks · <b>[[</b> to link</span>
         </div>
 
         <div class="ne-split mode-${viewMode}" id="ne-split-container">
-          <textarea class="ne-body" id="ne-body" placeholder="Start writing… type / for Notion commands."></textarea>
+          <textarea class="ne-body" id="ne-body" placeholder="Start writing… type / for Notion commands or [[ to link notes."></textarea>
           <div class="ne-preview" id="ne-preview-box"></div>
         </div>
+        <div id="ne-backlinks-host"></div>
 
         <div class="ne-foot">
           <span id="ne-saved">Saved just now</span>
@@ -905,6 +912,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     q('#ne-saved', view).textContent = 'Saved ' + U.relTime(n.updated);
     q('#ne-stats', view).textContent = calculateStats(n.body);
     refreshPreview();
+    renderBacklinks();
   }
 
   function refreshPreview(){
@@ -927,10 +935,48 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         }
       };
     });
+
+    // Wire up Obsidian-style [[wikilinks]] in preview!
+    qa('.md-wikilink', previewBox).forEach(el => {
+      el.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const targetTitle = (el.dataset.wikilink || '').trim();
+        if(!targetTitle) return;
+        const all = notes().filter(x => !x.trash);
+        const target = all.find(x => (x.title || '').trim().toLowerCase() === targetTitle.toLowerCase());
+        if(target){
+          selectNote(target.id);
+          NX.toastOk('Opened note', target.title);
+        } else {
+          NX.confirm('Create new note?', `Note "${targetTitle}" does not exist yet. Create it now?`, () => {
+            const newN = {
+              id: U.uid('nt'),
+              title: targetTitle,
+              body: `# ${targetTitle}\n\n*Linked from [[${current() ? (current().title || 'Note') : 'Note'}]]*\n\nStart writing here...\n`,
+              folder: current() ? (current().folder || '') : '',
+              tags: ['linked'],
+              pinned: false,
+              updated: Date.now()
+            };
+            const list = notes();
+            list.unshift(newN);
+            saveNotes(list);
+            curNoteId = newN.id;
+            renderFolders();
+            renderList();
+            loadEditor();
+            NX.toastOk('Created linked note', targetTitle);
+            NX.sfx.play('pop');
+          });
+        }
+      };
+    });
   }
 
   function persist(){
-    const n = current();
+    const all = notes();
+    const n = all.find(x => x.id === curNoteId);
     if(!n) return;
     let titleVal = (q('#ne-title', view)?.value || '').trim();
     n.body = ta.value;
@@ -947,7 +993,18 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     const foundTags = new Set((n.body.match(/#[a-zA-Z0-9_-]{2,20}/g)||[]).map(t=>t.slice(1).toLowerCase()));
     n.tags = Array.from(foundTags).slice(0, 8);
     n.updated = Date.now();
-    saveNotes(notes());
+    saveNotes(all);
+
+    // Synchronize card title and snippet in sidebar immediately
+    const cardTitle = q(`.note-card[data-id="${curNoteId}"] .nc-title`, view);
+    if(cardTitle){
+      cardTitle.innerHTML = (n.pinned ? `<span class="pin" style="color:var(--orange)">${icon('pin',13)}</span> ` : '') + U.esc(n.title);
+    }
+    const cardPrev = q(`.note-card[data-id="${curNoteId}"] .nc-prev`, view);
+    if(cardPrev){
+      cardPrev.textContent = (n.body||'').replace(/[#>*`\-\[\]]/g,'').slice(0, 100).trim() || 'Empty note';
+    }
+
     const savedEl = q('#ne-saved', view);
     if(savedEl) savedEl.textContent = 'Saved just now';
     const statsEl = q('#ne-stats', view);
@@ -961,6 +1018,306 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
     syncToDisk(n);
     refreshPreview();
+    renderBacklinks();
+  }
+
+  /* ---------------- Obsidian-Style Wikilinks & Backlinks ---------------- */
+  let wikiMenu = null;
+  function removeWikiMenu(){
+    if(wikiMenu){ wikiMenu.remove(); wikiMenu = null; }
+  }
+
+  function maybeWikiLink(textarea){
+    const pos = textarea.selectionStart;
+    const val = textarea.value.slice(0, pos);
+    const match = val.match(/\[\[([^\]\n]*)$/);
+    if(!match){
+      removeWikiMenu();
+      return;
+    }
+    const query = match[1].toLowerCase().trim();
+    const allNotes = notes().filter(n => !n.trash && n.id !== curNoteId);
+    const matches = allNotes.filter(n => (n.title || '').toLowerCase().includes(query)).slice(0, 6);
+    if(!matches.length){
+      removeWikiMenu();
+      return;
+    }
+    showWikiMenu(textarea, matches, match[0]);
+  }
+
+  function showWikiMenu(textarea, matches, queryPrefix){
+    removeWikiMenu();
+    wikiMenu = h(`<div class="wikilink-menu" id="wikilink-menu">
+      <div style="padding:6px 10px 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line)">Link to note</div>
+      ${matches.map(n => `<div class="wl-item" data-title="${U.esc(n.title)}">
+        <span style="font-size:14px">📄</span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${U.esc(n.title)}</b></span>
+        ${n.folder ? `<span class="fld-chip" style="font-size:10px">${U.esc(n.folder)}</span>` : ''}
+      </div>`).join('')}
+    </div>`);
+
+    document.body.appendChild(wikiMenu);
+    const r = textarea.getBoundingClientRect();
+    wikiMenu.style.left = Math.min(innerWidth - 280, Math.max(20, r.left + 30)) + 'px';
+    wikiMenu.style.top = Math.min(innerHeight - 260, r.top + 80) + 'px';
+
+    qa('.wl-item', wikiMenu).forEach(item => {
+      item.onmousedown = (e) => {
+        e.preventDefault();
+        const chosen = item.dataset.title;
+        insertWikiLink(textarea, chosen, queryPrefix);
+      };
+    });
+  }
+
+  function insertWikiLink(textarea, chosenTitle, queryPrefix){
+    removeWikiMenu();
+    const pos = textarea.selectionStart;
+    const v = textarea.value;
+    const before = v.slice(0, pos - queryPrefix.length);
+    const after = v.slice(pos);
+    const insert = `[[${chosenTitle}]] `;
+    textarea.value = before + insert + after;
+    textarea.selectionStart = textarea.selectionEnd = before.length + insert.length;
+    textarea.focus();
+    persist();
+    renderList();
+    NX.sfx.play('pop');
+  }
+
+  function renderBacklinks(){
+    const host = q('#ne-backlinks-host', view);
+    if(!host) return;
+    const n = current();
+    if(!n || n.trash){ host.innerHTML = ''; return; }
+    const title = (n.title || '').trim().toLowerCase();
+    if(!title || title === 'untitled note'){ host.innerHTML = ''; return; }
+
+    const all = notes().filter(x => !x.trash && x.id !== n.id);
+    const linking = all.filter(x => {
+      const b = (x.body || '').toLowerCase();
+      return b.includes(`[[${title}]]`) || b.includes(`[[${title}|`);
+    });
+
+    if(!linking.length){
+      host.innerHTML = '';
+      return;
+    }
+
+    host.innerHTML = `
+      <div class="ne-backlinks-panel">
+        <div class="ne-bl-title">${icon('layers', 14)} <b>Linked References (${linking.length})</b></div>
+        <div class="ne-bl-list">
+          ${linking.map(x => {
+            const snippet = extractSnippet(x.body, n.title);
+            return `<div class="ne-bl-item" data-id="${x.id}">
+              <div class="ne-bl-name">📄 <b>${U.esc(x.title || 'Untitled')}</b></div>
+              <div class="ne-bl-snippet">${U.esc(snippet)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+
+    qa('.ne-bl-item', host).forEach(el => {
+      el.onclick = () => selectNote(el.dataset.id);
+    });
+  }
+
+  function extractSnippet(body, targetTitle){
+    const lines = (body || '').split('\n');
+    const matchLine = lines.find(l => l.toLowerCase().includes(targetTitle.toLowerCase()));
+    if(matchLine) return matchLine.trim().slice(0, 120);
+    return (body || '').slice(0, 80) + '...';
+  }
+
+  /* ---------------- Knowledge Graph Modal ---------------- */
+  function openNotesGraphModal(){
+    const activeNotes = notes().filter(n => !n.trash);
+    if(!activeNotes.length){
+      NX.toastInfo('No notes yet', 'Create some notes to visualize your knowledge graph.');
+      return;
+    }
+
+    const titleToId = new Map();
+    activeNotes.forEach(n => titleToId.set((n.title||'').trim().toLowerCase(), n.id));
+
+    const nodes = activeNotes.map((n, i) => {
+      const angle = (i / activeNotes.length) * Math.PI * 2;
+      const dist = 120 + Math.random() * 80;
+      return {
+        id: n.id,
+        title: n.title || 'Untitled',
+        folder: n.folder || 'root',
+        tags: n.tags || [],
+        color: U.colorFor(n.folder || n.title),
+        x: 350 + Math.cos(angle) * dist,
+        y: 220 + Math.sin(angle) * dist,
+        vx: 0,
+        vy: 0,
+        radius: 12 + Math.min(10, (n.body||'').length / 200)
+      };
+    });
+
+    const links = [];
+    activeNotes.forEach(n => {
+      const body = n.body || '';
+      const matches = Array.from(body.matchAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g));
+      matches.forEach(m => {
+        const targetTitle = (m[1]||'').trim().toLowerCase();
+        const targetId = titleToId.get(targetTitle);
+        if(targetId && targetId !== n.id){
+          links.push({ source: n.id, target: targetId });
+        }
+      });
+    });
+
+    const body = h(`<div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <span class="faint small"><b>${nodes.length}</b> notes · <b>${links.length}</b> connections · Drag nodes to explore</span>
+        <span class="faint tiny">Click any node to open note</span>
+      </div>
+      <div style="position:relative;width:100%;height:440px;background:var(--surface-2);border-radius:12px;overflow:hidden;border:1px solid var(--line)">
+        <canvas id="graph-canvas" width="680" height="440" style="display:block;width:100%;height:100%;cursor:grab"></canvas>
+      </div>
+    </div>`);
+
+    NX.modal({
+      title: 'Knowledge Graph View',
+      icon: 'activity',
+      body,
+      footer: [
+        { label: 'Close', cls: 'btn-soft' }
+      ]
+    });
+
+    setTimeout(() => {
+      const canvas = q('#graph-canvas', body);
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let W = canvas.width = canvas.parentElement.clientWidth || 680;
+      let H = canvas.height = 440;
+      let animId = null;
+      let draggedNode = null;
+      let hoveredNode = null;
+
+      function step(){
+        for(let i=0; i<nodes.length; i++){
+          for(let j=i+1; j<nodes.length; j++){
+            const dx = nodes[j].x - nodes[i].x;
+            const dy = nodes[j].y - nodes[i].y;
+            const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+            if(dist < 180){
+              const force = (180 - dist) / dist * 0.12;
+              nodes[i].vx -= dx * force;
+              nodes[i].vy -= dy * force;
+              nodes[j].vx += dx * force;
+              nodes[j].vy += dy * force;
+            }
+          }
+        }
+
+        links.forEach(l => {
+          const s = nodes.find(n => n.id === l.source);
+          const t = nodes.find(n => n.id === l.target);
+          if(s && t){
+            const dx = t.x - s.x;
+            const dy = t.y - s.y;
+            const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+            const force = (dist - 100) * 0.005;
+            s.vx += dx * force;
+            s.vy += dy * force;
+            t.vx -= dx * force;
+            t.vy -= dy * force;
+          }
+        });
+
+        const cx = W / 2, cy = H / 2;
+        nodes.forEach(n => {
+          if(n !== draggedNode){
+            n.vx += (cx - n.x) * 0.0015;
+            n.vy += (cy - n.y) * 0.0015;
+            n.x += n.vx;
+            n.y += n.vy;
+            n.vx *= 0.85;
+            n.vy *= 0.85;
+            n.x = Math.max(n.radius, Math.min(W - n.radius, n.x));
+            n.y = Math.max(n.radius, Math.min(H - n.radius, n.y));
+          }
+        });
+
+        ctx.clearRect(0, 0, W, H);
+
+        ctx.lineWidth = 1.5;
+        links.forEach(l => {
+          const s = nodes.find(n => n.id === l.source);
+          const t = nodes.find(n => n.id === l.target);
+          if(s && t){
+            ctx.beginPath();
+            ctx.moveTo(s.x, s.y);
+            ctx.lineTo(t.x, t.y);
+            ctx.strokeStyle = 'rgba(124, 213, 110, 0.4)';
+            ctx.stroke();
+          }
+        });
+
+        nodes.forEach(n => {
+          const isHover = n === hoveredNode;
+          ctx.beginPath();
+          ctx.arc(n.x, n.y, n.radius + (isHover ? 3 : 0), 0, Math.PI * 2);
+          ctx.fillStyle = n.color;
+          ctx.fill();
+          ctx.strokeStyle = isHover ? '#fff' : 'rgba(255,255,255,0.4)';
+          ctx.lineWidth = isHover ? 3 : 1.5;
+          ctx.stroke();
+
+          ctx.font = isHover ? 'bold 12px sans-serif' : '11px sans-serif';
+          ctx.fillStyle = isHover ? 'var(--ink)' : 'var(--ink-2)';
+          ctx.textAlign = 'center';
+          ctx.fillText(n.title.slice(0, 16), n.x, n.y + n.radius + 14);
+        });
+
+        animId = requestAnimationFrame(step);
+      }
+
+      animId = requestAnimationFrame(step);
+
+      canvas.onmousedown = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        draggedNode = nodes.find(n => Math.hypot(n.x - mx, n.y - my) <= n.radius + 4);
+        if(draggedNode) canvas.style.cursor = 'grabbing';
+      };
+
+      canvas.onmousemove = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        if(draggedNode){
+          draggedNode.x = mx;
+          draggedNode.y = my;
+          draggedNode.vx = draggedNode.vy = 0;
+        } else {
+          hoveredNode = nodes.find(n => Math.hypot(n.x - mx, n.y - my) <= n.radius + 4);
+          canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+        }
+      };
+
+      window.addEventListener('mouseup', () => {
+        if(draggedNode){ draggedNode = null; canvas.style.cursor = 'grab'; }
+      });
+
+      canvas.onclick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const clicked = nodes.find(n => Math.hypot(n.x - mx, n.y - my) <= n.radius + 4);
+        if(clicked){
+          NX.closeAllModals();
+          cancelAnimationFrame(animId);
+          selectNote(clicked.id);
+          NX.toastOk('Opened note', clicked.title);
+        }
+      };
+    }, 60);
   }
 
   globalPersistFn = persist;
@@ -971,8 +1328,24 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     globalSaveTimer = saveTimer;
   };
 
-  q('#ne-title', view).addEventListener('input', autosave);
-  ta.addEventListener('input', () => { autosave(); maybeSlash(ta); });
+  q('#ne-title', view).addEventListener('input', (e) => {
+    const val = e.target.value.trim() || 'Untitled Note';
+    const cardTitle = q(`.note-card[data-id="${curNoteId}"] .nc-title`, view);
+    if(cardTitle){
+      const pinIcon = q(`.note-card[data-id="${curNoteId}"] .nc-title .pin`, view);
+      cardTitle.innerHTML = (pinIcon ? pinIcon.outerHTML + ' ' : '') + U.esc(val);
+    }
+    autosave();
+  });
+
+  ta.addEventListener('input', () => {
+    const prevText = ta.value.replace(/[#>*`\-\[\]]/g,'').slice(0, 100).trim() || 'Empty note';
+    const cardPrev = q(`.note-card[data-id="${curNoteId}"] .nc-prev`, view);
+    if(cardPrev) cardPrev.textContent = prevText;
+    autosave();
+    maybeSlash(ta);
+    maybeWikiLink(ta);
+  });
 
   // Format selection helper
   function wrapSelection(openTag, closeTag){
@@ -1109,9 +1482,13 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
   function trashNote(n){
     if(!n) return;
-    n.trash = true;
-    n.trashedAt = Date.now();
-    saveNotes(notes());
+    const all = notes();
+    const target = all.find(x => x.id === n.id);
+    if(target){
+      target.trash = true;
+      target.trashedAt = Date.now();
+      saveNotes(all);
+    }
     renderFolders();
     renderList();
     if(curNoteId === n.id){
@@ -1124,9 +1501,13 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
   function restoreNote(n){
     if(!n) return;
-    n.trash = false;
-    delete n.trashedAt;
-    saveNotes(notes());
+    const all = notes();
+    const target = all.find(x => x.id === n.id);
+    if(target){
+      target.trash = false;
+      delete target.trashedAt;
+      saveNotes(all);
+    }
     renderFolders();
     renderList();
     loadEditor();
@@ -1215,9 +1596,13 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         { label:'Cancel', cls:'btn-soft' },
         { label:'Move', cls:'btn-green', onClick: async () => {
           const name = q('#nf-name', body).value.trim();
-          n.folder = name; n.trash = false; n.updated = Date.now();
-          saveNotes(notes());
-          syncToDisk(n);
+          const all = notes();
+          const target = all.find(x => x.id === n.id);
+          if(target){
+            target.folder = name; target.trash = false; target.updated = Date.now();
+            saveNotes(all);
+            syncToDisk(target);
+          }
           NX.closeAllModals();
           renderFolders(); renderList(); loadEditor();
           NX.toastOk(name ? 'Moved to ' + name : 'Moved to root');
@@ -1227,8 +1612,9 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   }
 
   q('#ne-pin', view).onclick = () => {
-    const n = current();
-    if(n){ n.pinned = !n.pinned; saveNotes(notes()); renderList(); loadEditor(); NX.sfx.play('pop'); }
+    const all = notes();
+    const target = all.find(x => x.id === curNoteId);
+    if(target){ target.pinned = !target.pinned; saveNotes(all); renderList(); loadEditor(); NX.sfx.play('pop'); }
   };
   q('#ne-copy', view).onclick = () => {
     const n = current();
@@ -1297,6 +1683,10 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
     NX.toastInfo('Vault', 'Notes are stored locally on your machine.');
   };
+
+  const graphBtn = q('#nt-graph', view);
+  if(graphBtn) graphBtn.onclick = openNotesGraphModal;
+  NX.openNotesGraph = openNotesGraphModal;
 
   window.__nx_refreshNotesView = () => { renderFolders(); renderList(); loadEditor(); };
   window.__nx_selectNote = (id) => {

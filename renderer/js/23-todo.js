@@ -573,6 +573,9 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
     const list = tasks();
     const t = list.find(x => x.id === id);
     if(!t) return;
+    const wasDone = !!t.done;
+    const wasCol = t.col;
+    const wasAt = t.doneAt;
     t.done = !t.done;
     if(t.done){
       t.doneAt = Date.now();
@@ -588,6 +591,23 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
     renderSidebar();
     renderMain();
     if(activeTaskId === id) openDetailPanel(id);
+    const name = t.name || 'Task';
+    NX.undoable(
+      wasDone ? 'Task reopened' : 'Task completed',
+      name,
+      ()=>{
+        const l2 = tasks();
+        const x = l2.find(y => y.id === id);
+        if(!x) return;
+        x.done = wasDone;
+        if(wasDone){ x.doneAt = wasAt; x.col = wasCol; } else { delete x.doneAt; x.col = wasCol || 'today'; }
+        saveTasks(l2);
+        renderSidebar();
+        renderMain();
+        if(activeTaskId === id) openDetailPanel(id);
+        NX.sfx.play('pop');
+      }
+    );
   }
 
   function toggleTaskImportant(id){

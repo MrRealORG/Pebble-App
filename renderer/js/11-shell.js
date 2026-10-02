@@ -78,6 +78,7 @@ function badgeFor(r){
 function renderSidebar(host){
   const profile = NX.store.get('profile', NX.defaults.profile);
   const cur = NX.router.currentName;
+  const pinned = (NX.store.get('pinnedRoutes', []) || []).filter(r => (NAV.flatMap(g=>g.items)).some(i=>i.r===r));
   const sb = h(`<aside class="sidebar ${sidebarMini?'mini':''}">
     <div class="brand">
       <div class="brand-mark">${NX.brandMark()}</div>
@@ -85,17 +86,34 @@ function renderSidebar(host){
       <button class="collapse-btn" data-tip="Collapse sidebar">${icon('chevL')}</button>
     </div>
   </aside>`);
+
+  const navBtn = it =>{
+    const b = badgeFor(it.r);
+    const el = h(`<button class="nav-item ${cur===it.r?'on':''}" data-name="${it.n}" data-route="${it.r}">
+        <span class="ni-icon">${icon(it.ic)}</span>
+        <span class="ni-name">${U.esc(it.n)}</span>
+        ${pinned.includes(it.r)? `<span class="ni-pin">${icon('star',12)}</span>` : ''}
+        ${b?`<span class="ni-badge">${b}</span>`:''}
+      </button>`);
+    el.onclick = ()=>NX.router.go(it.r);
+    return el;
+  };
+
+  /* pinned group first — order follows the pin list */
+  if(pinned.length){
+    const grp = h(`<div class="nav-group"><div class="nav-label"><span>Pinned</span></div></div>`);
+    pinned.forEach(r=>{
+      const it = NAV.flatMap(g=>g.items).find(i=>i.r===r);
+      if(it) grp.appendChild(navBtn(it));
+    });
+    sb.appendChild(grp);
+  }
+
   NAV.forEach(g=>{
     const grp = h(`<div class="nav-group"><div class="nav-label"><span>${U.esc(g.group)}</span></div></div>`);
     g.items.forEach(it=>{
-      const b = badgeFor(it.r);
-      const el = h(`<button class="nav-item ${cur===it.r?'on':''}" data-name="${it.n}" data-route="${it.r}">
-        <span class="ni-icon">${icon(it.ic)}</span>
-        <span class="ni-name">${U.esc(it.n)}</span>
-        ${b?`<span class="ni-badge">${b}</span>`:''}
-      </button>`);
-      el.onclick = ()=>NX.router.go(it.r);
-      grp.appendChild(el);
+      if(pinned.includes(it.r)) return;
+      grp.appendChild(navBtn(it));
     });
     sb.appendChild(grp);
   });
@@ -123,6 +141,7 @@ function renderSidebar(host){
   ], { align:'left' });
   foot.querySelector('[data-route="settings"]').onclick = ()=>NX.router.go('settings');
   sb.appendChild(foot);
+  sb.appendChild(h('<div class="nav-pill" aria-hidden="true"></div>'));
   sb.querySelector('.collapse-btn').onclick = ()=>{
     sidebarMini = !sidebarMini;
     sb.classList.toggle('mini', sidebarMini);
@@ -137,19 +156,22 @@ function renderTopbar(host){
   const unread = NX.unreadNotifs();
   const bar = h(`<header class="topbar">
     <div class="page-title"><span>${U.esc(title)}</span><span class="sub" id="tp-sub">${U.esc(U.dayName(0))}</span></div>
+    <div class="topbar-crumbs" id="topbar-crumbs" aria-label="Breadcrumb"></div>
     <div class="search-box" id="tp-search" role="button" tabindex="0" data-tip="Search & commands">
       ${icon('search')}<input placeholder="Search…" readonly>
       <span class="kbd">Ctrl K</span>
     </div>
     <button class="icon-btn" data-tip="Module grid" id="tp-grid">${icon('grid')}</button>
+    <button class="icon-btn" data-tip="Ask Pebble AI Copilot (Ctrl+Shift+A)" id="tp-copilot" style="color:var(--green)">${icon('robot', 18)}</button>
     <span class="bell-wrap">
       <button class="icon-btn" data-tip="Notifications" id="tp-bell">${icon('bell')}</button>
       ${unread? `<span class="bell-badge" id="tp-bell-badge">${unread>9?'9+':unread}</span>`:''}
     </span>
     <button class="btn btn-dark" id="tp-new">${icon('plus')} New</button>
   </header>`);
-  bar.querySelector('#tp-search').onclick = ()=>NX.openCommandPalette();
-  bar.querySelector('#tp-search').onkeydown = (e)=>{ if(e.key==='Enter') NX.openCommandPalette(); };
+  bar.querySelector('#tp-search').onclick = ()=> (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette());
+  bar.querySelector('#tp-search').onkeydown = (e)=>{ if(e.key==='Enter') (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette()); };
+  bar.querySelector('#tp-copilot').onclick = ()=> NX.openAskPebble && NX.openAskPebble();
   bar.querySelector('#tp-grid').onclick = (e)=>NX.menu(e.currentTarget, NAV.flatMap(g=>[{label:g.group, header:true}].concat(g.items.map(it=>({ label:it.n, icon:it.ic, onClick:()=>NX.router.go(it.r) })))));
   bar.querySelector('#tp-bell').onclick = (e)=>NX.openNotifCenter(e.currentTarget);
   bar.querySelector('#tp-new').onclick = (e)=>NX.menu(e.currentTarget, [
@@ -242,6 +264,14 @@ Object.defineProperty(NX.router, 'currentName', { get(){ return (location.hash||
 document.addEventListener('keydown', (e)=>{
   const mod = e.ctrlKey || e.metaKey;
   if(mod && e.key.toLowerCase() === 'k'){ e.preventDefault(); NX.openCommandPalette(); }
+  else if((e.altKey && (e.code === 'Space' || e.key === ' ')) || (mod && e.shiftKey && (e.code === 'Space' || e.key === ' '))){
+    e.preventDefault();
+    NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette();
+  }
+  else if(mod && e.shiftKey && e.key.toLowerCase() === 'a'){
+    e.preventDefault();
+    NX.openAskPebble && NX.openAskPebble();
+  }
   else if(mod && e.key.toLowerCase() === 'j'){ e.preventDefault(); NX.cycleTheme(); }
   else if(mod && e.key.toLowerCase() === 'w' && e.shiftKey){ e.preventDefault(); NX.widget && NX.widget.toggle(); }
   else if(mod && e.shiftKey && e.key.toLowerCase() === 'b'){ e.preventDefault(); NX.openBugReporter && NX.openBugReporter(); }

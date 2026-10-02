@@ -99,6 +99,92 @@ const Sound = {
 };
 NX.focusSound = Sound;
 
+/* ================= FOCUS SHIELD (Distraction Blocker) ================= */
+const focusShield = {
+  enabled: NX.store.get('focusShield_enabled', true),
+  whitelisted: new Set(),
+  activeOverlay: null,
+  lastAlert: 0,
+
+  check(liveApp, cat){
+    if(!this.enabled) return;
+    if(!NX.pomo || !NX.pomo.st || NX.pomo.st.mode !== 'focus' || !NX.pomo.st.running) return;
+    if(cat !== 'distr') return;
+    const name = String(liveApp || '').toLowerCase();
+    if(this.whitelisted.has(name)) return;
+
+    const now = Date.now();
+    if(now - this.lastAlert < 15000) return;
+    this.lastAlert = now;
+
+    this.showOverlay(liveApp, NX.pomo.st.left);
+  },
+
+  showOverlay(appName, timeLeft){
+    if(this.activeOverlay) return;
+
+    const overlay = h(`<div class="cmdk-backdrop anim-in" style="backdrop-filter:blur(14px);background:rgba(20,10,10,0.75);z-index:3000;display:flex;align-items:center;justify-content:center">
+      <div class="card" style="width:min(480px,90vw);text-align:center;padding:28px 24px;border-radius:22px;border:1.5px solid var(--red);box-shadow:0 24px 60px rgba(226,92,74,0.3);background:var(--surface)">
+        <div style="width:60px;height:60px;border-radius:20px;background:var(--red-soft);color:var(--red);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
+          ${icon('eye', 30)}
+        </div>
+        <div style="font-size:19px;font-weight:800;color:var(--ink);letter-spacing:-.01em">🛡️ Focus Shield Active</div>
+        <div style="font-size:13.5px;color:var(--ink-2);margin:8px 0 16px;line-height:1.5">
+          You are in deep focus with <b style="color:var(--green)">${U.fmtClock(timeLeft)}</b> remaining.<br>
+          <span style="color:var(--red);font-weight:700">${U.esc(appName)}</span> is marked as a distraction.
+        </div>
+        <div class="row gap-8" style="justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-green btn-lg" id="fs-back" style="flex:1;min-width:140px">🚀 Back to Flow</button>
+          <button class="btn btn-soft" id="fs-allow">Allow for 5 min</button>
+          <button class="btn btn-soft" id="fs-break">Take 2-min Break</button>
+        </div>
+      </div>
+    </div>`);
+
+    document.body.appendChild(overlay);
+    this.activeOverlay = overlay;
+
+    NX.sfx.play('timer');
+    if(NX.native.available && NX.native.mode === 'tauri'){
+      NX.native.notify({
+        title: '🛡️ Focus Shield Active',
+        body: `${appName} is marked as a distraction. Stay in your deep work session!`
+      });
+    }
+
+    q('#fs-back', overlay).onclick = () => {
+      overlay.remove();
+      this.activeOverlay = null;
+      window.focus();
+    };
+
+    q('#fs-allow', overlay).onclick = () => {
+      this.whitelisted.add(appName.toLowerCase());
+      overlay.remove();
+      this.activeOverlay = null;
+      NX.toastInfo('Allowed', `"${appName}" whitelisted for this session`);
+      setTimeout(() => this.whitelisted.delete(appName.toLowerCase()), 5 * 60000);
+    };
+
+    q('#fs-break', overlay).onclick = () => {
+      overlay.remove();
+      this.activeOverlay = null;
+      if(NX.pomo) {
+        NX.pomo.st = { mode:'break', left: 2 * 60, running:true };
+        NX.events.emit('pomo:changed');
+      }
+    };
+  }
+};
+NX.focusShield = focusShield;
+
+// Global listener for distraction detection during focus sessions
+NX.events.on('timeless:tick', () => {
+  if(NX.timeless && NX.timeless.live){
+    focusShield.check(NX.timeless.live.app, NX.timeless.live.cat);
+  }
+});
+
 /* ---------------- breathing patterns ---------------- */
 const BREATHE = {
   box:    { l:'Box 4-4-4-4', steps:[ {t:'Breathe in',s:.55,d:4}, {t:'Hold',s:1,d:4}, {t:'Breathe out',s:.55,d:4}, {t:'Hold',s:.55,d:4} ] },
@@ -229,7 +315,19 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
     }
     q('#fx-t-pills', host).innerHTML =
       `<span class="pill gray">${stats.done} rounds all-time</span>
-       <span class="pill green">${Math.round(t.prod/60)} min focused today</span>`;
+       <span class="pill green">${Math.round(t.prod/60)} min focused today</span>
+       <button class="chip ${focusShield.enabled ? 'active' : ''}" id="fx-shield-chip" style="cursor:pointer;height:24px;font-size:11px">🛡️ Shield: ${focusShield.enabled ? 'ON' : 'OFF'}</button>`;
+    const shieldBtn = q('#fx-shield-chip', host);
+    if(shieldBtn){
+      shieldBtn.onclick = () => {
+        focusShield.enabled = !focusShield.enabled;
+        NX.store.set('focusShield_enabled', focusShield.enabled);
+        shieldBtn.classList.toggle('active', focusShield.enabled);
+        shieldBtn.textContent = `🛡️ Shield: ${focusShield.enabled ? 'ON' : 'OFF'}`;
+        NX.toastOk('Focus Shield', focusShield.enabled ? 'Distraction blocking enabled' : 'Disabled');
+        NX.sfx.play('pop');
+      };
+    }
   }
 
   /* ================= BREATHING ================= */

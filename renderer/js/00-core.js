@@ -284,21 +284,35 @@ window.NX = window.NX || {};
   NX.toast = function(type, title, msg, opts={}){
     const host = document.getElementById('nx-toasts'); if(!host) return;
     const icons = { ok:'M20 6 9 17l-5-5', err:'M12 8v4m0 4h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z', info:'M12 8h.01M11 12h1v4h1' };
-    const el = NX.h(`<div class="toast" role="status">
+    const act = opts.action;
+    const el = NX.h(`<div class="toast ${act?'has-action':''}" role="status">
       <div class="t-icon ${type}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="${icons[type]||icons.info}"/></svg></div>
-      <div style="min-width:0"><div class="t-title">${U.esc(title)}</div>${msg?`<div class="t-msg">${U.esc(msg)}</div>`:''}</div>
+      <div style="min-width:0;flex:1"><div class="t-title">${U.esc(title)}</div>${msg?`<div class="t-msg">${U.esc(msg)}</div>`:''}</div>
+      ${act? `<button class="t-action">${U.esc(act.label)}</button>` : ''}
       <button class="t-x icon-btn sm" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>`);
-    const kill = ()=>{ el.classList.add('out'); setTimeout(()=>el.remove(), 220); };
+    let dead = false;
+    const kill = ()=>{ if(dead) return; dead = true; el.classList.add('out'); setTimeout(()=>el.remove(), 240); };
     el.querySelector('.t-x').onclick = kill;
+    if(act){
+      el.querySelector('.t-action').onclick = ()=>{
+        kill();
+        try{ act.onClick && act.onClick(); }catch(e){ console.error(e); }
+      };
+    }
     host.appendChild(el);
-    const life = opts.life || (type==='err'? 5200 : 3800);
+    const life = opts.life || (act ? 6500 : type==='err'? 5200 : 3800);
     setTimeout(kill, life);
     while(host.children.length > 4) host.firstElementChild.remove();
   };
   NX.toastOk  = (t,m,o)=>NX.toast('ok',t,m,o);
   NX.toastErr = (t,m,o)=>NX.toast('err',t,m,o);
   NX.toastInfo= (t,m,o)=>NX.toast('info',t,m,o);
+
+  /* undoable action toast — "Marked done / Undo" */
+  NX.undoable = function(title, msg, undoFn, opts={}){
+    return NX.toast('info', title, msg, Object.assign({ action:{ label:'Undo', onClick: undoFn } }, opts));
+  };
 
   function SFX_SAFE(name){ try{ if(NX.sfx) NX.sfx.play(name); }catch(e){} }
 
