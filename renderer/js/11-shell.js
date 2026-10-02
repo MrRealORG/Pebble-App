@@ -44,7 +44,8 @@ const NAV = [
     { r:'dashboard',  n:'Dashboard',  ic:'dashboard' },
     { r:'chat',       n:'Chat',       ic:'chat' },
     { r:'notes',      n:'Notes',      ic:'notes' },
-    { r:'todo',       n:'Tasks',      ic:'todo' }
+    { r:'todo',       n:'Tasks',      ic:'todo' },
+    { r:'planner',    n:'Day Planner',ic:'calendar' }
   ]},
   { group:'Intelligence', items:[
     { r:'ai',         n:'Pel AI',     ic:'ai' },
@@ -79,6 +80,7 @@ function renderSidebar(host){
   const profile = NX.store.get('profile', NX.defaults.profile);
   const cur = NX.router.currentName;
   const pinned = (NX.store.get('pinnedRoutes', []) || []).filter(r => (NAV.flatMap(g=>g.items)).some(i=>i.r===r));
+  const isPinnedRoute = r => NX.motion && NX.motion.isPinned ? NX.motion.isPinned(r) : pinned.includes(r);
   const sb = h(`<aside class="sidebar ${sidebarMini?'mini':''}">
     <div class="brand">
       <div class="brand-mark">${NX.brandMark()}</div>
@@ -89,10 +91,11 @@ function renderSidebar(host){
 
   const navBtn = it =>{
     const b = badgeFor(it.r);
+    const pinned = isPinnedRoute(it.r);
     const el = h(`<button class="nav-item ${cur===it.r?'on':''}" data-name="${it.n}" data-route="${it.r}">
         <span class="ni-icon">${icon(it.ic)}</span>
         <span class="ni-name">${U.esc(it.n)}</span>
-        ${pinned.includes(it.r)? `<span class="ni-pin">${icon('star',12)}</span>` : ''}
+        ${pinned? `<span class="ni-pin">${icon('star',12)}</span>` : `<span class="ni-hover-star">${icon('pin',12)}</span>`}
         ${b?`<span class="ni-badge">${b}</span>`:''}
       </button>`);
     el.onclick = ()=>NX.router.go(it.r);

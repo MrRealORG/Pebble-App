@@ -54,6 +54,14 @@ function mdRender(src){
       const label = (customLabel || title).trim();
       return `<a class="md-wikilink" data-wikilink="${U.esc(title)}" href="javascript:void(0)" title="Jump to note: ${U.esc(title)}"><span class="md-wiki-ic">📄</span> ${U.esc(label)}</a>`;
     });
+    // Task mentions: [@task: Title](todo://task_id)
+    out = out.replace(/\[@task:\s*([^\]]+)\]\(todo:\/\/([^\)]+)\)/g, (m0, taskTitle, taskId) => {
+      const allTasks = NX.store.get('tasks', []);
+      const t = allTasks.find(x => x.id === taskId);
+      const isDone = t ? t.done : false;
+      const dueStr = t && t.due ? `<span class="md-todo-due">📅 ${U.esc(t.due)}</span>` : '';
+      return `<span class="md-todo-chip ${isDone?'done':''}" data-task-id="${U.esc(taskId)}"><input type="checkbox" class="md-todo-cb" data-task-id="${U.esc(taskId)}" ${isDone?'checked':''}><span class="md-todo-text">${U.esc(taskTitle)}</span>${dueStr}</span>`;
+    });
     out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">$1</a>');
     out = out.replace(/#([a-zA-Z0-9_-]{2,24})/g, '<span class="tagchip" style="cursor:pointer" data-tag="$1">#$1</span>');
     out = out.replace(/\$([^\$\n]+)\$/g, '<code class="md-math">$1</code>');
@@ -64,6 +72,27 @@ function mdRender(src){
     const raw = lines[i];
     const line = raw;
     const trimmed = line.trim();
+
+    // Table of contents [TOC]
+    if(trimmed === '[TOC]' || trimmed === '[[TOC]]'){
+      flushList(); flushTable(); flushToggle();
+      const headings = [];
+      lines.forEach(l => {
+        const hm = l.match(/^(#{1,3})\s+(.*)$/);
+        if(hm){
+          const lvl = hm[1].length;
+          const txt = hm[2].trim();
+          const slg = 'hd-' + txt.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+          headings.push({ lvl, txt, slg });
+        }
+      });
+      if(headings.length){
+        html += `<div class="md-toc-box"><div class="md-toc-h">📑 Table of Contents</div><div class="md-toc-items">` +
+          headings.map(h => `<a href="#${h.slg}" style="padding-left:${(h.lvl-1)*14}px" onclick="event.preventDefault();const el=document.getElementById('${h.slg}');if(el)el.scrollIntoView({behavior:'smooth'});">${h.lvl===1?'<b>':'<span>'}${U.esc(h.txt)}${h.lvl===1?'</b>':'</span>'}</a>`).join('') +
+          `</div></div>`;
+      }
+      continue;
+    }
 
     // Code blocks
     if(/^```/.test(trimmed)){
@@ -106,11 +135,13 @@ function mdRender(src){
       continue;
     }
 
-    // Headings
+    // Headings with slug ID for TOC jumping
     if(m = line.match(/^(#{1,3})\s+(.*)$/)){
       flushList();
       const level = m[1].length;
-      html += `<div class="md-h md-h${level}">${inline(m[2])}</div>`;
+      const headingText = m[2].trim();
+      const slug = 'hd-' + headingText.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      html += `<div class="md-h md-h${level}" id="${slug}" data-heading="${U.esc(headingText)}">${inline(m[2])}</div>`;
       continue;
     }
 
@@ -213,6 +244,9 @@ function saveNotes(n){ NX.store.set('notes', n); NX.store.set('notesAutoSavedAt'
 function current(){
   if(curFolder === '__trash'){
     return notes().find(n=>n.id === curNoteId && n.trash) || notes().find(n=>n.trash);
+  }
+  if(curFolder === '__fav'){
+    return notes().find(n=>n.id === curNoteId && !n.trash && n.starred) || notes().find(n=>!n.trash && n.starred) || notes().find(n=>!n.trash);
   }
   return notes().find(n=>n.id === curNoteId && !n.trash) || notes().find(n=>!n.trash) || notes()[0];
 }
@@ -364,6 +398,10 @@ const SLASH_ITEMS = [
   { l:'Tip Callout',      k:'TIP',ic:'star',   ins:'> !tip ',              tip:'Highlighted tip box' },
   { l:'Warning Callout',  k:'WRN',ic:'bell',   ins:'> !warning ',          tip:'Warning highlight' },
   { l:'Info Callout',     k:'INF',ic:'eye',    ins:'> !info ',             tip:'Informational notice' },
+  { l:'Success Callout',  k:'SUC',ic:'check',  ins:'> !success ',          tip:'Green success box' },
+  { l:'Danger Callout',   k:'DNG',ic:'trash',  ins:'> !danger ',           tip:'Red warning box' },
+  { l:'Table of contents',k:'TOC',ic:'list',   ins:'\n[TOC]\n\n',          tip:'Auto-updating outline' },
+  { l:'Mention Task',     k:'TSK',ic:'todo',   taskMention:true,           tip:'Link to To-Do task (@)' },
   { l:'Toggle section',   k:'TOG',ic:'chevL',  ins:'> ? Toggle Title\nToggle content here...\n>>>\n', tip:'Collapsible block' },
   { l:'Quote',            k:'QT', ic:'chat',   ins:'> ',                   tip:'Blockquote style' },
   { l:'Code block',       k:'CD', ic:'code',   ins:'```javascript\n\n```', caretBack:4, tip:'Code snippet' },
@@ -415,6 +453,15 @@ function applySlash(textarea, it){
 
   if(it.template){
     openTemplateModal(textarea);
+    return;
+  }
+  if(it.taskMention){
+    const allTasks = NX.store.get('tasks', []).filter(t => !t.done);
+    if(allTasks.length){
+      showTaskMentionMenu(textarea, allTasks.slice(0, 8), '');
+    } else {
+      NX.toastInfo('No pending tasks', 'Create tasks in Tasks view first.');
+    }
     return;
   }
   if(it.prompt){
@@ -562,6 +609,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         <div id="ne-trash-banner-host"></div>
         <div class="ne-head">
           <button class="icon-btn sm" id="nt-expand-sidebar" data-tip="Show notes list" style="margin-right:4px;display:${isCollapsed ? 'inline-flex' : 'none'}">${icon('chevR',14)}</button>
+          <button class="ne-icon-btn" id="ne-icon" data-tip="Change note icon">📝</button>
           <input class="ne-title" id="ne-title" placeholder="Note title">
           <div class="nt-tools">
             <div class="seg sm" id="ne-view-modes" role="tablist" style="margin-right:6px">
@@ -569,11 +617,15 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
               <button role="tab" class="${viewMode==='edit'?'on':''}" data-m="edit" data-tip="Editor only">Edit</button>
               <button role="tab" class="${viewMode==='preview'?'on':''}" data-m="preview" data-tip="Reader preview">Read</button>
             </div>
+            <button class="icon-btn sm" id="ne-toc-btn" data-tip="Table of Contents / Outline">${icon('list')}</button>
+            <button class="icon-btn sm" id="ne-zen-btn" data-tip="Zen Focus Writing (Ctrl+Shift+Z / F11)">${icon('eye')}</button>
+            <button class="icon-btn sm" id="ne-star" data-tip="Favorite note (⭐)">${icon('star')}</button>
             <button class="icon-btn sm" id="ne-folder" data-tip="Move to folder">${icon('layers')}</button>
             <button class="icon-btn sm" id="ne-pin" data-tip="Pin note to top">${icon('pin')}</button>
+            <button class="icon-btn sm" id="ne-history" data-tip="Version history & snapshots">${icon('clock')}</button>
             <button class="icon-btn sm" id="ne-copy" data-tip="Copy note markdown">${icon('copy')}</button>
             <button class="icon-btn sm" id="ne-dup" data-tip="Duplicate note">${icon('plus')}</button>
-            <button class="icon-btn sm" id="ne-export" data-tip="Export note as .md">${icon('download')}</button>
+            <button class="icon-btn sm" id="ne-export" data-tip="Export note (MD, HTML, PDF)">${icon('download')}</button>
             <button class="icon-btn sm" id="ne-del" data-tip="Delete note" style="color:var(--red)">${icon('trash')}</button>
           </div>
         </div>
@@ -627,6 +679,12 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       return all.filter(n => n.trash)
         .filter(n => !s || (n.title + ' ' + n.body + ' ' + (n.tags || []).join(' ')).toLowerCase().includes(s))
         .sort((a,b) => (b.trashedAt || b.updated) - (a.trashedAt || a.updated));
+    }
+    if(curFolder === '__fav'){
+      return all.filter(n => !n.trash && n.starred)
+        .filter(n => curTag === 'all' || (n.tags || []).includes(curTag))
+        .filter(n => !s || (n.title + ' ' + n.body + ' ' + (n.tags || []).join(' ')).toLowerCase().includes(s))
+        .sort((a,b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updated - a.updated);
     }
     return all.filter(n => !n.trash)
       .filter(n => (curFolder ? (n.folder || '') === curFolder : true))
@@ -704,6 +762,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     const allNotes = notes();
     const activeNotes = allNotes.filter(n => !n.trash);
     const trashCount = allNotes.filter(n => n.trash).length;
+    const favCount = activeNotes.filter(n => n.starred).length;
     const counts = {};
     activeNotes.forEach(n => { const f = n.folder || ''; counts[f] = (counts[f]||0) + 1; });
 
@@ -713,6 +772,9 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         <button class="icon-btn sm" id="nt-add-folder" data-tip="New folder" style="width:22px;height:22px">${icon('plus',12)}</button>
       </div>
       <button class="nt-folder ${curFolder===''?'on':''}" data-f="">${icon('notes',14)} All notes <span class="n">${activeNotes.length}</span></button>
+      <button class="nt-folder ${curFolder==='__fav'?'on':''}" data-f="__fav">
+        <span style="font-size:13px">⭐</span> Favorites <span class="n" style="${favCount>0?'font-weight:700;color:var(--orange)':''}">${favCount}</span>
+      </button>
       ${allFolders.map(f=>`
         <button class="nt-folder ${curFolder===f?'on':''}" data-f="${U.esc(f)}" data-folder-name="${U.esc(f)}">
           <span class="fld-ic">${icon('layers',14)}</span> <span class="ellipsis" style="flex:1">${U.esc(f)}</span>
@@ -820,13 +882,16 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       return;
     }
     NX.menu(e, [
+      { label: n.starred ? 'Remove from Favorites' : 'Add to Favorites ⭐', icon: 'star', onClick: () => {
+        n.starred = !n.starred; saveNotes(notes()); renderFolders(); renderList(); loadEditor(); NX.sfx.play('pop');
+      }},
       { label: n.pinned ? 'Unpin from top' : 'Pin to top', icon: 'pin', onClick: () => {
         n.pinned = !n.pinned; saveNotes(notes()); renderList(); loadEditor(); NX.sfx.play('pop');
       }},
       { label: 'Move to folder…', icon: 'layers', onClick: () => moveNoteModal(n) },
       { label: 'Duplicate', icon: 'plus', onClick: () => duplicateNote(n) },
       { label: 'Copy Markdown', icon: 'copy', onClick: () => NX.native.clipboardWrite(n.body).then(()=>NX.toastOk('Copied to clipboard')) },
-      { label: 'Export as .md', icon: 'download', onClick: () => exportNote(n) },
+      { label: 'Export…', icon: 'download', onClick: () => openExportModal(n) },
       '-',
       { label: 'Move to Trash', icon: 'trash', danger: true, onClick: () => trashNote(n) }
     ]);
@@ -853,7 +918,12 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
     f.forEach(n => {
       const el = h(`<div class="note-card ${n.id===curNoteId?'on':''}" draggable="true" data-id="${n.id}">
-        <div class="nc-title">${n.pinned ? `<span class="pin" style="color:var(--orange)">${icon('pin',13)}</span> ` : ''}${U.esc(n.title || 'Untitled')}</div>
+        <div class="nc-title">
+          <span style="font-size:14px;margin-right:4px">${U.esc(n.icon || '📝')}</span>
+          ${n.pinned ? `<span class="pin" style="color:var(--orange)">${icon('pin',13)}</span> ` : ''}
+          ${n.starred ? `<span style="color:var(--orange);font-size:12px">⭐</span> ` : ''}
+          ${U.esc(n.title || 'Untitled')}
+        </div>
         <div class="nc-prev">${U.esc((n.body||'').replace(/[#>*`\-\[\]]/g,'').slice(0, 100) || 'Empty note')}</div>
         <div class="nc-meta">${n.folder ? `<span class="fld-chip">${U.esc(n.folder)}</span>` : ''}${(n.tags||[]).map(t=>`<span class="tagchip">#${U.esc(t)}</span>`).join('')}
           <span class="faint tiny" style="margin-left:auto">${n.mdRel ? '<span class="disk-dot" title="Synced to disk"></span>' : ''}${U.esc(U.relTime(n.updated))}</span></div>
@@ -903,12 +973,20 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
     if(!n){
       q('#ne-title', view).value = '';
+      const iconBtn = q('#ne-icon', view);
+      if(iconBtn) iconBtn.textContent = '📝';
+      const starBtn = q('#ne-star', view);
+      if(starBtn) starBtn.style.color = '';
       ta.value = '';
       previewBox.innerHTML = '';
       q('#ne-stats', view).textContent = '0 words · 0 chars';
       return;
     }
     q('#ne-title', view).value = n.title;
+    const iconBtn = q('#ne-icon', view);
+    if(iconBtn) iconBtn.textContent = n.icon || '📝';
+    const starBtn = q('#ne-star', view);
+    if(starBtn) starBtn.style.color = n.starred ? 'var(--orange)' : '';
     ta.value = n.body || '';
     q('#ne-pin', view).style.color = n.pinned ? 'var(--orange)' : '';
     q('#ne-tags', view).innerHTML = (n.tags||[]).map(t=>`<span class="tagchip">#${U.esc(t)}</span>`).join(' ');
@@ -935,6 +1013,36 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           ta.value = lines.join('\n');
           persist();
           NX.sfx.play('tick');
+        }
+      };
+    });
+
+    // Wire up interactive task mention chips
+    qa('.md-todo-cb', previewBox).forEach(cb => {
+      cb.onclick = (e) => {
+        e.stopPropagation();
+        const taskId = cb.dataset.taskId;
+        const allTasks = NX.store.get('tasks', []);
+        const t = allTasks.find(x => x.id === taskId);
+        if(t){
+          t.done = cb.checked;
+          t.updated = Date.now();
+          NX.store.set('tasks', allTasks);
+          NX.sfx.play('tick');
+          const chip = cb.closest('.md-todo-chip');
+          if(chip) chip.classList.toggle('done', t.done);
+          NX.toastOk(t.done ? 'Task completed' : 'Task pending', t.title);
+        }
+      };
+    });
+    qa('.md-todo-chip .md-todo-text', previewBox).forEach(el => {
+      el.onclick = (e) => {
+        e.stopPropagation();
+        const chip = el.closest('.md-todo-chip');
+        const taskId = chip ? chip.dataset.taskId : null;
+        if(taskId && NX.openTaskDetail){
+          NX.router.go('todo');
+          setTimeout(() => NX.openTaskDetail(taskId), 80);
         }
       };
     });
@@ -1001,17 +1109,37 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     // Synchronize card title and snippet in sidebar immediately
     const cardTitle = q(`.note-card[data-id="${curNoteId}"] .nc-title`, view);
     if(cardTitle){
-      cardTitle.innerHTML = (n.pinned ? `<span class="pin" style="color:var(--orange)">${icon('pin',13)}</span> ` : '') + U.esc(n.title);
+      cardTitle.innerHTML = `<span style="font-size:14px;margin-right:4px">${U.esc(n.icon || '📝')}</span>` +
+        (n.pinned ? `<span class="pin" style="color:var(--orange)">${icon('pin',13)}</span> ` : '') +
+        (n.starred ? `<span style="color:var(--orange);font-size:12px">⭐</span> ` : '') +
+        U.esc(n.title);
     }
     const cardPrev = q(`.note-card[data-id="${curNoteId}"] .nc-prev`, view);
     if(cardPrev){
       cardPrev.textContent = (n.body||'').replace(/[#>*`\-\[\]]/g,'').slice(0, 100).trim() || 'Empty note';
     }
 
+    // Version History Snapshot
+    if(!n.history) n.history = [];
+    const lastSnap = n.history[0];
+    const now = Date.now();
+    const wordCount = (n.body||'').trim().split(/\s+/).filter(Boolean).length;
+    if(!lastSnap || ((now - (lastSnap.ts||0) > 120000) && lastSnap.body !== n.body)){
+      n.history.unshift({
+        ts: now,
+        title: n.title,
+        body: n.body,
+        words: wordCount
+      });
+      if(n.history.length > 25) n.history.length = 25;
+    }
+
     const savedEl = q('#ne-saved', view);
     if(savedEl) savedEl.textContent = 'Saved just now';
     const statsEl = q('#ne-stats', view);
     if(statsEl) statsEl.textContent = calculateStats(n.body);
+    const zenStats = q('#zen-stats', view);
+    if(zenStats) zenStats.textContent = calculateStats(n.body);
     const tagsEl = q('#ne-tags', view);
     if(tagsEl){
       tagsEl.innerHTML = n.tags.map(t=>`<span class="tagchip" style="cursor:pointer" data-tag="${U.esc(t)}">#${U.esc(t)}</span>`).join(' ');
@@ -1132,6 +1260,430 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     const matchLine = lines.find(l => l.toLowerCase().includes(targetTitle.toLowerCase()));
     if(matchLine) return matchLine.trim().slice(0, 120);
     return (body || '').slice(0, 80) + '...';
+  }
+
+  /* ---------------- Task Mentions (@task) ---------------- */
+  let taskMentionMenu = null;
+  function removeTaskMentionMenu(){
+    if(taskMentionMenu){ taskMentionMenu.remove(); taskMentionMenu = null; }
+  }
+
+  function maybeTaskMention(textarea){
+    const pos = textarea.selectionStart;
+    const val = textarea.value.slice(0, pos);
+    const match = val.match(/@([a-zA-Z0-9_\s-]*)$/);
+    if(!match){
+      removeTaskMentionMenu();
+      return;
+    }
+    const query = match[1].toLowerCase().trim();
+    const allTasks = NX.store.get('tasks', []).filter(t => !t.done);
+    const matches = allTasks.filter(t => (t.title || '').toLowerCase().includes(query)).slice(0, 6);
+    if(!matches.length){
+      removeTaskMentionMenu();
+      return;
+    }
+    showTaskMentionMenu(textarea, matches, match[0]);
+  }
+
+  function showTaskMentionMenu(textarea, matches, queryPrefix){
+    removeTaskMentionMenu();
+    taskMentionMenu = h(`<div class="task-mention-menu" id="task-mention-menu">
+      <div style="padding:6px 10px 4px;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line)">
+        ${icon('todo',12)} Mention Task
+      </div>
+      ${matches.map(t => `
+        <div class="tm-item" data-id="${U.esc(t.id)}" data-title="${U.esc(t.title)}">
+          <span style="font-size:13px">${t.priority==='high'?'🔴':'📋'}</span>
+          <span class="tm-title">${U.esc(t.title)}</span>
+          ${t.due ? `<span class="tm-due">${U.esc(t.due)}</span>` : ''}
+        </div>
+      `).join('')}
+    </div>`);
+
+    document.body.appendChild(taskMentionMenu);
+    const r = textarea.getBoundingClientRect();
+    taskMentionMenu.style.left = Math.min(innerWidth - 310, Math.max(20, r.left + 40)) + 'px';
+    taskMentionMenu.style.top = Math.min(innerHeight - 280, r.top + 90) + 'px';
+
+    qa('.tm-item', taskMentionMenu).forEach(item => {
+      item.onmousedown = (e) => {
+        e.preventDefault();
+        const taskId = item.dataset.id;
+        const taskTitle = item.dataset.title;
+        insertTaskMention(textarea, taskId, taskTitle, queryPrefix);
+      };
+    });
+  }
+
+  function insertTaskMention(textarea, taskId, taskTitle, queryPrefix){
+    removeTaskMentionMenu();
+    const pos = textarea.selectionStart;
+    const v = textarea.value;
+    const before = v.slice(0, pos - queryPrefix.length);
+    const after = v.slice(pos);
+    const insert = `[@task: ${taskTitle}](todo://${taskId}) `;
+    textarea.value = before + insert + after;
+    textarea.selectionStart = textarea.selectionEnd = before.length + insert.length;
+    textarea.focus();
+    persist();
+    NX.sfx.play('pop');
+  }
+
+  /* ---------------- Table of Contents / Outline ---------------- */
+  let tocMenu = null;
+  function removeTocMenu(){
+    if(tocMenu){ tocMenu.remove(); tocMenu = null; }
+  }
+
+  function toggleOutline(){
+    if(tocMenu){ removeTocMenu(); return; }
+    const lines = (ta.value || '').split('\n');
+    const headings = [];
+    lines.forEach((l, idx) => {
+      const m = l.match(/^(#{1,3})\s+(.*)$/);
+      if(m){
+        headings.push({ level: m[1].length, text: m[2].trim(), line: idx });
+      }
+    });
+
+    if(!headings.length){
+      NX.toastInfo('No headings found', 'Add # Heading 1 or ## Heading 2 to build an outline.');
+      return;
+    }
+
+    tocMenu = h(`<div class="ne-toc-popover" id="ne-toc-popover">
+      <div class="ne-toc-popover-h">
+        <span>${icon('list',12)} Outline (${headings.length})</span>
+        <button class="icon-btn sm" id="ne-toc-close" style="width:20px;height:20px">&times;</button>
+      </div>
+      <div class="ne-toc-list">
+        ${headings.map(h => `
+          <div class="ne-toc-item l${h.level}" data-line="${h.line}" data-text="${U.esc(h.text)}">
+            <span>${'·'.repeat(h.level)}</span>
+            <span class="ellipsis" style="flex:1">${U.esc(h.text)}</span>
+            <span class="faint tiny">L${h.line+1}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>`);
+
+    const editorCard = q('.note-editor', view);
+    if(editorCard) editorCard.appendChild(tocMenu);
+
+    const closeBtn = q('#ne-toc-close', tocMenu);
+    if(closeBtn) closeBtn.onclick = removeTocMenu;
+
+    qa('.ne-toc-item', tocMenu).forEach(item => {
+      item.onclick = () => {
+        const lineIdx = +item.dataset.line;
+        const text = item.dataset.text;
+        removeTocMenu();
+        const slug = 'hd-' + text.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        const previewEl = document.getElementById(slug);
+        if(previewEl && (viewMode === 'preview' || viewMode === 'split')){
+          previewEl.scrollIntoView({ behavior:'smooth' });
+        }
+        if(viewMode === 'edit' || viewMode === 'split'){
+          const lines = ta.value.split('\n');
+          let charPos = 0;
+          for(let i=0; i<lineIdx && i<lines.length; i++){
+            charPos += lines[i].length + 1;
+          }
+          ta.focus();
+          ta.setSelectionRange(charPos, charPos + lines[lineIdx].length);
+        }
+      };
+    });
+  }
+
+  /* ---------------- Emoji / Icon Picker ---------------- */
+  const POPULAR_EMOJIS = [
+    '📝','📌','⭐','💡','🚀','🎯','⚡','🧠','📚','🔬','💻','🎨','🛠️','📅','📊','🔒','🌿','☕','💎','🔥',
+    '💼','📈','📋','📁','🏷️','📖','🎓','🔍','📐','🖥️','📱','🤖','🏆','🏅','🔑','✉️','📦','🏠','🧘','🏃',
+    '🍎','✈️','🌍','🎵','🎮','🐱','🐶','🌱','☀️','🌙','✨','💬','❤️','✅','⚠️','🚨','🔔','🎉','📎','🛡️'
+  ];
+
+  function openEmojiPicker(n, anchorEl){
+    if(!n) return;
+    const existing = q('#emoji-popover');
+    if(existing) existing.remove();
+
+    const popover = h(`<div class="emoji-popover" id="emoji-popover">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:6px;border-bottom:1px solid var(--line)">
+        <span class="bold" style="font-size:12px">Pick Note Icon</span>
+        <button class="btn btn-sm btn-soft" id="ep-remove" style="height:22px;font-size:10.5px">Remove</button>
+      </div>
+      <div class="emoji-grid">
+        ${POPULAR_EMOJIS.map(em => `<button class="emoji-opt" data-em="${em}">${em}</button>`).join('')}
+      </div>
+      <div class="row gap-6">
+        <input class="input sm" id="ep-custom" placeholder="Type any emoji…" maxlength="4" style="flex:1;height:28px;font-size:13px">
+        <button class="btn btn-sm btn-soft" id="ep-set-custom" style="height:28px">Set</button>
+      </div>
+    </div>`);
+
+    document.body.appendChild(popover);
+    const rect = anchorEl.getBoundingClientRect();
+    popover.style.left = Math.min(innerWidth - 330, Math.max(16, rect.left)) + 'px';
+    popover.style.top = Math.min(innerHeight - 340, rect.bottom + 6) + 'px';
+
+    const close = () => popover.remove();
+    setTimeout(() => {
+      window.addEventListener('click', function outside(e){
+        if(!popover.contains(e.target) && e.target !== anchorEl){
+          popover.remove();
+          window.removeEventListener('click', outside);
+        }
+      });
+    }, 50);
+
+    qa('.emoji-opt', popover).forEach(btn => {
+      btn.onclick = () => {
+        n.icon = btn.dataset.em;
+        anchorEl.textContent = n.icon;
+        persist();
+        renderList();
+        close();
+        NX.sfx.play('pop');
+      };
+    });
+
+    const remBtn = q('#ep-remove', popover);
+    if(remBtn){
+      remBtn.onclick = () => {
+        delete n.icon;
+        anchorEl.textContent = '📝';
+        persist();
+        renderList();
+        close();
+        NX.sfx.play('pop');
+      };
+    }
+
+    const applyCustom = () => {
+      const val = (q('#ep-custom', popover).value || '').trim();
+      if(val){
+        n.icon = val;
+        anchorEl.textContent = val;
+        persist();
+        renderList();
+        close();
+        NX.sfx.play('pop');
+      }
+    };
+    const setCustBtn = q('#ep-set-custom', popover);
+    if(setCustBtn) setCustBtn.onclick = applyCustom;
+    const custInp = q('#ep-custom', popover);
+    if(custInp) custInp.onkeydown = (e) => { if(e.key === 'Enter') applyCustom(); };
+  }
+
+  /* ---------------- Note Version History ---------------- */
+  function openVersionHistory(n){
+    if(!n) return;
+    const history = n.history || [];
+    if(!history.length){
+      NX.toastInfo('No history yet', 'Snapshots are saved automatically as you write.');
+      return;
+    }
+
+    let selectedIdx = 0;
+    const renderContent = (idx) => {
+      const hSnap = history[idx];
+      if(!hSnap) return '';
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line)">
+          <div>
+            <b>${U.esc(hSnap.title || 'Untitled')}</b>
+            <div class="faint tiny">${new Date(hSnap.ts).toLocaleString()} · ${hSnap.words || 0} words</div>
+          </div>
+          <button class="btn btn-sm btn-green" id="vh-restore-btn">${icon('refresh',12)} Restore This Version</button>
+        </div>
+        <div style="background:var(--surface-2);border-radius:10px;padding:14px;max-height:360px;overflow-y:auto;font-family:monospace;font-size:12.5px;line-height:1.6;white-space:pre-wrap;border:1px solid var(--line)">${U.esc(hSnap.body)}</div>
+      `;
+    };
+
+    const body = h(`<div style="display:flex;gap:14px;min-height:420px">
+      <div style="width:220px;flex:none;border-right:1px solid var(--line);padding-right:12px;overflow-y:auto;display:flex;flex-direction:column;gap:6px">
+        <div class="faint tiny bold" style="text-transform:uppercase;letter-spacing:.05em">Saved Snapshots (${history.length})</div>
+        ${history.map((hSnap, i) => `
+          <div class="card vh-snap-item ${i===0?'selected':''}" data-idx="${i}" style="cursor:pointer;padding:8px 10px;border-radius:8px;border:1.5px solid ${i===0?'var(--green)':'transparent'}">
+            <div style="font-size:12px;font-weight:700">${U.esc(U.relTime(hSnap.ts))}</div>
+            <div class="faint tiny">${new Date(hSnap.ts).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} · ${hSnap.words || 0} words</div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column" id="vh-preview-host">
+        ${renderContent(0)}
+      </div>
+    </div>`);
+
+    NX.modal({
+      title: 'Note Version History — ' + (n.title || 'Untitled'),
+      icon: 'clock',
+      body,
+      footer: [
+        { label: 'Close', cls: 'btn-soft' }
+      ]
+    });
+
+    const wireRestore = (idx) => {
+      const btn = q('#vh-restore-btn', body);
+      if(btn){
+        btn.onclick = () => {
+          NX.confirm('Restore Version?', `Restore note to snapshot from ${new Date(history[idx].ts).toLocaleString()}? Current text will be archived in history.`, () => {
+            n.history.unshift({ ts: Date.now(), title: n.title, body: n.body, words: (n.body||'').trim().split(/\s+/).filter(Boolean).length });
+            n.title = history[idx].title;
+            n.body = history[idx].body;
+            n.updated = Date.now();
+            saveNotes(notes());
+            loadEditor();
+            syncToDisk(n);
+            NX.closeAllModals();
+            NX.toastOk('Version restored!', new Date(history[idx].ts).toLocaleTimeString());
+            NX.sfx.play('ok');
+          });
+        };
+      }
+    };
+    wireRestore(0);
+
+    qa('.vh-snap-item', body).forEach(item => {
+      item.onclick = () => {
+        qa('.vh-snap-item', body).forEach(x => { x.style.borderColor = 'transparent'; });
+        item.style.borderColor = 'var(--green)';
+        selectedIdx = +item.dataset.idx;
+        const host = q('#vh-preview-host', body);
+        if(host) host.innerHTML = renderContent(selectedIdx);
+        wireRestore(selectedIdx);
+      };
+    });
+  }
+
+  /* ---------------- Zen Mode / Focus Writing ---------------- */
+  let isZenMode = false;
+
+  function toggleZenMode(){
+    isZenMode = !isZenMode;
+    const layout = q('#nt-layout', view);
+    if(!layout) return;
+    layout.classList.toggle('zen-mode', isZenMode);
+
+    let floatingBar = q('#zen-floating-bar', layout);
+    if(isZenMode){
+      if(!floatingBar){
+        const n = current();
+        floatingBar = h(`<div class="zen-floating-bar" id="zen-floating-bar">
+          <div class="row gap-8">
+            <span style="font-size:16px">${U.esc(n ? (n.icon||'📝') : '📝')}</span>
+            <b>${U.esc(n ? n.title : 'Zen Focus Writing')}</b>
+          </div>
+          <div class="row gap-12">
+            <span id="zen-stats" class="faint tiny">${calculateStats(ta.value)}</span>
+            <div class="row gap-6">
+              <span class="faint tiny">Sound:</span>
+              <select class="select sm" id="zen-sound" style="height:26px;width:110px;font-size:11px">
+                <option value="none">Mute</option>
+                <option value="rain">Rain</option>
+                <option value="brown">Brown Noise</option>
+                <option value="hum">Deep Hum</option>
+              </select>
+            </div>
+            <button class="btn btn-sm btn-soft" id="zen-exit-btn" style="height:26px;font-size:11px">Exit Zen (Esc)</button>
+          </div>
+        </div>`);
+        layout.insertBefore(floatingBar, layout.firstChild);
+
+        q('#zen-exit-btn', floatingBar).onclick = toggleZenMode;
+        const sndSel = q('#zen-sound', floatingBar);
+        if(sndSel){
+          sndSel.onchange = (e) => {
+            const val = e.target.value;
+            if(NX.focusSound){
+              if(val === 'none'){
+                if(NX.focusSound.on) NX.focusSound.stop();
+              } else {
+                NX.focusSound.setMode(val);
+                if(!NX.focusSound.on) NX.focusSound.start();
+              }
+            }
+          };
+        }
+      }
+      NX.toastOk('🧘 Zen Mode Active', 'Press Esc to exit anytime.');
+      ta.focus();
+    } else {
+      if(floatingBar) floatingBar.remove();
+      if(NX.focusSound && NX.focusSound.on) NX.focusSound.stop();
+      NX.toastInfo('Exited Zen Mode');
+    }
+  }
+
+  /* ---------------- Rich Export Modal ---------------- */
+  function openExportModal(n){
+    if(!n) return;
+    const body = h(`<div style="display:flex;flex-direction:column;gap:8px">
+      <div class="card p-12 row gap-12" id="exp-md" style="cursor:pointer">
+        <div class="tile sm" style="background:var(--blue-soft);color:var(--blue)">${icon('download')}</div>
+        <div style="flex:1"><b style="font-size:13px">Markdown File (.md)</b><div class="faint tiny">Plain markdown with YAML frontmatter</div></div>
+        <span class="btn btn-sm btn-soft">Export</span>
+      </div>
+      <div class="card p-12 row gap-12" id="exp-html" style="cursor:pointer">
+        <div class="tile sm" style="background:var(--green-soft);color:var(--green)">${icon('copy')}</div>
+        <div style="flex:1"><b style="font-size:13px">Copy Rich Text (HTML)</b><div class="faint tiny">Paste with tables and formatting into Word or Notion</div></div>
+        <span class="btn btn-sm btn-soft">Copy</span>
+      </div>
+      <div class="card p-12 row gap-12" id="exp-pdf" style="cursor:pointer">
+        <div class="tile sm" style="background:var(--purple-soft);color:var(--purple)">${icon('camera')}</div>
+        <div style="flex:1"><b style="font-size:13px">Print / Save as PDF</b><div class="faint tiny">Open print dialog for PDF export</div></div>
+        <span class="btn btn-sm btn-soft">Print</span>
+      </div>
+      <div class="card p-12 row gap-12" id="exp-json" style="cursor:pointer">
+        <div class="tile sm" style="background:var(--yellow-soft);color:var(--orange)">${icon('layers')}</div>
+        <div style="flex:1"><b style="font-size:13px">Export Note JSON</b><div class="faint tiny">Complete note data including history and tags</div></div>
+        <span class="btn btn-sm btn-soft">Export</span>
+      </div>
+    </div>`);
+
+    NX.modal({
+      title: 'Export Note — ' + (n.title || 'Untitled'),
+      icon: 'download',
+      body,
+      footer: [{ label: 'Close', cls: 'btn-soft' }]
+    });
+
+    q('#exp-md', body).onclick = () => { NX.closeAllModals(); exportNote(n); };
+    q('#exp-html', body).onclick = () => {
+      const htmlContent = mdRender(n.body);
+      if(navigator.clipboard && window.ClipboardItem){
+        const blob = new Blob([htmlContent], { type: 'text/html' });
+        navigator.clipboard.write([new ClipboardItem({ 'text/html': blob })]).then(() => {
+          NX.closeAllModals();
+          NX.toastOk('Copied Rich HTML', 'Paste formatted note anywhere!');
+        }).catch(() => {
+          NX.native.clipboardWrite(htmlContent).then(() => {
+            NX.closeAllModals();
+            NX.toastOk('Copied HTML');
+          });
+        });
+      } else {
+        NX.native.clipboardWrite(htmlContent).then(() => {
+          NX.closeAllModals();
+          NX.toastOk('Copied HTML');
+        });
+      }
+    };
+    q('#exp-pdf', body).onclick = () => {
+      NX.closeAllModals();
+      window.print();
+    };
+    q('#exp-json', body).onclick = () => {
+      NX.closeAllModals();
+      const safeTitle = (n.title || 'note').replace(/[\\/:*?"<>|]/g, '-');
+      NX.native.saveTextFile(safeTitle + '.json', JSON.stringify(n, null, 2)).then(r => {
+        NX.toastOk('Exported JSON', r && r.path ? r.path : safeTitle + '.json');
+      });
+    };
   }
 
   /* ---------------- Knowledge Graph Modal ---------------- */
@@ -1348,6 +1900,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     autosave();
     maybeSlash(ta);
     maybeWikiLink(ta);
+    maybeTaskMention(ta);
   });
 
   // Format selection helper
@@ -1377,7 +1930,41 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
   // Keyboard navigation & Shortcuts inside editor
   ta.addEventListener('keydown', e => {
-    if(e.key === 'Escape') removeSlashMenu();
+    if(e.key === 'Escape'){
+      removeSlashMenu();
+      removeWikiMenu();
+      removeTaskMentionMenu();
+      removeTocMenu();
+      if(isZenMode) toggleZenMode();
+    }
+    if((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z'){
+      e.preventDefault();
+      toggleZenMode();
+      return;
+    }
+    if(e.key === 'F11'){
+      e.preventDefault();
+      toggleZenMode();
+      return;
+    }
+    const tmMenu = q('#task-mention-menu');
+    if(tmMenu && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter')){
+      const visible = qa('.tm-item', tmMenu);
+      if(visible.length){
+        e.preventDefault();
+        let idx = visible.findIndex(x => x.classList.contains('selected'));
+        if(idx < 0) idx = 0;
+        if(e.key === 'Enter'){
+          visible[idx].dispatchEvent(new MouseEvent('mousedown'));
+          return;
+        }
+        const nextIdx = e.key === 'ArrowDown' ? (idx + 1) % visible.length : (idx - 1 + visible.length) % visible.length;
+        visible.forEach(x => x.classList.remove('selected'));
+        visible[nextIdx].classList.add('selected');
+        visible[nextIdx].scrollIntoView({ block:'nearest' });
+        return;
+      }
+    }
     const menu = q('#slash-menu');
     if(menu && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Tab')){
       const visible = qa('.sm-item', menu).filter(x => x.style.display !== 'none');
@@ -1409,7 +1996,10 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
   });
 
-  ta.addEventListener('blur', () => setTimeout(removeSlashMenu, 150));
+  ta.addEventListener('blur', () => {
+    setTimeout(removeSlashMenu, 150);
+    setTimeout(removeTaskMentionMenu, 150);
+  });
 
   function maybeSlash(textarea){
     removeSlashMenu();
@@ -1767,7 +2357,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     if(n) NX.native.clipboardWrite(n.title + '\n\n' + n.body).then(()=>NX.toastOk('Copied to clipboard',''));
   };
   q('#ne-dup', view).onclick = () => duplicateNote(current());
-  q('#ne-export', view).onclick = () => exportNote(current());
+  q('#ne-export', view).onclick = () => openExportModal(current());
   q('#ne-del', view).onclick = () => {
     const n = current();
     if(!n) return;
@@ -1779,6 +2369,32 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   };
 
   q('#ne-folder', view).onclick = () => moveNoteModal(current());
+
+  const iconBtn = q('#ne-icon', view);
+  if(iconBtn) iconBtn.onclick = () => openEmojiPicker(current(), iconBtn);
+
+  const starBtn = q('#ne-star', view);
+  if(starBtn) starBtn.onclick = () => {
+    const n = current();
+    if(n){
+      n.starred = !n.starred;
+      starBtn.style.color = n.starred ? 'var(--orange)' : '';
+      persist();
+      renderFolders();
+      renderList();
+      NX.sfx.play('pop');
+      NX.toastOk(n.starred ? 'Added to Favorites ⭐' : 'Removed from Favorites');
+    }
+  };
+
+  const tocBtn = q('#ne-toc-btn', view);
+  if(tocBtn) tocBtn.onclick = toggleOutline;
+
+  const zenBtn = q('#ne-zen-btn', view);
+  if(zenBtn) zenBtn.onclick = toggleZenMode;
+
+  const historyBtn = q('#ne-history', view);
+  if(historyBtn) historyBtn.onclick = () => openVersionHistory(current());
 
   q('#nt-import', view).onclick = async () => {
     if(NX.native.available && NX.native.mode === 'tauri'){

@@ -15,6 +15,7 @@ const SECTIONS = [
   { id:'sound',     n:'Sound',        ic:'volume' },
   { id:'hotkeys',   n:'Hotkeys',      ic:'zap' },
   { id:'reliability', n:'Reliability', ic:'check' },
+  { id:'backup',    n:'Backup & Sync',ic:'download' },
   { id:'storage',   n:'Storage',      ic:'layers' },
   { id:'about',     n:'About',        ic:'book' }
 ];
@@ -181,8 +182,23 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
         <div class="card-b" style="padding-top:6px">
           <div class="set-row"><div class="sr-l"><div class="sr-t">Compact mode</div><div class="sr-d">Denser layout, more on screen</div></div>
             <label class="switch"><input type="checkbox" id="cu-compact" ${s.compactMode?'checked':''}><span class="track"></span></label></div>
-          <div class="set-row"><div class="sr-l"><div class="sr-t">Reduce motion</div><div class="sr-d">Fewer animations, calmer feel</div></div>
+          <div class="set-row"><div class="sr-l"><div class="sr-t">Reduce motion</div><div class="sr-d">Turns off page transitions, ripples and the sliding nav pill${NX.motion&&NX.motion.osReduce()?' — your system already asks for this':''}</div></div>
             <label class="switch"><input type="checkbox" id="cu-motion" ${s.reduceMotion?'checked':''}><span class="track"></span></label></div>
+          <div class="set-row"><div class="sr-l"><div class="sr-t">Ambient sound</div><div class="sr-d">On-device noise for the Focus suite — never touches the network</div></div>
+            <div class="row gap-8">
+              <select class="select" id="cu-sound" style="width:150px;height:34px">
+                ${['brown','rain','hum'].map(m=>`<option value="${m}" ${(s.focusSoundMode||'brown')===m?'selected':''}>${({brown:'Brown noise',rain:'Rain',hum:'Deep hum'})[m]}</option>`).join('')}
+              </select>
+              <input class="fx-range" type="range" id="cu-sound-vol" min="0" max="100" value="${Math.round((s.focusSoundVol||0.32)*100)}" style="width:96px" aria-label="Ambient volume">
+            </div></div>
+          <div class="set-row"><div class="sr-l"><div class="sr-t">Breathing pattern</div><div class="sr-d">Used by the Focus breathing exercise</div></div>
+            <select class="select" id="cu-breathe" style="width:150px;height:34px">
+              ${[['box','Box 4-4-4-4'],['relax','4-7-8 relax'],['quick','Quick 4-6']].map(([v,l])=>`<option value="${v}" ${(s.breathePattern||'box')===v?'selected':''}>${l}</option>`).join('')}
+            </select></div>
+          <div class="set-row"><div class="sr-l"><div class="sr-t">20-20-20 eye breaks</div><div class="sr-d">Remind you to look away every 20 minutes</div></div>
+            <label class="switch"><input type="checkbox" id="cu-eye" ${s.eyeBreak?'checked':''}><span class="track"></span></label></div>
+          <div class="set-row"><div class="sr-l"><div class="sr-t">Keyboard shortcuts</div><div class="sr-d">Press <b>?</b> anywhere, or Ctrl+⌘</div></div>
+            <button class="btn btn-soft btn-sm" id="cu-shortcuts">${icon('command')} Open sheet</button></div>
           <div class="set-row"><div class="sr-l"><div class="sr-t">Desktop widget</div><div class="sr-d">Clock, focus score & tasks on your desktop (Ctrl+Shift+W)</div></div>
             <label class="switch"><input type="checkbox" id="cu-widget" ${s.widgetEnabled?'checked':''}><span class="track"></span></label></div>
           <div class="set-row"><div class="sr-l"><div class="sr-t">Widget always on top</div><div class="sr-d">Keep the widget visible above other windows</div></div>
@@ -196,7 +212,16 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
         q(id, host).onchange = e=>{ s[key] = e.target.checked !== undefined ? (e.target.type==='checkbox' ? e.target.checked : +e.target.value) : e.target.value; NX.store.set('settings', s); (after||(()=>{}))(); };
       };
       bind('#cu-compact','compactMode', ()=>document.documentElement.style.setProperty('font-size', s.compactMode?'13px':''));
-      bind('#cu-motion','reduceMotion', ()=>document.body.classList.toggle('no-motion', !!s.reduceMotion));
+      bind('#cu-motion','reduceMotion', ()=>{
+        document.body.classList.toggle('no-motion', !!s.reduceMotion);
+        NX.toastInfo(s.reduceMotion ? 'Motion reduced' : 'Motion on',
+          s.reduceMotion ? 'Transitions and ripples are off' : 'Page transitions are back');
+      });
+      q('#cu-sound', host).onchange = e=>{ s.focusSoundMode = e.target.value; NX.store.set('settings', s); };
+      q('#cu-sound-vol', host).addEventListener('input', e=>{ s.focusSoundVol = U.clamp(+e.target.value/100, 0, 1); NX.store.set('settings', s); });
+      q('#cu-breathe', host).onchange = e=>{ s.breathePattern = e.target.value; NX.store.set('settings', s); };
+      q('#cu-eye', host).onchange = e=>{ s.eyeBreak = e.target.checked; NX.store.set('settings', s); };
+      q('#cu-shortcuts', host).onclick = ()=>NX.openShortcuts && NX.openShortcuts();
       q('#cu-widget', host).onchange = e=>{ s.widgetEnabled = e.target.checked; NX.store.set('settings', s); NX.widget.apply(); };
       q('#cu-ontop', host).onchange = e=>{ s.widgetOnTop = e.target.checked; NX.store.set('settings', s); NX.widget.apply(); };
       q('#cu-goal', host).onchange = e=>{ s.focusGoalMin = U.clamp(+e.target.value||240,30,900); NX.store.set('settings', s); };
@@ -445,6 +470,41 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
         navigator.clipboard.writeText(JSON.stringify(diag, null, 2)).then(()=>{
           NX.toastOk('Diagnostics copied', 'Ready to paste into GitHub or issue tracker');
         }).catch(()=>{});
+      };
+    }
+
+    if(curSec === 'backup'){
+      host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm" style="background:var(--green-soft);color:var(--green)">${icon('download')}</div>
+        <div><div class="c-title">Encrypted Vault Backup & Restore</div><div class="c-sub">Export or restore your complete workspace safely</div></div></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+          <div class="set-row">
+            <div class="sr-l">
+              <div class="sr-t">Backup & Recovery Center</div>
+              <div class="sr-d">Export with optional AES-256 encryption, or inspect & restore backup files</div>
+            </div>
+            <button class="btn btn-green btn-sm" id="bk-open-center">${icon('layers')} Open Backup Center</button>
+          </div>
+          <div class="set-row">
+            <div class="sr-l">
+              <div class="sr-t">Quick Plain Backup (.json)</div>
+              <div class="sr-d">Instant download of all notes, tasks, prompts, and settings</div>
+            </div>
+            <button class="btn btn-soft btn-sm" id="bk-quick-export">${icon('download')} Download JSON</button>
+          </div>
+          <div class="set-row">
+            <div class="sr-l">
+              <div class="sr-t">Daily Rolling Snapshots</div>
+              <div class="sr-d">Pebble automatically saves rolling local snapshots of your data every day</div>
+            </div>
+            <span class="pill green sm">Active (7 Days)</span>
+          </div>
+        </div></div>`;
+
+      q('#bk-open-center', host).onclick = () => {
+        if(NX.backup && NX.backup.openModal) NX.backup.openModal();
+      };
+      q('#bk-quick-export', host).onclick = () => {
+        if(NX.backup && NX.backup.exportVault) NX.backup.exportVault();
       };
     }
 

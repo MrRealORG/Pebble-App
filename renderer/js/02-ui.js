@@ -141,6 +141,8 @@ NX.openCommandPalette = function(){
       { name:'Toggle widget',   hint:'Action', icon:'widget',  group:'System', run:()=>NX.widget && NX.widget.toggle() },
       { name:'Start Pomodoro',  hint:'Timeless', icon:'clock', group:'Focus', run:()=>{ NX.router.go('timeless'); setTimeout(()=>NX.pomo && NX.pomo.start(), 80); } },
       { name:'Take a screenshot',hint:'Media', icon:'camera',  group:'Media', run:()=>{ NX.router.go('media'); setTimeout(()=>NX.capture && NX.capture(), 80); } },
+      { name:'Day Planner & Time Blocking', hint:'Planner', icon:'calendar', group:'Workspace', run:()=>NX.router.go('planner') },
+      { name:'Backup & Restore Vault', hint:'Encrypted', icon:'download', group:'Data', run:()=>NX.backup && NX.backup.openModal && NX.backup.openModal() },
       { name:'Report a bug / Diagnostics', hint:'System', icon:'activity', group:'System', run:()=>NX.openBugReporter && NX.openBugReporter() },
       { name:'Repair database',            hint:'System', icon:'refresh',  group:'System', run:()=>NX.repairDatabase && NX.repairDatabase() },
       { name:'Export workspace',hint:'Data',  icon:'download', group:'Data', run:()=>NX.exportWorkspace && NX.exportWorkspace() },

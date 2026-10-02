@@ -664,11 +664,17 @@ NX.routeInShell('prompts', 'Prompts', 'star', function(view){
 
     // Delete
     q('#pdr-del-btn', drawerEl).onclick = () => {
-      NX.confirm('Delete Prompt?', `Permanently delete "${p.title}"?`, () => {
-        savePrompts(prompts().filter(x => x.id !== p.id));
-        closePromptDrawer();
+      const snapshot = prompts();
+      savePrompts(snapshot.filter(x => x.id !== p.id));
+      closePromptDrawer();
+      renderGrid();
+      NX.sfx.play('err');
+      NX.undoable('Prompt deleted', p.title || 'Untitled prompt', () => {
+        const cur = prompts();
+        if(cur.some(x => x.id === p.id)) return;
+        savePrompts([p].concat(cur));
         renderGrid();
-        NX.toastOk('Prompt deleted');
+        NX.toastOk('Prompt restored', p.title || 'Untitled prompt');
       });
     };
   }

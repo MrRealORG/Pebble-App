@@ -944,15 +944,23 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
       };
     }
 
-    // Delete task
+    // Delete task — soft delete with an Undo toast instead of a blocking confirm
     q('#dt-delete-task', detailPanel).onclick = () => {
-      NX.confirm('Delete Task?', `Permanently delete "${t.name}"?`, () => {
-        saveTasks(tasks().filter(x => x.id !== t.id));
-        activeTaskId = null;
-        detailPanel.style.display = 'none';
+      const gone = tasks().find(x => x.id === t.id);
+      if(!gone) return;
+      saveTasks(tasks().filter(x => x.id !== t.id));
+      activeTaskId = null;
+      detailPanel.style.display = 'none';
+      renderSidebar();
+      renderMain();
+      NX.sfx.play('err');
+      NX.undoable('Task deleted', gone.name || 'Task', () => {
+        const cur = tasks();
+        if(cur.some(x => x.id === t.id)) return;
+        saveTasks(cur.concat([gone]));
         renderSidebar();
         renderMain();
-        NX.toastOk('Task deleted');
+        NX.toastOk('Task restored', gone.name || '');
       });
     };
   }

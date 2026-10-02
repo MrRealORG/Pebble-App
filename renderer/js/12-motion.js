@@ -492,6 +492,7 @@ const SHORTCUTS = [
     ['Arrows + 1-9',  'Sudoku — move and fill'],
     ['N',             'Sudoku — toggle pencil marks'],
     ['1 – 9',         'Break the Code'],
+    ['Right-click',   'Minesweeper — plant or clear a flag'],
     ['Type along',    'Typing Speed starts the clock on your first key']
   ]],
   ['Sidebar', [

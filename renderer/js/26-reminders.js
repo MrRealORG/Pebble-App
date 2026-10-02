@@ -143,7 +143,21 @@ NX.routeInShell('reminders', 'Reminders', 'bell', function(view){
         </div>`).join('')
         : `<div class="empty card"><div class="e-sub">History will fill up as reminders fire.</div></div>`;
     }
-    qa('[data-del]', host).forEach(b=>b.onclick = ()=>{ saveRems(rems().filter(x=>x.id!==b.dataset.del)); NX.toastOk('Reminder removed'); NX.router.go('reminders'); });
+    qa('[data-del]', host).forEach(b=>b.onclick = ()=>{
+      const id = b.dataset.del;
+      const gone = rems().find(x => x.id === id);
+      if(!gone) return;
+      saveRems(rems().filter(x => x.id !== id));
+      NX.sfx.play('err');
+      NX.router.go('reminders');
+      NX.undoable('Reminder deleted', gone.name || 'Reminder', () => {
+        const cur = rems();
+        if(cur.some(x => x.id === id)) return;
+        saveRems(cur.concat([gone]));
+        NX.router.go('reminders');
+        NX.toastOk('Reminder restored', gone.name || '');
+      });
+    });
     qa('[data-done]', host).forEach(b=>b.onclick = ()=>{
       const l = rems(); const r = l.find(x=>x.id===b.dataset.done);
       if(r){ r.fired = true; saveRems(l); NX.sfx.play('ok'); NX.router.go('reminders'); }
