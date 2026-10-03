@@ -21,50 +21,104 @@ let currentFilter = 'all', currentKind = 'all', currentDay = 0;   // 0=today, 1=
 let appSearchQuery = '';
 
 /* ---------------- real icon engine ---------------- */
-const _iconCache = new Map();      // key -> html (<img>) or null
+const _iconCache = new Map();      // key -> html, or null while in flight
+const _favCache = new Map();       // host -> resolved favicon URL
 
-/* Site icons.
-   The old source was Google's /s2/favicons endpoint, which has been
-   deprecated and shut down — every request 404s, so sites showed the letter
-   fallback and it looked like icons were "not detected". Try each source in
-   order and walk to the next on failure: the site's own /favicon.ico is the
-   most truthful and needs no third party, then DuckDuckGo's icon service as a
-   backstop for sites that ship no favicon. */
-const _favCache = new Map();
+/* ── Site icons ──────────────────────────────────────────────────
+   BUGS THIS REPLACES — all three made logos silently disappear:
+
+   1. /favicon.ico was tried FIRST on every host. Plenty of sites
+      answer that with a 200 and an HTML error page, and an <img>
+      happily "loads" HTML — so the chain never advanced and you got
+      a broken-image glyph instead of walking to the next source.
+   2. The fallback handler did `p.textContent = letter`, which blew
+      away the wrapper element and its styling.
+   3. Nothing validated the resolved URL, so a dead one got cached
+      for the whole session and never retried.
+
+   Now: a real resolver that probes sources in order, verifies each
+   one actually decodes as an image, caches only a verified hit, and
+   degrades to a letter tile. DuckDuckGo's resolver leads because it
+   is far more likely to have a mark for an obscure host.
+   ───────────────────────────────────────────────────────────────── */
+function cleanHost(host){
+  let h = String(host || '').trim().toLowerCase();
+  h = h.replace(/^https?:\/\//i, '').replace(/^www\./i, '').split('/')[0];
+  h = h.split('?')[0].split('#')[0].replace(/:\d+$/, '');
+  return h;
+}
+
 function faviconSources(host){
-  const h = String(host || '').replace(/^www\./i, '');
-  if(!h || h.indexOf('.') < 0) return [];
+  const h = cleanHost(host);
+  /* must look like a domain: a dot and a 2+ char TLD, no spaces */
+  if(!h || h.indexOf('.') < 0 || h.indexOf(' ') >= 0) return [];
   return [
-    'https://' + h + '/favicon.ico',
-    'https://icons.duckduckgo.com/ip3/' + encodeURIComponent(h) + '.ico',
-    'https://icons.duckduckgo.com/ip3/' + encodeURIComponent(h) + '.png'
+    /* DuckDuckGo first: it has a mark for most hosts and always
+       returns a real PNG rather than an HTML fallback. */
+    'https://icons.duckduckgo.com/ip3/' + encodeURIComponent(h) + '.png',
+    'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(h) + '&sz=64',
+    /* the site's own file last, as the most truthful but least
+       reliable source */
+    'https://' + h + '/favicon.ico'
   ];
 }
-function faviconHTML(host){
-  const key = String(host || '').toLowerCase();
-  const letter = U.esc(String(host || '?').replace(/^www\./i, '').slice(0,1).toUpperCase());
-  if(_favCache.has(key)) return _favCache.get(key);
-  const sources = faviconSources(host);
-  if(!sources.length){
-    const html = `<span class="ar-ic" style="background:var(--surface-3);color:var(--ink-2)">${letter}</span>`;
-    _favCache.set(key, html);
-    return html;
+
+/** Probe until one source yields a decodable image, then cache it. */
+async function resolveFavicon(host){
+  const key = cleanHost(host);
+  if(!key) return '';
+  if(_favCache.has(key)) return _favCache.get(key) || '';
+
+  const sources = faviconSources(key);
+  if(!sources.length){ _favCache.set(key, ''); return ''; }
+
+  /* Guard against a hung request so a dead host cannot leave the
+     tile blank forever. */
+  const withTimeout = (url) => new Promise((resolve)=>{
+    const img = new Image();
+    let done = false;
+    const finish = (ok) => { if(done) return; done = true; resolve(ok ? url : ''); };
+    img.onload = () => finish(naturalWidth > 0 || naturalHeight > 0);
+    img.onerror = () => finish(false);
+    setTimeout(() => finish(false), 6000);
+    img.referrerPolicy = 'no-referrer';
+    img.src = url;
+  });
+
+  for(const src of sources){
+    /* sequential: only pay for the next request if the last failed */
+    const hit = await withTimeout(src);
+    if(hit){ _favCache.set(key, hit); return hit; }
   }
-  /* walk the chain; each error swaps in the next source, and the last one
-     falls back to the letter avatar so a cell is never left empty */
-  const chain = sources.map((src, i) =>
-    'this.onerror=null;' +
-    (i + 1 < sources.length
-      ? "this.onerror=function(){this.src='" + sources[i+1] + "'}"
-      : "this.onerror=function(){var p=this.parentNode;p.textContent='" + letter + "'}")
-  ).join(';') + ';';
-  const html = `<img class="ar-img" loading="lazy" referrerpolicy="no-referrer" src="${sources[0]}" alt="" onerror="${chain.replace(/"/g, '&quot;')}">`;
-  _favCache.set(key, html);
-  return html;
+  _favCache.set(key, '');
+  return '';
+}
+
+function letterTile(host){
+  const letter = U.esc(cleanHost(host).slice(0,1).toUpperCase() || '?');
+  return `<span class="ar-ic tl-letter" style="background:var(--surface-3);color:var(--ink-2)">${letter}</span>`;
+}
+
+/** Markup for a site. Starts as a letter tile and upgrades in place
+    once a favicon is verified, so nothing ever sits empty. */
+function faviconHTML(host){
+  const key = cleanHost(host);
+  const cached = _favCache.get(key);
+  if(cached){
+    return `<span class="ar-ic real"><img class="ar-img" src="${U.esc(cached)}" alt="" referrerpolicy="no-referrer"></span>`;
+  }
+  /* kick off resolution; paint into whichever tile matches this host */
+  resolveFavicon(key).then(url=>{
+    if(!url) return;
+    qa(`.ar-ic[data-fav="${CSS.escape(key)}"]`).forEach(el=>{
+      el.outerHTML = `<span class="ar-ic real" data-fav="${U.esc(key)}"><img class="ar-img" src="${U.esc(url)}" alt="" referrerpolicy="no-referrer"></span>`;
+    });
+  }).catch(()=>{});
+  return `<span class="ar-ic tl-letter" data-fav="${U.esc(key)}" style="background:var(--surface-3);color:var(--ink-2)">${U.esc(key.slice(0,1).toUpperCase() || '?')}</span>`;
 }
 
 function iconHTML(key, rec){
-  if(rec.isSite){ return `<span class="ar-ic" style="background:var(--surface-3);color:var(--ink-2)">${faviconHTML(key)}</span>`; }
+  if(rec.isSite) return faviconHTML(key);
   if(_iconCache.has(key)) return _iconCache.get(key) || '';
   const placeholder = `<span class="ar-ic" style="background:${U.colorFor(rec.name)}">${U.initials(rec.name)}</span>`;
   _iconCache.set(key, null);      // in-flight marker
@@ -73,7 +127,7 @@ function iconHTML(key, rec){
       const r = await NX.native.appIcon(rec.exe || rec.path || '', rec.name || '');
       const el = q(`.app-row[data-k="${CSS.escape(key)}"] .ar-ic`);
       if(r && r.ok && r.url){
-        const html = `<span class="ar-ic real"><img class="ar-img" src="${r.url}" alt=""></span>`;
+        const html = `<span class="ar-ic real"><img class="ar-img" src="${U.esc(r.url)}" alt=""></span>`;
         _iconCache.set(key, html);
         if(el) el.outerHTML = html;
       } else {
@@ -489,10 +543,13 @@ NX.routeInShell('timeless', 'Timeless', 'clock', function(view){
       }
       const ic = q('#tl-live-ic', view);
       if(ic && tracker.live.iconKey !== ic.dataset.k){
-        ic.dataset.k = tracker.live.iconKey;
+        const k = U.esc(tracker.live.iconKey);
+        /* A site tile must be produced by faviconHTML() alone. The old code
+           wrapped its output in another .ar-ic, producing nested tiles and a
+           doubled grey background. */
         ic.outerHTML = tracker.live.isSite
-          ? `<span class="ar-ic real" id="tl-live-ic" data-k="${U.esc(tracker.live.iconKey)}" style="background:var(--surface-3)">${faviconHTML(tracker.live.iconKey)}</span>`
-          : `<span class="ar-ic real" id="tl-live-ic" data-k="${U.esc(tracker.live.iconKey)}" style="background:${U.colorFor(tracker.live.app)}">${U.initials(tracker.live.app)}</span>`;
+          ? `<span id="tl-live-ic" data-k="${k}">${faviconHTML(tracker.live.iconKey)}</span>`
+          : `<span class="ar-ic" id="tl-live-ic" data-k="${k}" style="background:${U.colorFor(tracker.live.app)}">${U.initials(tracker.live.app)}</span>`;
         if(!tracker.live.isSite && NX.native.available && NX.native.mode === 'tauri'){
           const day = dayData();
           const meta = day[tracker.live.app.toLowerCase()];
@@ -500,7 +557,9 @@ NX.routeInShell('timeless', 'Timeless', 'clock', function(view){
           if(target && meta && (meta.exe || meta.path)){
             NX.native.appIcon(meta.exe || meta.path || '', tracker.live.app).then(r=>{
               const t2 = q('#tl-live-ic', view);
-              if(t2 && r && r.ok && r.url) t2.innerHTML = `<img class="ar-img" src="${r.url}" alt="">`;
+              if(t2 && r && r.ok && r.url){
+                t2.outerHTML = `<span class="ar-ic real" id="tl-live-ic" data-k="${k}"><img class="ar-img" src="${U.esc(r.url)}" alt=""></span>`;
+              }
             }).catch(()=>{});
           }
         }

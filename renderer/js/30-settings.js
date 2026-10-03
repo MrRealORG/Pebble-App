@@ -90,75 +90,108 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
       });
     }
 
-    if(curSec === 'google'){
+if(curSec === 'google'){
       const g = NX.google.cfg();
+      const gl = (n,s)=>NX.glogo ? NX.glogo(n,s) : '';
       const lastSync = g.lastTasksSync ? U.relTime(g.lastTasksSync) : 'never';
       const lastBack = g.lastDriveBackup ? U.relTime(g.lastDriveBackup) : 'never';
+
+      /* One button does everything. The toggles below are only for someone
+         who wants one service and not the other. */
+      const primary = `
+        <div class="gd-hero">
+          <div class="gd-hero-logos">
+            <span>${gl('tasks',26)}</span><span>${gl('drive',26)}</span>
+          </div>
+          <div class="gd-hero-txt">
+            <b>${g.connected ? 'Connected' : 'Sync with Google'}</b>
+            <span>${g.connected
+              ? `Signed in as ${U.esc(g.email||'your Google account')}`
+              : 'Tasks both ways, plus a daily Drive backup. One click.'}</span>
+          </div>
+          ${g.connected
+            ? `<button class="btn btn-soft" id="gd-sync" ${busyG?'disabled':''}>${icon('refresh')} Sync now</button>
+               <button class="icon-btn" id="gd-disc" data-tip="Disconnect and delete tokens" aria-label="Disconnect">${icon('x')}</button>`
+            : `<button class="btn btn-green btn-lg" id="gd-conn" ${busyG?'disabled':''}>
+                 ${busyG?'Waiting for Google…':gl('g',16)+' Connect Google'}</button>`}
+        </div>`;
+
       host.innerHTML = `
-        <div class="card"><div class="card-h"><div class="tile sm">${icon('cloud')}</div>
-          <div><div class="c-title">Google Tasks & Drive</div><div class="c-sub">Sync your tasks both ways, and back up your workspace</div></div>
-          <div class="spacer"></div>
-          ${g.connected ? `<span class="pill green">${icon('check',11)} Connected</span>` : '<span class="pill gray">Not connected</span>'}
+        <div class="card"><div class="card-h">
+            <div><div class="c-title">Google</div><div class="c-sub">Tasks sync and Drive backup</div></div>
+            <div class="spacer"></div>
+            ${g.connected ? `<span class="pill green">${icon('check',11)} On</span>` : '<span class="pill gray">Off</span>'}
         </div>
-        <div class="card-b" style="display:flex;flex-direction:column;gap:16px">
+        <div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+          ${primary}
 
-          <div class="field"><label>OAuth client ID</label>
-            <input class="input" id="gd-client" placeholder="1234567890-abc.apps.googleusercontent.com" value="${U.esc(g.clientId||'')}">
-            <span class="faint tiny">From console.cloud.google.com → APIs &amp; Services → Credentials → OAuth client ID → Desktop app.</span>
-          </div>
-
-          <div class="rw-row">
-            <div class="rw-txt"><b>Google Tasks</b><span>Create a task here and it appears in Google Tasks. Edit it in either place and the other catches up.</span></div>
-            <label class="switch"><input type="checkbox" id="gd-tasks" ${g.tasksEnabled?'checked':''}><span></span></label>
-          </div>
-          <div class="rw-row">
-            <div class="rw-txt"><b>Google Drive backup</b><span>Writes one encrypted-by-nothing JSON backup per day into a PebbleX folder in your Drive.</span></div>
-            <label class="switch"><input type="checkbox" id="gd-drive" ${g.driveEnabled?'checked':''}><span></span></label>
-          </div>
-
-          <div class="row gap-8">
-            ${g.connected
-              ? `<button class="btn btn-soft btn-sm" id="gd-sync" ${busyG?'disabled':''}>${icon('refresh')} Sync now</button>
-                 <button class="btn btn-ghost btn-sm" id="gd-disc">${icon('logout')} Disconnect</button>`
-              : `<button class="btn btn-green btn-sm" id="gd-conn" ${busyG?'disabled':''}>${busyG?'Waiting for Google…':'Connect Google'}</button>`}
-          </div>
-
-          ${g.connected ? `<div class="ws-info-strip">
-            <div>Signed in as <b>${U.esc(g.email||'your Google account')}</b>
-            <small>Tasks last synced ${U.esc(lastSync)} · Drive backup ${U.esc(lastBack)}</small></div>
+          ${g.connected ? `<div class="gd-facts">
+            <span>${icon('check',12)} Tasks synced ${U.esc(lastSync)}</span>
+            <span>${icon('check',12)} Drive backup ${U.esc(lastBack)}</span>
           </div>` : ''}
 
-          <div class="faint tiny">
-            Scopes requested: <code>${U.esc(g.connected ? (g.scopes||[]).join('  ') : (g.tasksEnabled||g.driveEnabled ? NX.google.scopeHelp() : 'none yet'))}</code>
-          </div>
+          <details class="gd-more">
+            <summary>${g.tasksEnabled&&g.driveEnabled ? 'Customise' : 'Choose what to sync'}</summary>
+            <div class="gd-apps">
+              <div class="gd-app ${g.tasksEnabled?'on':''}">
+                <span class="gd-ic">${gl('tasks',18)}</span>
+                <div class="gd-txt"><b>Google Tasks</b>
+                  <span>Make a task here, it appears there. Edit either side, the other catches up.</span></div>
+                <label class="switch"><input type="checkbox" id="gd-tasks" ${g.tasksEnabled?'checked':''}><span class="track"></span></label>
+              </div>
+              <div class="gd-app ${g.driveEnabled?'on':''}">
+                <span class="gd-ic">${gl('drive',18)}</span>
+                <div class="gd-txt"><b>Google Drive backup</b>
+                  <span>One JSON backup per day in a PebbleX folder. Your tokens are stripped first.</span></div>
+                <label class="switch"><input type="checkbox" id="gd-drive" ${g.driveEnabled?'checked':''}><span class="track"></span></label>
+              </div>
+            </div>
+            <div class="field" style="margin-top:12px">
+              <label>OAuth client ID <span class="faint tiny">(advanced)</span></label>
+              <input class="input" id="gd-client" placeholder="123.apps.googleusercontent.com" value="${U.esc(g.clientId||'')}">
+              <span class="faint tiny">Pre-filled — you should not need to touch this. PebbleX uses PKCE, so there is no client secret and none is stored. Anything starting <code>GOCSPX-</code> is a secret: it will be refused.</span>
+            </div>
+          </details>
+
+          ${g.connected ? `<div class="faint tiny">Scopes: <code>${U.esc((g.scopes||[]).join('  '))}</code></div>` : ''}
         </div></div>
 
         ${g.conflicts.length ? `<div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('alert')}</div>
           <div><div class="c-title">Kept local</div><div class="c-sub">${g.conflicts.length} change(s) PebbleX's newer version overwrote</div></div></div>
-          <div class="card-b"><div class="gd-log">${g.conflicts.slice(0,8).map(c=>`
+          <div class="card-b"><div class="gd-log">${g.conflicts.slice(0,6).map(c=>`
             <div class="gd-log-row"><span class="gl-k warn">local</span>
               <span class="gl-m">${U.esc(String(c.task||''))}</span>
               <span class="gl-t">Google edited ${U.esc(U.relTime(c.remoteAt))}</span></div>`).join('')}</div></div></div>` : ''}
 
-        ${g.log.length ? `<div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('activity')}</div>
-          <div><div class="c-title">Activity</div><div class="c-sub">Most recent first</div></div></div>
-          <div class="card-b"><div class="gd-log">${g.log.slice(0,12).map(l=>`
+        ${g.log.length ? `<details class="gd-more" style="margin-top:16px"><summary>Recent activity</summary>
+          <div class="gd-log">${g.log.slice(0,8).map(l=>`
             <div class="gd-log-row"><span class="gl-k ${l.kind}">${U.esc(l.kind)}</span>
               <span class="gl-m">${U.esc(l.msg)}</span>
-              <span class="gl-t">${U.esc(U.relTime(l.t))}</span></div>`).join('')}</div></div></div>` : ''}
+              <span class="gl-t">${U.esc(U.relTime(l.t))}</span></div>`).join('')}</div></details>` : ''}
 
-        <div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('book')}</div>
-          <div><div class="c-title">Google Keep is not available</div>
-          <div class="c-sub">And it is not a PebbleX limitation</div></div></div>
-          <div class="card-b"><p style="font-size:12.5px;color:var(--ink-2);line-height:1.65;margin:0">
-            Google restricts the Keep API to enterprise administrators — it needs a Workspace Super
-            Admin to allowlist the app, and personal <code>@gmail.com</code> accounts receive
-            <code>invalid_scope</code>. It is built for corporate data-loss-prevention, not for
-            note apps. Google Tasks is the proper checkbox API and it works on any account, which is
-            why that is what sync uses.</p></div></div>`;
+        <div class="card" style="margin-top:16px"><div class="card-h"><span class="tile sm" style="padding:0;overflow:hidden">${gl('keep',16)}</span>
+          <div><div class="c-title">Google Keep</div>
+          <div class="c-sub">Not available — and not a PebbleX limitation</div></div>
+          <span class="pill gray sm">Unavailable</span></div>
+          <div class="card-b">
+            <p style="font-size:12.5px;color:var(--ink-2);line-height:1.65;margin:0 0 12px">
+              Google restricts the Keep API to enterprise administrators. It needs a Workspace Super
+              Admin to allowlist the app, and personal <code>@gmail.com</code> accounts receive
+              <code>invalid_scope</code>. It is built for corporate data-loss prevention, not for
+              note apps.</p>
+            <div class="gd-note">
+              <span class="gd-ic">${gl('tasks',18)}</span>
+              <div>Use <b>Google Tasks</b> instead — it is the proper checkbox API and it works on
+              every account. That is what the sync above uses.</div>
+            </div>
+          </div></div>`;
 
-      const clientIn = q('#gd-client', host);
-      if(clientIn) clientIn.onchange = ()=>{ NX.google.setClientId(clientIn.value); NX.toastOk('Client ID saved'); };
+const clientIn = q('#gd-client', host);
+      if(clientIn) clientIn.onchange = async ()=>{
+        const okDone = await NX.google.setClientId(clientIn.value);
+        if(okDone){ NX.toastOk('Client ID saved'); renderBody(); }
+        else renderBody();   /* reset the field after a rejection */
+      };
       const tk = q('#gd-tasks', host);
       if(tk) tk.onchange = ()=>{ NX.google.setEnabled('tasks', tk.checked); renderBody(); };
       const dr = q('#gd-drive', host);
@@ -193,7 +226,7 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
         <div class="card"><div class="card-h"><div class="tile sm" style="background:var(--${offline?'yellow':'green'}-soft);color:var(--${offline?'yellow':'green'})">${icon('cloud')}</div>
           <div><div class="c-title">Offline mode</div><div class="c-sub">Nothing leaves this device</div></div>
           <div class="spacer"></div>
-          <label class="switch"><input type="checkbox" id="st-offline" ${offline?'checked':''}><span></span></label></div>
+          <label class="switch"><input type="checkbox" id="st-offline" ${offline?'checked':''}><span class="track"></span></label></div>
           <div class="card-b">
             <p style="font-size:12.5px;color:var(--ink-2);line-height:1.6;margin:0">
               When on, AI, weather and cloud sync stop making network requests entirely.
@@ -210,7 +243,7 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
                 <span class="mod-ic">${icon(m.ic,15)}</span>
                 <span class="mod-txt"><b>${U.esc(m.n)}</b><i>${U.esc(m.d)}</i></span>
                 ${m.core ? '<span class="pill gray sm">Core</span>' :
-                  `<label class="switch"><input type="checkbox" data-mod="${m.id}" ${on?'checked':''}><span></span></label>`}
+                  `<label class="switch"><input type="checkbox" data-mod="${m.id}" ${on?'checked':''}><span class="track"></span></label>`}
               </div>`).join('')}
           </div></div></div>`).join('')}
 
@@ -376,7 +409,7 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
           <div class="card-b" style="display:flex;flex-direction:column;gap:12px">
             <div class="rw-row">
               <div class="rw-txt"><b>Cloud sync</b><span>Images always save locally first. This is strictly optional.</span></div>
-              <label class="switch"><input type="checkbox" id="rw-sync" ${cfg.enabled?'checked':''}><span></span></label>
+              <label class="switch"><input type="checkbox" id="rw-sync" ${cfg.enabled?'checked':''}><span class="track"></span></label>
             </div>
             <div class="field"><label>Sync address</label>
               <input class="input" id="rw-api" placeholder="https://your-worker.workers.dev" value="${U.esc(cfg.api||'')}"></div>

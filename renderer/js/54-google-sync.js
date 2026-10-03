@@ -34,6 +34,18 @@ const TASKS_SCOPE = 'https://www.googleapis.com/auth/tasks';
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const GIS = 'https://accounts.google.com/gsi/client';
 
+/* Pre-filled OAuth client ID.
+   ─────────────────────────────────────────────────────────────
+   THE CLIENT SECRET IS NOT REQUIRED, AND MUST NEVER BE STORED.
+   Google's "installed app" flow uses PKCE: the app holds a code
+   verifier and the token exchange proves possession of it. The
+   client secret plays no part, so there is nothing for us to keep.
+   Anything called GOCSPX-… is a secret — if one reaches a chat, a
+   file or a commit, delete the OAuth client in the Google Cloud
+   console and make a new one.
+   ───────────────────────────────────────────────────────────── */
+const DEFAULT_CLIENT_ID = '697330751649-c4sqh4gmt23f6kti2hjg9dss1dcgpi89.apps.googleusercontent.com';
+
 /* PebbleX columns <-> Google task-list columns */
 const COL_MAP = { today:'Today', week:'This week', later:'Later', someday:'Someday', done:'Done' };
 const COL_BACK = {};
@@ -44,7 +56,9 @@ Object.keys(COL_MAP).forEach(k => { COL_BACK[COL_MAP[k]] = k; });
    ============================================================ */
 function blank(){
   return {
-    clientId: '',
+    /* shipped pre-filled so Tasks/Drive work on first try; overridable in
+       Settings if you register a different OAuth client */
+    clientId: DEFAULT_CLIENT_ID,
     connected: false,
     email: '',
     /* tokens live in the workspace doc — see the security note below */
@@ -52,8 +66,10 @@ function blank(){
     refreshToken: '',
     expiresAt: 0,
     scopes: [],
-    tasksEnabled: false,
-    driveEnabled: false,
+    /* undefined means "not chosen yet" and is treated as ON, so one click
+       connects both. false means the user deliberately turned it off. */
+    tasksEnabled: undefined,
+    driveEnabled: undefined,
     taskListId: '',
     driveFolderId: '',
     lastTasksSync: 0,
@@ -321,7 +337,7 @@ function remoteStamp(t){ return Date.parse(t.updated || '') || 0; }
 async function syncTasks(opts){
   opts = opts || {};
   const c = cfg();
-  if(!c.connected || !c.tasksEnabled) return { ok:false, error:'not-enabled' };
+  if(!c.connected || c.tasksEnabled === false) return { ok:false, error:'not-enabled' };
   if(NX.offline && NX.offline.on()) return { ok:false, error:'offline' };
 
   const listId = await ensureTaskList();
@@ -423,7 +439,8 @@ async function syncTasks(opts){
   save();
 
   const summary = `Tasks: ${pulled} in, ${pushed} out${conflicts ? ', ' + conflicts + ' kept local' : ''}`;
-  log(summary, conflicts ? 'warn' : 'ok');
+log(summary, conflicts ? 'warn' : 'ok');
+  announce('synced');
   NX.events.emit('google:synced', { pulled, pushed, conflicts });
   return { ok:true, pulled, pushed, conflicts };
 }
@@ -469,7 +486,7 @@ async function ensureDriveFolder(){
 
 async function backupToDrive(){
   const c = cfg();
-  if(!c.connected || !c.driveEnabled) return { ok:false, error:'not-enabled' };
+  if(!c.connected || c.driveEnabled === false) return { ok:false, error:'not-enabled' };
   if(NX.offline && NX.offline.on()) return { ok:false, error:'offline' };
 
   const folder = await ensureDriveFolder();
@@ -512,6 +529,7 @@ async function backupToDrive(){
   c.lastDriveBackup = Date.now();
   save();
   log('Drive backup saved: ' + name, 'ok');
+  announce('backed up');
   return { ok:true, created:true };
 }
 
@@ -530,11 +548,20 @@ async function listDriveBackups(){
    ============================================================ */
 async function connect(){
   const c = cfg();
+  /* One click connects BOTH services. The per-service switches only
+     matter to someone who deliberately turned one off, so a fresh
+     profile (both unset) asks for everything. That is what makes the
+     single Connect button work with zero setup. */
+  const wantsTasks  = c.tasksEnabled  !== false;
+  const wantsDrive  = c.driveEnabled  !== false;
   const scopes = [];
-  if(c.tasksEnabled) scopes.push(TASKS_SCOPE);
-  if(c.driveEnabled) scopes.push(DRIVE_SCOPE);
+  if(wantsTasks) scopes.push(TASKS_SCOPE);
+  if(wantsDrive) scopes.push(DRIVE_SCOPE);
+  c.tasksEnabled = wantsTasks;
+  c.driveEnabled = wantsDrive;
+
   if(!scopes.length){
-    NX.toastInfo('Pick something first', 'Enable Tasks or Drive, then connect.');
+    NX.toastInfo('Nothing selected', 'Enable Tasks or Drive first.');
     return false;
   }
 
@@ -558,9 +585,10 @@ async function connect(){
 
   save();
   log('Connected as ' + (c.email || 'your Google account'), 'ok');
+  announce('connected');
   NX.toastOk('Google connected', c.email || 'Tasks and Drive are ready.');
-  if(c.tasksEnabled) void syncTasks();
-  if(c.driveEnabled) void backupToDrive();
+  if(c.tasksEnabled !== false) void syncTasks();
+  if(c.driveEnabled !== false) void backupToDrive();
   return true;
 }
 
@@ -603,8 +631,8 @@ async function run(){
   syncing = true;
   const c = cfg();
   try{
-    if(c.tasksEnabled) await syncTasks();
-    if(c.driveEnabled) await backupToDrive();
+    if(c.tasksEnabled !== false) await syncTasks();
+    if(c.driveEnabled !== false) await backupToDrive();
   }catch(e){
     log('Sync failed: ' + (e && e.message ? e.message : e), 'err');
   }finally{
@@ -628,14 +656,78 @@ document.addEventListener('DOMContentLoaded', ()=>{
 /* only react to task edits while sync is actually on */
 NX.events.on('store:tasks', ()=>{
   const c = cfg();
-  if(c.connected && c.tasksEnabled) schedule();
+  if(c.connected && c.tasksEnabled !== false) schedule();
 });
+
+/* ============================================================
+   NOTIFICATIONS
+   Sync status has to be visible without the user hunting through
+   Settings. A native toast is fired on every meaningful state change,
+   and the log below is what the notification centre shows.
+   ============================================================ */
+function notify(title, body, kind){
+  NX.pushNotif && NX.pushNotif(title, body, kind === 'err' ? 'alert' : 'cloud');
+  /* native too, so it lands even when PebbleX is behind other windows */
+  try{
+    if(NX.native && NX.native.available) NX.native.notify({ title, body, silent:false });
+  }catch(e){}
+}
+
+function announce(what){
+  const c = cfg();
+  const bits = [];
+  if(c.tasksEnabled !== false) bits.push('Tasks');
+  if(c.driveEnabled !== false) bits.push('Drive');
+  if(!bits.length) return;
+  const s = what || 'Synced';
+  notify('Google ' + s, bits.join(' and ') + ' are up to date.');
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  /* one gentle prompt, once ever, so nobody discovers this by accident */
+  setTimeout(()=>{
+    const c = cfg();
+    if(!c.connected && !c.prompted){
+      c.prompted = true;
+      save();
+      NX.pushNotif && NX.pushNotif('Sync with Google?',
+        'Keep your tasks and backups in step with Google Tasks and Drive.', 'cloud');
+      const chip = document.querySelector('#tp-points');
+      void chip;
+      /* a small, dismissible strip under the topbar */
+      try{ showNudge(); }catch(e){}
+    }
+  }, 4000);
+});
+
+/** the nudge strip — one button, one click, no settings hunt */
+function showNudge(){
+  if(!NX.modules || !NX.modules.isOn('google')) return;
+  if(document.getElementById('gd-nudge')) return;
+  const bar = document.createElement('div');
+  bar.id = 'gd-nudge';
+  bar.className = 'gd-nudge';
+  bar.innerHTML = `<span class="gn-ic">${NX.glogo ? NX.glogo('g',16) : ''}</span>
+    <span class="gn-txt"><b>Sync with Google</b> Tasks and Drive, one click.</span>
+    <button class="btn btn-green btn-sm gn-go">Connect</button>
+    <button class="icon-btn sm gn-x" aria-label="Dismiss">${NX.icon('x',13)}</button>`;
+  const host = document.querySelector('.view-host') || document.querySelector('#shell-view');
+  if(!host) return;
+  host.parentElement.insertBefore(bar, host);
+
+  const go = bar.querySelector('.gn-go');
+  if(go) go.onclick = ()=>{ try{ NX.router.go('settings/google'); }catch(e){ NX.router.go('settings'); } bar.remove(); };
+  const x = bar.querySelector('.gn-x');
+  if(x) x.onclick = ()=>bar.remove();
+  /* auto-dismiss; it is a hint, not a modal */
+  setTimeout(()=>bar.remove(), 14000);
+}
 
 /* ============================================================
    PUBLIC API
    ============================================================ */
 NX.google = {
-  cfg, save, log,
+  cfg, save, log, announce, showNudge,
   COL_MAP, COL_BACK,
 
   /* exported for tests */
@@ -645,8 +737,26 @@ NX.google = {
 
   async setClientId(id){
     const c = cfg();
-    c.clientId = String(id || '').trim();
+    let v = String(id || '').trim();
+
+    /* Refuse anything that is not a client ID. A client secret pasted
+       into this box would land in workspace.json and in every export,
+       and it is not needed: this flow is PKCE. */
+    if(/^GOCSPX-|client_secret|secret/i.test(v)){
+      log('That looks like a client SECRET. It is not needed and was not saved.', 'err');
+      NX.toastErr('That is a secret, not a client ID',
+        'PebbleX uses PKCE, so no secret is required. It was not saved.');
+      return false;
+    }
+    /* a client ID always ends in .apps.googleusercontent.com */
+    if(v && !v.endsWith('.apps.googleusercontent.com')){
+      NX.toastErr('That does not look like a client ID',
+        'It should end in .apps.googleusercontent.com');
+      return false;
+    }
+    c.clientId = v || DEFAULT_CLIENT_ID;
     save();
+    return true;
   },
 
   async setEnabled(kind, on){

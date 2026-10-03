@@ -100,10 +100,11 @@ Everything is local-first, in `<AppData>/pebble/`:
 ## Testing
 
 ```bash
-npm test              # 158 renderer tests (rewards + apps + google)
+npm test              # 201 renderer tests
 npm run test:rewards  # 65 — points caps, unlocks, game/theme gates
 npm run test:apps     # 44 — module registry, route guard, offline mode
-npm run test:google   # 49 — task mapping, conflicts, token safety
+npm run test:google   # 57 — task mapping, conflicts, token safety
+npm run test:brand    # 35 — Google brand marks render and stay colour-locked
 npm run test:rust     # Rust unit tests (see caveat below)
 ```
 

@@ -265,6 +265,41 @@ section('Google — disconnect');
 }
 
 /* ===============================================================
+   6. A CLIENT SECRET MUST NEVER BE STORED
+=============================================================== */
+section('Google — secret rejection');
+(async function () {
+  const win = makeWindow(); const NX = stubs(win);
+  loadInto(win, ['54-google-sync.js']);
+  const Gc = NX.google;
+
+  const good = '123.apps.googleusercontent.com';
+  ok('a valid client ID is accepted', (await Gc.setClientId(good)) === true);
+  ok('it was saved', NX.store.get('googleSync').clientId === good);
+
+  /* the real-world mistake: pasting the GOCSPX- secret instead.
+     Use an obviously fake value — a real secret must never be committed,
+     not even inside a test fixture. */
+  const before = NX.store.get('googleSync').clientId;
+  ok('a GOCSPX secret is REJECTED',
+     (await Gc.setClientId('GOCSPX-FAKE_VALUE_FOR_TESTS_ONLY')) === false);
+  ok('the secret was not saved', NX.store.get('googleSync').clientId === before,
+     JSON.stringify(NX.store.get('googleSync').clientId));
+
+  const dump = JSON.stringify(NX.store.dump());
+  ok('no secret exists anywhere in the workspace', !dump.includes('GOCSPX'), 'secret leaked');
+
+  ok('a non-client-id value is rejected', (await Gc.setClientId('not-a-client-id')) === false);
+  ok('the good ID survived the bad attempt', NX.store.get('googleSync').clientId === before);
+
+  /* shipped default so it works before any setup */
+  const fresh = makeWindow();
+  const NX2 = stubs(fresh);
+  loadInto(fresh, ['54-google-sync.js']);
+  ok('a client ID ships pre-filled', /\.apps\.googleusercontent\.com$/.test(NX2.google.cfg().clientId));
+})();
+
+/* ===============================================================
    5. SYNC IS A NO-OP WHEN OFF OR OFFLINE
 =============================================================== */
 section('Google — safety gates');

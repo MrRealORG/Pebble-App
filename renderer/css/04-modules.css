@@ -278,6 +278,22 @@
 .app-row{display:flex;align-items:center;gap:12px;padding:9px 4px}
 .app-row + .app-row{border-top:1px solid var(--line)}
 .app-row .ar-ic{width:34px;height:34px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800}
+  /* The base tile shape lives here, not only under .app-row. It used to be
+     scoped to app rows, so a site tile rendered in the live-session card or
+     the top-apps list had NO width or height — the favicon collapsed to an
+     unstyled inline image and looked like icons were not detected. */
+  .ar-ic{
+    width:34px;height:34px;flex:none;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:11px;overflow:hidden;
+    color:#fff;font-size:13px;font-weight:800;
+    background-color:var(--surface-3);
+  }
+  /* a real logo sits on white so light marks (GitHub, Notion) stay visible
+     against a themed surface */
+  .ar-ic.real{ background-color:#fff }
+  .ar-ic.real .ar-img{ width:22px;height:22px;max-width:22px;max-height:22px;object-fit:contain;display:block }
+  .ar-ic.tl-letter{ color:var(--ink-2); font-size:15px; font-weight:700 }
 .app-row .ar-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .app-row .ar-cat{font-size:10.5px;color:var(--ink-3)}
 .app-row .ar-bar{flex:1;max-width:180px}

@@ -68,7 +68,7 @@ NX.routeInShell('apps', 'Apps & features', 'sliders', function(view){
             ? 'Nothing is sent or fetched. AI, weather and cloud sync are paused.'
             : 'Pebble can use the internet for AI, weather and cloud sync.'}</div>
         </div>
-        <label class="switch"><input type="checkbox" id="ap-off" ${on?'checked':''}><span></span></label>
+        <label class="switch"><input type="checkbox" id="ap-off" ${on?'checked':''}><span class="track"></span></label>
       </div>`;
     const t = q('#ap-off', view);
     if(t) t.onchange = ()=>{ NX.offline.set(t.checked); renderOffline(); };

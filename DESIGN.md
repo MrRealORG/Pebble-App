@@ -651,6 +651,27 @@ A conflict is never silent. That is the difference between sync and data loss.
 ⚠️ The refresh token still sits in `workspace.json` unencrypted. Windows
 Credential Manager would fix it and needs new Rust — not done.
 
+### Brand marks are the one exception to the token rule
+
+Every other icon is `currentColor` + `stroke-width 2`, so it re-tints per theme. **Google logos must not.** `NX.glogo(name, size)` in `00-core.js` returns filled, multi-colour SVG in Google's published palette:
+
+| id | Mark |
+|---|---|
+| `g` | the four-colour G |
+| `tasks` | blue check |
+| `drive` | tri-colour triangle |
+| `keep` | amber bulb |
+| `calendar`, `photos` | also available |
+
+Keep them outside the single-path map (`P`) — they cannot live there. 35 tests
+assert they are filled, not stroked, and carry real brand colour.
+
+⚠️ These are hand-drawn approximations, not Google's official asset files.
+Google's brand guidelines require marks be used unmodified and not imply
+endorsement. Before shipping publicly, download the official SVGs from
+<https://about.google/brand-resource-center/> and swap them in — `glogo()`
+takes a size and class, so only the SVG body changes.
+
 ### Google Keep
 
 Not integrated, deliberately. Keep's REST API is enterprise-only: it needs

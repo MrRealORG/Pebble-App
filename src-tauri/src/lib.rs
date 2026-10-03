@@ -328,6 +328,81 @@ pub const BROWSERS: &[&str] = &[
     "chrome", "msedge", "edge", "firefox", "brave", "opera", "vivaldi", "arc", "safari", "chromium",
 ];
 
+/// Pull a bare hostname out of whatever a browser put in the title.
+///
+/// WHY THIS EXISTS: the old code returned everything before the
+/// " - Chrome" separator — which is the PAGE TITLE, not the site. So a
+/// window titled "How to install Rust — Google Chrome" produced
+/// `url = "How to install Rust"`, the icon key became that string, and
+/// every favicon lookup failed. That is why sites so often showed a
+/// bare letter instead of a logo.
+///
+/// Browsers are inconsistent about what they put in the title bar, so we
+/// try, in order:
+///   1. a real URL, if the title happens to contain one,
+///   2. a leading hostname-ish token (`github.com`, `docs.google.com`),
+///   3. a leading @handle (a social app),
+///   4. nothing — the caller degrades to a letter tile.
+fn hostname_from_title(title: &str) -> Option<String> {
+    let t = title.trim();
+    if t.is_empty() {
+        return None;
+    }
+
+    // 1. an embedded http(s) URL anywhere in the string
+    if let Some(pos) = t.find("http://").or_else(|| t.find("https://")) {
+        let rest = &t[pos..];
+        let rest = rest.split_whitespace().next().unwrap_or(rest);
+        let host = rest
+            .split("://")
+            .nth(1)
+            .unwrap_or(rest)
+            .split(['/', '?', '#'])
+            .next()
+            .unwrap_or("");
+        let host = host.split('@').next_back().unwrap_or(host); // strip creds
+        /* strip an explicit port: a favicon lookup against "host:8080"
+           never resolves */
+        let host = host.rsplit_once(':').map(|(h, p)| {
+            if p.chars().all(|c| c.is_ascii_digit()) { h } else { host }
+        }).unwrap_or(host);
+        if host.contains('.') && !host.contains(' ') {
+            return Some(host.to_ascii_lowercase());
+        }
+    }
+
+    // 2. a leading token that looks like a hostname
+    let first = t.split_whitespace().next().unwrap_or(t);
+    let candidate = first
+        .split(['/', '?', '#'])
+        .next()
+        .unwrap_or(first)
+        .trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-' && c != ':');
+    if candidate.contains('.') {
+        let bare = candidate.rsplit_once(':').map(|(h, p)| {
+            if p.chars().all(|c| c.is_ascii_digit()) { h } else { candidate }
+        }).unwrap_or(candidate);
+        // require a plausible TLD so "Version 1.2" or "Node.js" tips do not
+        // get mistaken for hosts
+        let tld = bare.rsplit('.').next().unwrap_or("");
+        if tld.len() >= 2 && tld.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return Some(bare.to_ascii_lowercase());
+        }
+    }
+
+    // 3. an @handle (social apps put this first)
+    if let Some(rest) = t.strip_prefix('@') {
+        let handle: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
+        if handle.len() >= 2 {
+            return Some(format!("x.com/{}", handle.to_ascii_lowercase()));
+        }
+    }
+
+    None
+}
+
+/// Keep the full page title for display, but hand the renderer a
+/// hostname it can actually resolve an icon for.
 fn browser_site_from_title(title: &str) -> Option<String> {
     // Browsers do not agree on the dash they put before their own name. Chrome,
     // Edge, Brave and Opera use " - Name", Firefox uses an em dash, and Brave in
@@ -342,31 +417,13 @@ fn browser_site_from_title(title: &str) -> Option<String> {
         })
         .collect();
 
-    for sep in [
-        " - Google Chrome",
-        " \u{2014} Mozilla Firefox",
-        " - Mozilla Firefox",
-        " \u{2014} Brave",
-        " - Brave",
-        " \u{2014} Microsoft Edge",
-        " - Microsoft Edge",
-        " \u{2014} Opera",
-        " - Opera",
-        " \u{2014} Vivaldi",
-        " - Vivaldi",
-        " \u{2014} Arc",
-        " - Arc",
-        " \u{2014} Chromium",
-        " - Chromium",
-    ] {
-        if let Some(pos) = norm.find(sep) {
-            let site = norm[..pos].trim();
-            if !site.is_empty() {
-                return Some(site.to_string());
-            }
-        }
+    // The resolvable hostname is what the icon engine needs.
+    if let Some(host) = hostname_from_title(&norm) {
+        return Some(host);
     }
-    // fallback: first segment before a dash
+
+    // Nothing resolvable — keep the page title so the row is still
+    // readable. iconHTML() will show a letter tile rather than guess.
     for sep in [" \u{2014} ", " - "] {
         if let Some(pos) = norm.find(sep) {
             let site = norm[..pos].trim();
@@ -1686,4 +1743,83 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running PebbleX");
+}
+/* ----------------------------------------------------------
+   tests: window title -> resolvable hostname
+   The icon engine can only fetch a favicon if this returns a real
+   host. Returning the page title instead is what made site logos
+   silently fail, so these cases are pinned.
+---------------------------------------------------------- */
+#[cfg(test)]
+mod site_host_tests {
+    use super::{browser_site_from_title, hostname_from_title};
+
+    #[test]
+    fn extracts_a_leading_hostname() {
+        assert_eq!(
+            hostname_from_title("github.com - Google Chrome").as_deref(),
+            Some("github.com")
+        );
+        assert_eq!(
+            hostname_from_title("docs.google.com/Document").as_deref(),
+            Some("docs.google.com")
+        );
+        assert_eq!(
+            hostname_from_title("news.ycombinator.com").as_deref(),
+            Some("news.ycombinator.com")
+        );
+    }
+
+    #[test]
+    fn extracts_an_embedded_url() {
+        assert_eq!(
+            hostname_from_title("See https://example.com/docs/page for details - Chrome").as_deref(),
+            Some("example.com")
+        );
+        assert_eq!(
+            hostname_from_title("http://sub.domain.co.uk:8080/x?y=1").as_deref(),
+            Some("sub.domain.co.uk")
+        );
+    }
+
+    #[test]
+    fn handles_a_social_handle() {
+        assert_eq!(hostname_from_title("@jack - X").as_deref(), Some("x.com/jack"));
+    }
+
+    /// The exact bug: a page title must NOT be mistaken for a host.
+    #[test]
+    fn does_not_treat_a_page_title_as_a_host() {
+        assert_eq!(hostname_from_title("How to install Rust - Google Chrome"), None);
+        assert_eq!(hostname_from_title("Version 1.2 released"), None);
+        assert_eq!(hostname_from_title(""), None);
+    }
+
+    #[test]
+    fn still_returns_something_readable_for_display() {
+        // falls back to the page title so the row is never blank
+        let got = browser_site_from_title("How to install Rust - Google Chrome").unwrap();
+        assert!(!got.is_empty());
+        assert!(got.len() < 120);
+    }
+
+    #[test]
+    fn handles_en_dash_and_em_dash_titles() {
+        assert_eq!(
+            browser_site_from_title("github.com \u{2013} Brave").as_deref(),
+            Some("github.com")
+        );
+        assert_eq!(
+            browser_site_from_title("github.com \u{2014} Firefox").as_deref(),
+            Some("github.com")
+        );
+    }
+
+    #[test]
+    fn normalises_case() {
+        assert_eq!(
+            hostname_from_title("GitHub.COM - Chrome").as_deref(),
+            Some("github.com")
+        );
+    }
 }

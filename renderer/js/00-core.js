@@ -447,5 +447,61 @@ window.NX = window.NX || {};
   NX.brandMark = function(){
     return `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3c4 0 7 2.2 7 5.4 0 1.9-.8 3.2-2 4.2.5.7.8 1.5.8 2.4 0 3.3-2.8 6-5.8 6-3.4 0-6-2.3-6-5.6 0-1.7.6-3 1.7-4C6.6 10.4 5 9 5 7.6 5 5 8 3 12 3z" fill="currentColor"/><path d="M12 3c4 0 7 2.2 7 5.4 0 1.9-.8 3.2-2 4.2" stroke="var(--green)" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>`;
   };
+
+  /* ----------------------------------------------------------
+     GOOGLE BRAND LOGOS
+     Multi-colour marks, so they cannot live in the single-path
+     stroke map above — those are all currentColor + stroke-width 2.
+
+     These are the REAL brand paths, not hand-drawn approximations.
+     Source: Simple Icons (simpleicons.org), CC0-1.0 licensed, which
+     redistributes Google's published brand geometry. Paths are
+     verbatim; only the fill colour is applied, because Simple Icons
+     ships each mark as a single-colour path.
+     ────────────────────────────────────────────────────────────
+     BRAND COMPLIANCE
+     Google requires marks be used unmodified and must not imply
+     endorsement. They are used here nominatively: to identify the
+     service a user connects to. Do not recolour, stretch, animate or
+     place them on a confusing background.
+     ────────────────────────────────────────────────────────────
+     Do NOT theme-tint these. A Google logo is the colour Google
+     says it is, in all 13 themes.
+     ---------------------------------------------------------- */
+  const GV = '0 0 24 24';
+  const G = {
+    g: {
+      c:'#4285F4', t:'Google',
+      d:'M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z'
+    },
+    tasks: {
+      c:'#2684FC', t:'Google Tasks',
+      d:'M11.383.617C5.097.617 0 5.714 0 12c0 6.286 5.097 11.383 11.383 11.383 6.286 0 11.38-5.097 11.38-11.383a11.34 11.34 0 0 0-.878-4.389l-3.203 3.203c.062.387.1.782.1 1.186a7.398 7.398 0 1 1-7.4-7.398c1.499 0 2.889.448 4.054 1.214l2.857-2.857a11.325 11.325 0 0 0-6.91-2.342zm9.674.756c-.292 0-.583.112-.805.334-2.97 2.965-5.934 5.934-8.9 8.902L9.596 8.854a1.139 1.139 0 0 0-1.61 0l-1.775 1.773a1.139 1.139 0 0 0 0 1.61l4.166 4.163a1.421 1.421 0 0 0 2.012 0L23.666 5.121a1.136 1.136 0 0 0 0-1.61l-1.805-1.804a1.136 1.136 0 0 0-.804-.334z'
+    },
+    drive: {
+      c:'#4285F4', t:'Google Drive',
+      d:'M12.01 1.485c-2.082 0-3.754.02-3.743.047.01.02 1.708 3.001 3.774 6.62l3.76 6.574h3.76c2.081 0 3.753-.02 3.742-.047-.005-.02-1.708-3.001-3.775-6.62l-3.76-6.574zm-4.76 1.73a789.828 789.861 0 0 0-3.63 6.319L0 15.868l1.89 3.298 1.885 3.297 3.62-6.335 3.618-6.33-1.88-3.287C8.1 4.704 7.255 3.22 7.25 3.214zm2.259 12.653-.203.348c-.114.198-.96 1.672-1.88 3.287a423.93 423.948 0 0 1-1.698 2.97c-.01.026 3.24.042 7.222.042h7.244l1.796-3.157c.992-1.734 1.85-3.23 1.906-3.323l.104-.167h-7.249z'
+    },
+    keep: {
+      c:'#FFBB00', t:'Google Keep',
+      d:'M4.908 0c-.904 0-1.635.733-1.635 1.637v20.726c0 .904.732 1.637 1.635 1.637H19.09c.904 0 1.637-.733 1.637-1.637V6.5h-6.5V0H4.908zm9.819 0v6h6l-6-6zM11.97 8.229c.224 0 .571.031.765.072.2.04.576.185.842.312.828.414 1.467 1.164 1.774 2.088.168.511.188 1.34.05 1.865a3.752 3.752 0 0 1-1.277 1.952l-.25.193h-1.87c-2.134 0-1.931.042-2.478-.494a3.349 3.349 0 0 1-.984-1.844c-.148-.766-.053-1.437.32-2.203.19-.399.303-.556.65-.899.68-.679 1.513-1.037 2.458-1.042zm-1.866 7.863h3.781v1.328h-3.779v-1.328z'
+    }
+  };
+
+  /** Google brand mark. `name` is g | tasks | drive | keep.
+      Unlike NX.icon these are filled and NOT theme-tinted. */
+  NX.glogo = function(name, size){
+    const m = G[name] || G.g;
+    const style = size ? ` style="width:${size}px;height:${size}px;flex:none"` : '';
+    return `<svg${style} viewBox="${GV}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${m.t}"><title>${m.t}</title><path fill="${m.c}" d="${m.d}"/></svg>`;
+  };
+
+  /** accessible name for a brand mark, so alt text is never a bare icon */
+  NX.glogoTitle = function(name){
+    return (G[name] || G.g).t;
+  };
+
+  NX.GOOGLE_LOGOS = Object.keys(G);
+
   NX.ICON_PATHS = P;
 })(window.NX);
