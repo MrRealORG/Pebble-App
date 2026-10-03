@@ -8,6 +8,15 @@
     { "binding": "pebble_media", "bucket_name": "pebble-media" }
   ],
 
+  /* Timeless app/site usage. This is the one table that grows without bound —
+     one row per app per day per user — so it lives in D1 (5 GB) rather than
+     the Supabase free project's 500 MB Postgres, which it would fill in about
+     six weeks at 1,000 daily users. See schema.sql. */
+  "d1_databases": [
+    { "binding": "pebble_usage", "database_name": "pebble-usage",
+      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID" }
+  ],
+
   "vars": {
     "PEBBLE_ORIGIN": "http://tauri.localhost"
   }

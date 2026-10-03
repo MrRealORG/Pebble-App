@@ -195,6 +195,14 @@ const tracker = {
     day.__hours = day.__hours || {};
     day.__hours[hr] = (day.__hours[hr] || 0) + sec;
     NX.store.set('timeless', all);   // sync write keeps totals/live UI exact
+
+    /* Mirror the same seconds to Cloudflare D1. bump() is the single choke
+       point for tracked time, so this stays one line — 55-usage-sync.js only
+       appends to an in-memory Map here and decides for itself when a batch
+       is worth POSTing. Do NOT add a store write or a fetch to this path: the
+       2s poll calls bump() ~30x a minute and NX.store.set() serialises the
+       whole workspace (that flood was AppHangB1). */
+    if(NX.usageSync && NX.usageSync.track) NX.usageSync.track(label, rec.cat, !!isSite, sec);
   },
 
   /* Timeless polls the foreground window every 2s. That is fine while the

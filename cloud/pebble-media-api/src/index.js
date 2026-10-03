@@ -1,5 +1,11 @@
+import * as usage from './usage.js';
+
 /**
  * PebbleX media API — Cloudflare Worker + R2
+ *
+ * Also fronts the D1 usage database (Timeless app/site tracking) under
+ * /usage/*. That table lives in D1 rather than Supabase because it grows
+ * without bound; see usage.js and schema.sql.
  *
  * Design notes
  * ------------
@@ -111,6 +117,13 @@ export default {
       if (path.startsWith('i/') && req.method === 'GET') return handleGet(req, env, url);
       if (path.startsWith('i/') && req.method === 'DELETE') return handleDelete(req, env, url);
       if (path === 'list' && req.method === 'GET') return handleList(req, env);
+
+      /* ---- Timeless usage, kept in D1 rather than Supabase — see usage.js ---- */
+      if (path === 'usage/flush' && req.method === 'POST') return usage.handleUsageFlush(req, env, json);
+      if (path === 'usage/day' && req.method === 'GET') return usage.handleUsageDay(req, env, url, json);
+      if (path === 'usage/summary' && req.method === 'GET') return usage.handleUsageSummary(req, env, url, json);
+      if (path === 'usage/bans' && req.method === 'GET') return usage.handleUsageBans(req, env, url, json);
+      if (path === 'usage/bans' && (req.method === 'POST' || req.method === 'DELETE')) return usage.handleUsageBansWrite(req, env, url, json);
 
       return json(req, { ok: false, error: 'not found' }, 404);
     } catch (err) {
