@@ -142,8 +142,15 @@ fn load_workspace() -> String {
     }
 }
 
+/// Persist the whole workspace.
+///
+/// This MUST stay `async`. A synchronous tauri command runs on the UI thread,
+/// so every mirror write blocked the window while the file was written. The
+/// renderer debounces to one write per burst, but the payload is the entire
+/// workspace, so a sync command here was enough to hang every window at once
+/// (Windows reported it as AppHangB1 / "not responding").
 #[tauri::command]
-fn save_workspace(data: String) -> bool {
+async fn save_workspace(data: String) -> bool {
     atomic_write(&workspace_file(), data.as_bytes());
     true
 }

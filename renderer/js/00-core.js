@@ -88,16 +88,35 @@ window.NX = window.NX || {};
     },
     async flush(){
       if(!NX.native || !NX.native.available) return;
+      /* drain any pending debounce and ride the single in-flight mirror */
+      clearTimeout(mirrorTimer);
+      mirrorTimer = null;
+      if(mirrorBusy){ mirrorQueued = false; return; }
       try{ await NX.native.invoke('save_workspace', { data: JSON.stringify(Store.dump()) }); }catch(e){}
     }
   };
-  const mirrorTimers = {};
-  function scheduleMirror(key){
+  /* The mirror payload is ALWAYS the whole store, so debouncing per key was
+     pure waste: writing N distinct keys scheduled N independent timers, each
+     serialising the entire store and pushing a full snapshot to a synchronous
+     native command. A 16-key burst wrote the workspace 17 times — tens of
+     megabytes of redundant I/O straight onto the UI thread, which is what
+     hangs the app (Windows AppHangB1). One coalescing timer instead. */
+  let mirrorTimer = null, mirrorBusy = false, mirrorQueued = false;
+
+  async function runMirror(){
+    mirrorTimer = null;
+    if(mirrorBusy){ mirrorQueued = true; return; }
+    mirrorBusy = true;
+    try{ await NX.native.invoke('save_workspace', { data: JSON.stringify(Store.dump()) }); }catch(e){}
+    mirrorBusy = false;
+    /* a write landed while we were serialising — take exactly one more pass */
+    if(mirrorQueued){ mirrorQueued = false; scheduleMirror(); }
+  }
+
+  function scheduleMirror(){
     if(!NX.native || !NX.native.available) return;
-    clearTimeout(mirrorTimers[key]);
-    mirrorTimers[key] = setTimeout(()=>{
-      try{ NX.native.invoke('save_workspace', { data: JSON.stringify(Store.dump()) }); }catch(e){}
-    }, 500);
+    clearTimeout(mirrorTimer);
+    mirrorTimer = setTimeout(runMirror, 500);
   }
   NX.store = Store;
   NX.restoreBackend = async function(){
