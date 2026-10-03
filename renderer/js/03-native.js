@@ -124,6 +124,8 @@ const native = {
 
   /* widget window (desktop) */
   async widgetToggle(show){ const r = await this.invoke('widget_toggle', { show: show === undefined ? null : !!show }); return r && r.ok ? r.data : null; },
+  /* resize the widget window between full and compact heights */
+  async widgetSize(mini){ const r = await this.invoke('widget_size', { mini: !!mini }); return !!(r && r.ok && r.data); },
   async loginDone(profileName){ const r = await this.invoke('login_done', { name: profileName }); return !!(r && r.ok && r.data); },
   async quitApp(){ await this.invoke('quit_app'); },
   async showMain(){ await this.invoke('show_main'); },

@@ -90,18 +90,25 @@ function attachWidgetEvents(root){
   // Mini mode toggle
   const miniBtn = root.querySelector('#wg-mini-toggle');
   if(miniBtn){
-    miniBtn.onclick = (e) => {
+    miniBtn.onclick = async (e) => {
       e.stopPropagation();
       isMini = !isMini;
       NX.store.set('widgetMini', isMini);
       const box = root.querySelector('#pebble-widget-box');
       if(box){
         box.classList.toggle('mini-mode', isMini);
-        root.querySelectorAll('.w-hide-mini').forEach(el => el.classList.toggle('w-hide-mini', isMini));
-        const miniBar = root.querySelector('.w-mini-bar');
-        if(miniBar) miniBar.classList.toggle('w-hide-mini', !isMini);
         miniBtn.textContent = isMini ? '▼' : '▲';
+        miniBtn.dataset.tip = isMini ? 'Expand widget' : 'Mini compact mode';
+        miniBtn.setAttribute('title', isMini ? 'Expand widget' : 'Mini compact mode');
+        miniBtn.setAttribute('aria-label', isMini ? 'Expand widget' : 'Mini compact mode');
       }
+      /* shrink/grow the actual window — without this the content shrank but
+         the 320x490 window stayed the same size, so mini mode looked broken */
+      try{
+        if(NX.native && NX.native.available && typeof NX.native.widgetSize === 'function'){
+          await NX.native.widgetSize(isMini);
+        }
+      }catch(err){}
     };
   }
 
@@ -316,6 +323,15 @@ NX.router.register('widget', {
     }
     root.innerHTML = widgetHTML();
     attachWidgetEvents(root);
+    /* if the widget was left in mini mode, shrink the window to match —
+       otherwise it opens at the full height showing a compact body */
+    if(isMini){
+      try{
+        if(NX.native && NX.native.available && typeof NX.native.widgetSize === 'function'){
+          NX.native.widgetSize(true);
+        }
+      }catch(e){}
+    }
   }
 });
 

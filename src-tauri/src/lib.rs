@@ -1291,6 +1291,53 @@ async fn widget_toggle(app: AppHandle, show: Option<bool>) -> Result<(), String>
 /// emit, and doing that from a sync command occupies the UI thread while the
 /// main window's webview needs it, so the handoff wedged and the login button
 /// stayed stuck on "Welcome, ..." forever.
+/// Resize the widget window between its full and compact heights.
+///
+/// Toggling mini mode only changed the contents, so the 320x490 window stayed
+/// the same size and looked like nothing had happened. Async for the same
+/// reason as `widget_toggle` — resizing must not occupy the UI thread.
+#[tauri::command(rename_all = "snake_case")]
+async fn widget_size(app: AppHandle, mini: bool) -> bool {
+    let Some(w) = app.get_webview_window("widget") else {
+        return false;
+    };
+    let mon = w.current_monitor().ok().flatten();
+    /* Monitor is not Copy, so read the size and scale in one pass rather than
+       consuming the Option twice. */
+    let (mw, mh, scale) = match mon {
+        Some(m) => {
+            let s = m.size();
+            (s.width as f64, s.height as f64, m.scale_factor().max(1.0))
+        }
+        None => (1920.0, 1080.0, 1.0),
+    };
+
+    // full: the authored 320x490. compact: just the header + mini bar.
+    let (w_px, h_px) = if mini { (320.0_f64, 96.0_f64) } else { (320.0_f64, 490.0_f64) };
+    let _ = w.set_size(tauri::PhysicalSize::new(w_px, h_px));
+
+    // keep it on screen after shrinking
+    if let Ok(pos) = w.outer_position() {
+        let size = w.outer_size().ok();
+        let (sw, sh) = (size.map(|s| s.width as f64).unwrap_or(w_px),
+                        size.map(|s| s.height as f64).unwrap_or(h_px));
+        let max_x = mw - sw - 12.0;
+        let max_y = mh - sh - 12.0;
+        let (mut x, mut y) = (pos.x as f64 / scale, pos.y as f64 / scale);
+        if x > max_x { x = max_x; }
+        if y > max_y { y = max_y; }
+        if x < 0.0 { x = 0.0; }
+        if y < 0.0 { y = 0.0; }
+        if x != pos.x as f64 / scale || y != pos.y as f64 / scale {
+            let _ = w.set_position(tauri::PhysicalPosition::new(
+                (x * scale) as i32,
+                (y * scale) as i32,
+            ));
+        }
+    }
+    true
+}
+
 #[tauri::command(rename_all = "snake_case")]
 async fn login_done(app: AppHandle, name: String) -> bool {
     // mark authed FIRST so the login window's close event doesn't quit the app
@@ -1481,7 +1528,7 @@ pub fn run() {
             read_clipboard, write_clipboard, read_clipboard_image,
             save_file, read_text_file, open_external, show_item, open_path, trash_path,
             app_paths, win_min, win_max, win_close, set_login_item, taskbar_progress, asr_record,
-            widget_toggle, login_done, quit_app, show_main,
+            widget_toggle, widget_size, login_done, quit_app, show_main,
             note_vault_status, note_write_file, note_read_file, note_delete_file, pick_text_files,
             drain_ext_queue, ext_status, usage_today,
             read_crash_logs, clear_crash_logs

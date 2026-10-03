@@ -99,13 +99,18 @@ function stagger(root){
     if(first) items = Array.prototype.slice.call(first.children);
   }
   if(items.length < 2) return;
-  items.slice(0,20).forEach((el, i)=>{
+  /* Kept deliberately tight. This ran 20 items at 46ms each, so the last card
+     did not appear for ~900ms and every tab change felt like it was buffering.
+     A short, small cascade reads as polish instead of latency, and it is
+     skipped entirely when the user has asked for reduced motion. */
+  const MAX = 8, STEP = 24;
+  items.slice(0, MAX).forEach((el, i)=>{
     if(el.classList.contains('nx-stagger')) return;
     el.classList.add('nx-stagger');
-    el.style.animationDelay = Math.round(i * 46) + 'ms';
+    el.style.animationDelay = Math.round(i * STEP) + 'ms';
     const done = ()=>{ el.classList.remove('nx-stagger'); el.style.animationDelay=''; };
     el.addEventListener('animationend', done, { once:true });
-    setTimeout(done, 1400 + i*46);
+    setTimeout(done, 500 + i*STEP);
   });
 }
 

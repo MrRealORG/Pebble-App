@@ -930,6 +930,10 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     ]);
   }
 
+  /* The list is rendered in pages as the user scrolls. Rendering every note
+     at once cost ~1200 DOM nodes and made opening Notes visibly stutter; the
+     count line keeps it obvious that more exist below. */
+  const NOTE_PAGE = 40;
   function renderList(){
     const host = q('#nt-list', view);
     const f = filtered();
@@ -949,7 +953,10 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       return;
     }
 
-    f.forEach(n => {
+    const counter = h(`<div class="nt-list-count faint tiny" id="nt-list-count"></div>`);
+    host.appendChild(counter);
+
+    function noteCard(n){
       const el = h(`<div class="note-card ${n.id===curNoteId?'on':''}" draggable="true" data-id="${n.id}">
         <div class="nc-title">
           <span style="font-size:14px;margin-right:4px">${U.esc(n.icon || '📝')}</span>
@@ -979,9 +986,40 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         e.preventDefault();
         openNoteContextMenu(e, n);
       };
+      return el;
+    }
 
-      host.appendChild(el);
-    });
+    let shown = 0;
+    function updateCount(){
+      const total = f.length;
+      if(shown >= total){
+        counter.textContent = total > 1 ? `${total} notes` : '';
+      }else{
+        counter.textContent = `${shown} of ${total} notes — scroll for more`;
+      }
+    }
+    function fill(){
+      const slice = f.slice(shown, shown + NOTE_PAGE);
+      if(!slice.length) return;
+      slice.forEach(n => host.insertBefore(noteCard(n), counter.nextSibling));
+      shown += slice.length;
+      updateCount();
+    }
+    fill();
+
+    if(shown < f.length){
+      let pending = false;
+      const onScroll = () => {
+        if(pending || shown >= f.length) return;
+        pending = true;
+        requestAnimationFrame(()=>{
+          pending = false;
+          const remaining = host.scrollHeight - host.clientHeight - host.scrollTop;
+          if(remaining < 220) fill();
+        });
+      };
+      host.addEventListener('scroll', onScroll, { passive:true });
+    }
   }
 
   function loadEditor(){

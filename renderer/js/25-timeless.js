@@ -23,9 +23,44 @@ let appSearchQuery = '';
 /* ---------------- real icon engine ---------------- */
 const _iconCache = new Map();      // key -> html (<img>) or null
 
+/* Site icons.
+   The old source was Google's /s2/favicons endpoint, which has been
+   deprecated and shut down — every request 404s, so sites showed the letter
+   fallback and it looked like icons were "not detected". Try each source in
+   order and walk to the next on failure: the site's own /favicon.ico is the
+   most truthful and needs no third party, then DuckDuckGo's icon service as a
+   backstop for sites that ship no favicon. */
+const _favCache = new Map();
+function faviconSources(host){
+  const h = String(host || '').replace(/^www\./i, '');
+  if(!h || h.indexOf('.') < 0) return [];
+  return [
+    'https://' + h + '/favicon.ico',
+    'https://icons.duckduckgo.com/ip3/' + encodeURIComponent(h) + '.ico',
+    'https://icons.duckduckgo.com/ip3/' + encodeURIComponent(h) + '.png'
+  ];
+}
 function faviconHTML(host){
-  const url = 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(host) + '&sz=64';
-  return `<img class="ar-img" src="${url}" alt="" onerror="this.parentNode.textContent='${U.esc(host.slice(0,1).toUpperCase())}'">`;
+  const key = String(host || '').toLowerCase();
+  const letter = U.esc(String(host || '?').replace(/^www\./i, '').slice(0,1).toUpperCase());
+  if(_favCache.has(key)) return _favCache.get(key);
+  const sources = faviconSources(host);
+  if(!sources.length){
+    const html = `<span class="ar-ic" style="background:var(--surface-3);color:var(--ink-2)">${letter}</span>`;
+    _favCache.set(key, html);
+    return html;
+  }
+  /* walk the chain; each error swaps in the next source, and the last one
+     falls back to the letter avatar so a cell is never left empty */
+  const chain = sources.map((src, i) =>
+    'this.onerror=null;' +
+    (i + 1 < sources.length
+      ? "this.onerror=function(){this.src='" + sources[i+1] + "'}"
+      : "this.onerror=function(){var p=this.parentNode;p.textContent='" + letter + "'}")
+  ).join(';') + ';';
+  const html = `<img class="ar-img" loading="lazy" referrerpolicy="no-referrer" src="${sources[0]}" alt="" onerror="${chain.replace(/"/g, '&quot;')}">`;
+  _favCache.set(key, html);
+  return html;
 }
 
 function iconHTML(key, rec){
