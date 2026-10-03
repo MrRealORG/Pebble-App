@@ -1506,14 +1506,31 @@ async fn login_done(app: AppHandle, name: String) -> bool {
         let _ = main.set_focus();
         let _ = main.emit("profile-ready", name);
     }
-    let app_handle = app.clone();
+let app_handle = app.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(150));
+        // Give the main window time to subscribe before the login window is
+        // torn down. 150ms was not always enough on a cold start, which is
+        // why the profile sometimes arrived as "You".
+        std::thread::sleep(Duration::from_millis(400));
         if let Some(login) = app_handle.get_webview_window("login") {
             let _ = login.close();
         }
     });
     true
+}
+
+/// Read a boolean out of the workspace document the renderer wrote. Used for
+/// `ui:skipLogin` so Rust can decide whether to show the login window at all.
+fn workspace_bool(key: &str) -> bool {
+    read_doc(&workspace_file())
+        .and_then(|d| d.get(key).cloned())
+        .and_then(|v| match v {
+            serde_json::Value::Bool(b) => Some(b),
+            // the renderer stores { on: true, name } rather than a bare bool
+            serde_json::Value::Object(ref o) => o.get("on").and_then(|x| x.as_bool()),
+            _ => None,
+        })
+        .unwrap_or(false)
 }
 
 #[tauri::command]
@@ -1714,10 +1731,28 @@ pub fn run() {
             build_main_window(app)?;
             ext_bridge::set_app(app.handle().clone());
 
-            // login window on first run / when enabled (default on).
+// login window on first run / when enabled (default on).
             // Closing the login window WITHOUT signing in quits the app
             // (see on_window_event) — no more "closed it and the app opened again".
-            if local_setting_bool("loginAtStart", true) {
+            //
+            // "Don't ask again on this PC" skips it, but ONLY when no PIN is
+            // set. With a PIN the user explicitly asked to be challenged on
+            // every launch, and honouring remember-me there would silently
+            // remove the lock they chose.
+            let has_pin = read_doc(&workspace_file())
+                .and_then(|d| d.get("auth").cloned())
+                .map(|a| a.get("pinHash").and_then(|h| h.as_str()).map(|s| !s.is_empty()).unwrap_or(false))
+                .unwrap_or(false);
+            let skip = workspace_bool("ui:skipLogin") && !has_pin;
+
+            if(skip){
+                // straight to the workspace; the main window is already up
+                AUTHED.store(true, Ordering::Relaxed);
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.show();
+                    let _ = main.set_focus();
+                }
+            } else if local_setting_bool("loginAtStart", true) {
                 build_login_window(app)?;
             } else {
                 AUTHED.store(true, Ordering::Relaxed);

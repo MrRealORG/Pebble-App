@@ -1,0 +1,169 @@
+/* ============================================================
+   PebbleX — 18-responsive.css
+   One place for "make it fit".
+
+   WHY A DEDICATED LAYER
+     Fit was being handled ad hoc: a max-width:1100px block here, a
+     minmax() tweak there, and nothing at all for the two cases that broke
+     most often — a SHORT window (the sidebar clipped its own footer) and
+     an ULTRAWIDE one (cards stretched to 2500px and text lines became
+     unreadable). Breakpoints were also all width-based, so a 1280x720
+     window behaved nothing like a 1280x1600 one even though both are
+     "1280 wide".
+
+   THE RULES
+     1. Nothing may cause horizontal overflow of the window. If a grid
+        cannot fit, it wraps or scrolls — it never pushes.
+     2. Height is a first-class constraint. Short windows get tighter
+        padding and the sidebar scrolls rather than clipping.
+     3. Very wide windows get a max content width. Full-bleed cards on a
+        21:9 display are not a feature.
+     4. Aspect ratio is checked explicitly, because "narrow" and "short"
+        are different problems and a width query cannot tell them apart.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   1. SAFETY NET
+   A grid child with long unbroken content (a URL, a file name, a
+   40-character app key) is the usual cause of a stray horizontal
+   scrollbar. min-width:0 lets it shrink; the ellipsis rules below
+   make the truncation readable.
+   ------------------------------------------------------------ */
+.page, .tl-col, .dash-grid > *, .stat-strip > *, .notes-layout > *{min-width:0}
+.card, .stat, .app-row, .side-user{min-width:0}
+h1, h2, h3, .c-title, .s-num, .ls-name{overflow-wrap:anywhere}
+
+/* Nothing should ever scroll the document sideways. The shell scrolls
+   .view-host, which is the intended scroll container. */
+html, body{overflow-x:hidden;max-width:100%}
+
+/* ------------------------------------------------------------
+   2. WIDTH
+   ------------------------------------------------------------ */
+
+/* Below this the 244px rail plus a 340px side column stops fitting, so
+   the rail narrows first and the side column moves under the main one. */
+@media (max-width:1180px){
+  :root{--sidebar-w:214px}
+  .tl-grid{grid-template-columns:1fr 300px}
+}
+@media (max-width:1000px){
+  :root{--sidebar-w:196px;--sidebar-mini:60px}
+  /* the side column would leave the main one ~500px, which is worse than
+     stacking it underneath */
+  .tl-grid,.dash-grid,.dash-row2,.notes-layout{grid-template-columns:1fr}
+  .view-host{padding:4px 14px 20px 16px}
+}
+@media (max-width:820px){
+  :root{--sidebar-w:180px}
+  .stat-strip{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+  .stat-strip .stat{padding:12px 12px;gap:9px}
+  .stat .s-num{font-size:19px}
+  /* a folded category is the default at this width: six groups of rows
+     is more scrolling than a 180px rail should ask for */
+  .nav-label .nl-count{display:none}
+}
+@media (max-width:680px){
+  :root{--sidebar-w:64px}
+  /* the rail auto-collapses: below this there is no room for names, and a
+     half-legible truncated label is worse than an icon */
+  .sidebar{width:var(--sidebar-mini)}
+  .sidebar .brand-name,.sidebar .ni-name,.sidebar .ni-badge,
+  .sidebar .su-txt,.sidebar .nl-text,.sidebar .scale-readout{display:none}
+  .sidebar .nav-item{justify-content:center;padding:0;gap:0}
+  .sidebar .nav-label{justify-content:center;padding:2px 0 6px}
+  .sidebar .nav-label::after{content:"•••";font-size:9px}
+  .sidebar .nav-item .ni-grip,.sidebar .nl-eye{display:none}
+  .sidebar .nav-items{grid-template-rows:1fr !important}
+  .stat-strip{grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+}
+
+/* ------------------------------------------------------------
+   3. HEIGHT — the case width queries cannot see
+   A 1366x768 laptop and a 1366x1366 square window have identical widths
+   but completely different vertical budgets.
+   ------------------------------------------------------------ */
+@media (max-height:820px){
+  .page{gap:12px}
+  .stat-strip .stat{padding:12px 14px}
+  .view-host{padding-bottom:16px}
+  /* reclaim vertical space in the rail */
+  .nav-group{margin-top:7px}
+  .brand{padding:4px 8px 10px}
+  .sidebar .side-foot{padding-top:8px}
+}
+@media (max-height:680px){
+  .page{gap:10px}
+  .stat-strip .stat{padding:10px 12px}
+  .stat .s-num{font-size:19px}
+  .card{padding:12px}
+  .scale-row{padding:2px 6px 6px}
+}
+@media (max-height:560px){
+  /* very short (a window snapped to a quarter of the screen): the sidebar
+     scrolls, which it already does, and the fold controls become the only
+     practical way through the list */
+  .nav-label{padding-bottom:4px}
+  .nav-item{height:34px}
+  .sidebar .side-user{padding:5px 8px}
+}
+
+/* ------------------------------------------------------------
+   4. ASPECT RATIO
+   ------------------------------------------------------------ */
+
+/* Square-ish (1:1 and taller). Height is plentiful, width is not, so the
+   grids get narrower columns and the side column stacks. */
+@media (max-aspect-ratio:1/1){
+  .tl-grid,.dash-grid,.dash-row2,.notes-layout{grid-template-columns:1fr}
+  .stat-strip{grid-template-columns:repeat(auto-fit,minmax(158px,1fr))}
+}
+
+/* Ultrawide (21:9 and wider). Cards stretched across 2500px put a number
+   in one corner and its label in another. Cap the measure instead. */
+@media (min-aspect-ratio:2/1){
+  .view-host{padding-left:32px;padding-right:32px}
+  .view-host > *{max-width:1680px;margin-left:auto;margin-right:auto}
+  /* with room to spare, the side column can grow rather than the main one
+     stretching */
+  .tl-grid{grid-template-columns:1fr minmax(340px,420px)}
+}
+@media (min-aspect-ratio:21/9){
+  .view-host > *{max-width:1500px}
+  :root{--sidebar-w:268px}
+}
+
+/* ------------------------------------------------------------
+   5. ZOOMED UI
+   56-sidebar.js scales the app with `zoom` on the root element. Media
+   queries still evaluate against the unzoomed viewport, so a 125% UI on a
+   1280px window lays out like a ~1024px window and needs the tighter
+   spacing above. `zoom` does not change these numbers, so the only
+   honest fix is to loosen the breakpoints' assumptions — which the width
+   and height queries already do. This block only covers the extremes.
+   ------------------------------------------------------------ */
+@media (max-width:900px){
+  .view-host{padding:4px 10px 18px 12px}
+  .page{gap:12px}
+  .card{padding:13px}
+  h1{font-size:19px}
+}
+
+/* ------------------------------------------------------------
+   6. PRINT-FRIENDLY FALLBACKS
+   Not print. Just: when the viewport is genuinely tiny, stop trying to
+   be clever and let things stack.
+   ------------------------------------------------------------ */
+@media (max-width:460px){
+  .stat-strip{grid-template-columns:1fr 1fr}
+  .stat-strip .stat + .stat{border-left:none}
+  .stat-strip .stat{border-top:1px solid var(--line)}
+}
+
+/* Respect the OS setting. Animations here are decorative (the fold, the
+   chevron), so dropping them costs nothing functionally. */
+@media (prefers-reduced-motion:reduce){
+  .nav-items{transition:none}
+  .nl-chev{transition:none}
+  *{animation-duration:.01ms !important;animation-iteration-count:1 !important}
+}

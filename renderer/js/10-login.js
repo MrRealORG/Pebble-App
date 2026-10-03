@@ -64,6 +64,11 @@ NX.router.register('login', {
         <button class="btn btn-green btn-sm" id="lg-resume">${icon('play')} Continue</button>
       </div>` : '';
 
+/* Remember-me: skip the name screen entirely next launch. A PIN still
+   gates it when one is set — this is convenience, not a security
+   decision, so it only ever applies when auth.pinHash is absent. */
+const skipNextTime = !auth || !auth.pinHash;
+
     app.innerHTML = `
       <div class="login-wrap">
         <div class="login-card">
@@ -81,6 +86,7 @@ NX.router.register('login', {
                 <input class="input" id="lg-pin" type="password" inputmode="numeric" maxlength="12" placeholder="••••" autocomplete="current-password">
               </div>
               <button class="btn btn-green btn-lg btn-full" id="lg-go">${icon('logout')} Unlock PebbleX</button>
+              <label class="lg-remember"><input type="checkbox" id="lg-skip" checked><span>Don't ask again on this PC</span></label>
             ` : `
               <div class="field"><label>Your name</label>
                 <input class="input" id="lg-name" maxlength="24" placeholder="e.g. Alex" value="${U.esc(profile.name==='You'?'':profile.name)}" autocomplete="name">
@@ -88,11 +94,11 @@ NX.router.register('login', {
               <div class="field"><label>Pick your avatar</label>
                 <div class="avatar-pick">${COLORS.map((c,i)=>`<div class="av-opt ${c===avatar?'on':''}" data-c="${c}" style="background:${c}">${U.initials(profile.name!=='You'?profile.name:'Me')}</div>`).join('')}</div>
               </div>
-              <div class="field"><label>PIN (optional — locks your workspace)</label>
-                <input class="input" id="lg-pin" type="password" inputmode="numeric" maxlength="12" placeholder="4+ digits, or leave empty">
+              <div class="field"><label>PIN <span class="lg-opt">(optional — locks your workspace)</span></label>
+                <input class="input" id="lg-pin" type="password" inputmode="numeric" maxlength="12" placeholder="Leave empty to skip next time">
               </div>
               <button class="btn btn-green btn-lg btn-full" id="lg-go">${NX.icon('rocket')} Open PebbleX</button>
-              <div class="login-row"><span>Everything is stored locally &amp; private.</span></div>
+              <div class="login-row"><span>Everything is stored locally &amp; private. Leave the PIN empty and we'll never ask again.</span></div>
             `}
           </div>
           <div class="login-foot">PebbleX v0.1 · Chat · Notes · Timeless · Real AI · Prompts · Games</div>
@@ -110,43 +116,87 @@ NX.router.register('login', {
       };
     });
 
-    function finish(name){
-      const pin = q('#lg-pin', app) ? q('#lg-pin', app).value.trim() : '';
+    /* Everything after this is guarded: an exception here used to leave the
+       button disabled and the user staring at a frozen login window. */
+    let settling = false;
+    async function finish(name){
+      if(settling) return;
+      const pinEl = q('#lg-pin', app);
+      const pin = pinEl ? pinEl.value.trim() : '';
       const p = NX.store.get('profile', NX.defaults.profile);
       p.name = name; p.avatar = avatar;
       NX.store.set('profile', p);
+
+      /* PIN is checked BEFORE the session is written and before the button
+         is disabled. The old order set profile + session first, so a wrong
+         PIN still created a session — and the user could then never unlock
+         because the app thought it was already signed in. */
       if(auth && auth.pinHash){
-        if(!U.verifyPin(pin, auth.pinHash)){ showErr('Wrong PIN — try again.'); NX.sfx.play('err'); return; }
+        if(!U.verifyPin(pin, auth.pinHash)){
+          showErr('Wrong PIN — try again.');
+          try{ NX.sfx.play('err'); }catch(e){}
+          if(pinEl){ pinEl.value = ''; pinEl.focus(); }
+          return false;
+        }
       } else if(pin){
-        if(pin.length < 4){ showErr('PIN needs at least 4 digits (or leave it empty).'); return; }
-        NX.store.set('auth', { pinHash: U.hashPin(pin) });
+        if(pin.length < 4){
+          showErr('PIN needs at least 4 digits — or leave it empty to skip next time.');
+          if(pinEl) pinEl.focus();
+          return false;
+        }
+        NX.store.set('auth', { pinHash: U.hashPin(pin), skip: false });
       }
+
+      /* Remember-me. An explicit choice on the unlock screen wins; with no
+         PIN set we default to remembering, because asking every launch for
+         no security benefit is the thing users actually complain about. */
+      const skipBox = q('#lg-skip', app);
+      const remember = skipBox ? skipBox.checked : skipNextTime;
+      NX.store.set('ui:skipLogin', remember ? { on:true, name } : { on:false, name });
+
+      settling = true;
       NX.store.set('session', { authed:true, at:Date.now() });
-      NX.sfx.play('login');
+      try{ NX.sfx.play('login'); }catch(e){}
+
       const btn = q('#lg-go', app);
-      if(btn){ btn.innerHTML = 'Welcome, ' + U.esc(name) + ' ✨'; btn.disabled = true; }
-      (async ()=>{
-        try {
-          if(NX.store && NX.store.flush) await NX.store.flush();
-        } catch(e){}
-        setTimeout(async ()=>{
-          if(NX.native.available && NX.native.mode === 'tauri'){
-            try {
-              await NX.native.loginDone(name);
-            } catch(e) {
-              console.error('loginDone error', e);
-            }
-          }
-          NX.router.go('dashboard');
-        }, 120);
-      })();
+      if(btn){
+        btn.innerHTML = 'Opening Pebble…';
+        btn.disabled = true;
+      }
+      const err = q('#lg-err', app);
+      if(err) err.classList.remove('show');
+
+      /* Push to disk BEFORE handing off. The main window boots its own
+         engines immediately and would otherwise restore a workspace with no
+         session in it. */
+      try{ if(NX.store && NX.store.flush) await NX.store.flush(); }catch(e){}
+
+      if(NX.native.available && NX.native.mode === 'tauri'){
+        try{
+          await NX.native.loginDone(name);
+          /* login_done shows the main window and closes this one. There is
+             nothing left to do here — navigating in this window used to race
+             the close and flash the login screen at the user. */
+          return true;
+        }catch(e){
+          console.error('loginDone error', e);
+          /* fall through: still try to land on the workspace in-window */
+        }
+      }
+
+      /* Web build, or the handoff failed — route locally. */
+      try{ location.hash = '#/dashboard'; }catch(e){ NX.router.go('dashboard'); }
+      return true;
     }
 
-    q('#lg-go', app).onclick = ()=>{
-      if(auth && auth.pinHash){ finish(profile.name); return; }
+    q('#lg-go', app).onclick = async ()=>{
+      if(auth && auth.pinHash){
+        await finish(profile.name);
+        return;
+      }
       const name = q('#lg-name', app).value.trim();
       if(!name){ showErr('Tell us your name — even a nickname works.'); return; }
-      finish(name);
+      await finish(name);
     };
     /* one-click continue for returning users */
     const rbtn = q('#lg-resume', app);

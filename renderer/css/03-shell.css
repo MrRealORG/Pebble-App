@@ -33,6 +33,20 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
 }
 .avatar-pick .av-opt.on{border-color:var(--ink);transform:scale(1.08)}
 .login-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--ink-2)}
+/* "Don't ask again" — a plain, quiet checkbox under the primary button.
+   It is the difference between a login that feels fine and one that gets
+   resented every single launch. */
+.lg-remember{
+  display:flex;align-items:center;gap:8px;justify-content:center;
+  margin-top:12px;cursor:pointer;user-select:none;
+  font-size:12px;color:var(--ink-3);font-weight:500;
+}
+.lg-remember input{
+  width:15px;height:15px;flex:none;cursor:pointer;
+  accent-color:var(--green);margin:0;
+}
+.lg-remember:hover{ color:var(--ink-2) }
+.lg-opt{ color:var(--ink-3); font-weight:500 }
 .login-err{
   background:var(--red-soft);color:var(--red);font-size:12.5px;font-weight:600;
   border-radius:10px;padding:8px 12px;display:none;animation:nx-shake .4s ease;
@@ -62,9 +76,29 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
 .sidebar{
   width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;
   padding:14px 10px 12px;gap:2px;transition:width .22s ease;overflow:hidden;
-  background:var(--bg);
+  background:var(--bg);min-height:0;
 }
 .sidebar.mini{width:var(--sidebar-mini)}
+
+/* The nav used to be a direct child of the rail with `overflow:hidden` on the
+   rail itself, so once every module was enabled the last category and the
+   whole footer were clipped off the bottom — Settings and the profile block
+   were simply unreachable on a short window. Only the nav scrolls now; the
+   brand and the footer stay put. */
+.nav-scroll{
+  flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;
+  overscroll-behavior:contain;scrollbar-width:thin;
+  scrollbar-color:var(--line-strong) transparent;
+  padding-right:2px;margin-right:-2px;
+}
+.nav-scroll::-webkit-scrollbar{width:8px}
+.nav-scroll::-webkit-scrollbar-track{background:transparent}
+.nav-scroll::-webkit-scrollbar-thumb{
+  background:var(--line-strong);border-radius:99px;
+  border:2px solid transparent;background-clip:content-box;
+}
+.nav-scroll::-webkit-scrollbar-thumb:hover{background:var(--ink-3);background-clip:content-box}
+
 
 /* Collapsed rail. The brand wordmark and the pin markers had no mini rules, so
    they kept their full width and spilled out of the 68px rail — the collapsed
@@ -97,13 +131,77 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
 .sidebar.mini .collapse-btn svg{transform:rotate(180deg)}
 
 .nav-group{margin-top:10px}
-.nav-label{
-  padding:2px 12px 6px;font-size:10.5px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.07em;color:var(--ink-3);white-space:nowrap;
+
+/* --- category header: fold toggle + hide button --- */
+.nav-label-row{
+  display:flex;align-items:center;gap:2px;padding-right:2px;
 }
-.sidebar.mini .nav-label{text-align:center;padding:2px 0 6px;letter-spacing:0}
-.sidebar.mini .nav-label span{display:none}
+.nav-label{
+  flex:1;min-width:0;display:flex;align-items:center;gap:6px;
+  padding:2px 6px 6px 12px;font-size:10.5px;font-weight:700;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--ink-3);white-space:nowrap;
+  background:none;border:0;cursor:pointer;text-align:left;border-radius:8px;
+  transition:color .15s;
+}
+.nav-label:hover{color:var(--ink-2)}
+.nl-chev{display:flex;flex:none;transition:transform .26s cubic-bezier(.32,.72,0,1)}
+.nl-chev svg{width:13px;height:13px}
+.nav-group.collapsed .nl-chev{transform:rotate(-90deg)}
+.nl-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.nl-count{
+  font-size:9.5px;font-weight:800;color:var(--ink-3);background:var(--surface-2);
+  border-radius:99px;padding:1px 5px;letter-spacing:0;
+}
+.nl-count:empty{display:none}
+.nl-eye{
+  flex:none;width:22px;height:22px;border:0;border-radius:7px;background:none;
+  color:var(--ink-3);display:flex;align-items:center;justify-content:center;
+  cursor:pointer;opacity:0;transition:opacity .15s,background .15s,color .15s;
+}
+.nav-group:hover .nl-eye,.nl-eye:focus-visible{opacity:1}
+.nl-eye:hover{background:var(--surface-3);color:var(--ink)}
+.nl-eye svg{width:13px;height:13px}
+
+/* --- the fold itself ---
+   grid-template-rows 0fr -> 1fr animates to the content's real height with
+   no JS measurement and no `height:auto` keyframe hack, and it can be
+   interrupted mid-flight, which is what makes it feel like iOS rather than
+   like a slide. */
+.nav-items{
+  display:grid;grid-template-rows:1fr;
+  transition:grid-template-rows .3s cubic-bezier(.32,.72,0,1);
+}
+.nav-items-in{min-height:0;overflow:hidden}
+.nav-group.collapsed .nav-items{grid-template-rows:0fr}
+.nav-group.collapsed .nav-items-in{overflow:hidden}
+
+/* --- drag and drop --- */
+.nav-item{cursor:grab}
+.nav-item.dragging{opacity:.42;cursor:grabbing}
+.nav-item .ni-grip{
+  width:0;flex:none;display:flex;align-items:center;justify-content:center;
+  color:var(--ink-3);opacity:0;overflow:hidden;
+  transition:width .16s ease,opacity .16s ease;
+}
+.nav-item:hover .ni-grip{width:13px;opacity:.7}
+.nav-item .ni-grip svg{width:13px;height:13px}
+.nav-item.drop-before::before{
+  content:"";position:absolute;left:8px;right:8px;top:-2px;height:2px;
+  background:var(--green);border-radius:2px;box-shadow:0 0 0 3px var(--green-ring);
+}
+.nav-group.drop-on .nav-items-in{
+  background:var(--green-soft);border-radius:12px;
+  box-shadow:inset 0 0 0 1px var(--green-ring);
+}
+
+/* --- rail (mini) mode: no folding UI, no drag handles --- */
+.sidebar.mini .nl-eye,.sidebar.mini .nav-item .ni-grip{display:none}
+.sidebar.mini .nav-items{grid-template-rows:1fr !important}
+.sidebar.mini .nav-label-row{padding:0}
+.sidebar.mini .nav-label{padding:2px 0 6px;justify-content:center;letter-spacing:0}
+.sidebar.mini .nav-label .nl-text,.sidebar.mini .nav-label .nl-chev,.sidebar.mini .nl-count{display:none}
 .sidebar.mini .nav-label::after{content:"•••";font-size:9px}
+
 
 .nav-item{
   display:flex;align-items:center;gap:11px;width:100%;height:40px;padding:0 12px;
@@ -125,6 +223,19 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
 .sidebar.mini .nav-item{justify-content:center;padding:0;gap:0}
 .sidebar.mini .nav-item .ni-name,.sidebar.mini .nav-item .ni-badge{display:none}
 
+/* --- UI scale control in the footer --- */
+.scale-row{
+  display:flex;align-items:center;gap:4px;padding:4px 6px 8px;margin-bottom:2px;
+}
+.scale-row .icon-btn{width:26px;height:26px;border-radius:8px}
+.scale-readout{
+  flex:1;text-align:center;font-size:11px;font-weight:700;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;letter-spacing:.01em;
+}
+.sidebar.mini .scale-readout{display:none}
+.sidebar.mini .scale-row{justify-content:center;padding:4px 0 8px;gap:2px}
+.sidebar.mini .scale-row [data-scale="reset"]{display:none}
+
 .sidebar .side-foot{margin-top:auto;display:flex;flex-direction:column;gap:2px;border-top:1px solid var(--line);padding-top:10px}
 .side-user{
   display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;cursor:pointer;
@@ -136,10 +247,11 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
 .sidebar.mini .side-user .su-txt{display:none}
 
 /* mini tooltip for collapsed sidebar */
+.sidebar.mini .nav-item{position:relative}
 .sidebar.mini .nav-item:hover::after{
-  content:attr(data-name);position:fixed;left:calc(var(--sidebar-mini) + 8px);
+  content:attr(data-name);position:absolute;left:calc(100% + 8px);top:50%;transform:translateY(-50%);
   background:var(--ink);color:var(--bg);font-size:12px;font-weight:600;
-  padding:6px 10px;border-radius:9px;z-index:1200;box-shadow:var(--sh-pop);
+  padding:5px 9px;border-radius:8px;z-index:1200;box-shadow:var(--sh-pop);
   white-space:nowrap;pointer-events:none;
 }
 
@@ -213,11 +325,17 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
    two lines. Tiles now wrap onto a second row instead of deforming. */
 .stat-strip{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(196px,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(186px,1fr));
   align-items:stretch;
 }
 .stat-strip .stat{
   display:flex;align-items:center;gap:12px;padding:16px 18px;min-width:0;
+  /* Wrap INSIDE the tile. The trailing pill/chip used to be flex:none with
+     margin-left:auto, so on a narrow cell it either crushed the label to one
+     letter per line or pushed the whole strip past the window edge — the
+     "Alive" chip in the Timeless header was clipped off-screen. Letting it
+     drop to its own line keeps the number readable and never overflows. */
+  flex-wrap:wrap;row-gap:6px;
 }
 .stat-strip .stat + .stat{border-left:1px solid var(--line)}
 /* keep each number on one line; the tile grows or the row wraps instead */
@@ -225,10 +343,12 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
 .stat .s-label{font-size:12.5px;color:var(--ink-2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* the trailing pill is the first thing to give up room when space is tight */
 .stat-strip .stat > .pill,.stat-strip .stat > .delta,.stat-strip .stat > .tl-streak-chip{
-  white-space:nowrap;flex:none;max-width:96px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;flex:none;max-width:100%;overflow:hidden;text-overflow:ellipsis;
 }
+/* once it has wrapped to its own line it can use the full width */
+.stat-strip .stat > .pill,.stat-strip .stat > .delta,.stat-strip .stat > .tl-streak-chip{margin-left:auto}
 @media (max-width:1240px){
-  .stat-strip{grid-template-columns:repeat(auto-fit,minmax(172px,1fr))}
+  .stat-strip{grid-template-columns:repeat(auto-fit,minmax(168px,1fr))}
   .stat-strip .stat{padding:13px 14px;gap:10px}
 }
 .stat .s-label{font-size:12.5px;color:var(--ink-2);font-weight:500;white-space:nowrap}

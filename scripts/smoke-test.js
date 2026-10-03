@@ -1,5 +1,5 @@
 /**
- * NexaDesk smoke test — boots the real bundle in jsdom, renders every
+ * PebbleX smoke test — boots the real bundle in jsdom, renders every
  * module and every sub-view, exercises the AI engine, store and editor.
  * Exits non-zero if anything throws.
  */
@@ -104,7 +104,12 @@ function okAsync(name, fn) { return fn().catch(e => { failures.push(`${name}: ${
   });
 
   /* ---------------- every module renders ---------------- */
-  const modules = NX.router.all();
+  /* NX.router has no all() — it keeps a plain `routes` map keyed by name.
+     Calling all() here threw `NX.router.all is not a function` and took the
+     whole harness down before a single module was checked, so every run had
+     reported nothing at all. */
+  const modules = Object.keys(NX.router.routes || {}).map(id => ({ id }));
+  if (!modules.length) throw new Error('no routes registered');
   console.log(`  Modules registered ........... ${modules.length}`);
   for (const m of modules) {
     ok(`render #${m.id}`, () => {
@@ -121,13 +126,13 @@ function okAsync(name, fn) { return fn().catch(e => { failures.push(`${name}: ${
     ['tasks table', () => { window.location.hash = '#/tasks?view=table'; NX.router.render(); }],
     ['tasks calendar', () => { window.location.hash = '#/tasks?view=calendar'; NX.router.render(); }],
     ['tasks smart', () => { window.location.hash = '#/tasks?view=smart'; NX.router.render(); }],
-    ['notes database', () => { NX.localStore.set('nexadesk.notesView', 'db'); window.location.hash = '#/notes'; NX.router.render(); }],
-    ['notes markdown', () => { NX.localStore.set('nexadesk.notesView', 'md'); NX.router.render(); }],
-    ['calendar week', () => { NX.localStore.set('nexadesk.calMode', 'week'); window.location.hash = '#/calendar'; NX.router.render(); }],
-    ['calendar day', () => { NX.localStore.set('nexadesk.calMode', 'day'); NX.router.render(); }],
-    ['calendar agenda', () => { NX.localStore.set('nexadesk.calMode', 'agenda'); NX.router.render(); }],
-    ['calendar freebusy', () => { NX.localStore.set('nexadesk.calMode', 'freebusy'); NX.router.render(); }],
-    ['calendar month', () => { NX.localStore.set('nexadesk.calMode', 'month'); NX.router.render(); }],
+    ['notes database', () => { NX.localStore.set('pebblex.notesView', 'db'); window.location.hash = '#/notes'; NX.router.render(); }],
+    ['notes markdown', () => { NX.localStore.set('pebblex.notesView', 'md'); NX.router.render(); }],
+    ['calendar week', () => { NX.localStore.set('pebblex.calMode', 'week'); window.location.hash = '#/calendar'; NX.router.render(); }],
+    ['calendar day', () => { NX.localStore.set('pebblex.calMode', 'day'); NX.router.render(); }],
+    ['calendar agenda', () => { NX.localStore.set('pebblex.calMode', 'agenda'); NX.router.render(); }],
+    ['calendar freebusy', () => { NX.localStore.set('pebblex.calMode', 'freebusy'); NX.router.render(); }],
+    ['calendar month', () => { NX.localStore.set('pebblex.calMode', 'month'); NX.router.render(); }],
     ['habits heatmap', () => { window.location.hash = '#/habits?view=heatmap'; NX.router.render(); }],
     ['habits stats', () => { window.location.hash = '#/habits?view=stats'; NX.router.render(); }],
     ['habits all', () => { window.location.hash = '#/habits?view=all'; NX.router.render(); }],
@@ -170,7 +175,7 @@ function okAsync(name, fn) { return fn().catch(e => { failures.push(`${name}: ${
     if (!s || s.length < 10) throw new Error('empty summary');
   });
   ok('keywords', () => {
-    const k = NX.aiEngine.keywords('NexaDesk is a workspace. NexaDesk has notes. NexaDesk has tasks. The workspace is local.');
+    const k = NX.aiEngine.keywords('PebbleX is a workspace. PebbleX has notes. PebbleX has tasks. The workspace is local.');
     if (!k.length) throw new Error('no keywords');
   });
   ok('parseWhen: tomorrow 3pm', () => {
@@ -367,7 +372,7 @@ function okAsync(name, fn) { return fn().catch(e => { failures.push(`${name}: ${
     if (!btns.some(b => /Expand/.test(b.textContent))) throw new Error('Expand button missing');
   });
   ok('notes: slash menu opens from the toolbar', () => {
-    NX.localStore.set('nexadesk.notesView', 'doc');
+    NX.localStore.set('pebblex.notesView', 'doc');
     const n = NX.store.notes.all().find(x => (x.blocks || []).length);
     window.location.hash = '#/notes/' + n.id;
     NX.router.render();
@@ -389,10 +394,10 @@ function okAsync(name, fn) { return fn().catch(e => { failures.push(`${name}: ${
     // back to document view
     const backBtn = Array.from(document.querySelectorAll('#view button.btn.xs.ghost')).find(b => /Back to document/.test(b.textContent));
     if (backBtn) backBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-    else NX.localStore.set('nexadesk.notesView', 'doc');
+    else NX.localStore.set('pebblex.notesView', 'doc');
   });
   ok('notes: markdown source view round-trips', () => {
-    NX.localStore.set('nexadesk.notesView', 'doc');
+    NX.localStore.set('pebblex.notesView', 'doc');
     // pick a note that actually has a heading + a table so the conversion is exercised
     const n = NX.store.notes.all().find(x => (x.blocks || []).some(b => /^h[123]$/.test(b.type)))
            || NX.store.notes.all().find(x => (x.blocks || []).length);
@@ -417,7 +422,7 @@ function okAsync(name, fn) { return fn().catch(e => { failures.push(`${name}: ${
     if (!back.length) throw new Error('markdown did not parse back into blocks');
     const docBtn = Array.from(document.querySelectorAll('#view .seg button')).find(b => /^Doc$/.test(b.textContent.trim()));
     if (docBtn) docBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
-    NX.localStore.set('nexadesk.notesView', 'doc');
+    NX.localStore.set('pebblex.notesView', 'doc');
   });
 
   /* ---------------- v8: sfx, vault, shots, bugs, db, updater ---------------- */

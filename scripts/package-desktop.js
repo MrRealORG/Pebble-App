@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * NexaDesk — desktop packaging
+ * PebbleX — desktop packaging
  *
  *   node scripts/package-desktop.js            build app.asar into dist/desktop/
  *   node scripts/package-desktop.js --with-runtime <electronDir>
@@ -8,7 +8,7 @@
  *
  * Produces:
  *   dist/desktop/app.asar                      the packaged application
- *   dist/desktop/NexaDesk-linux-x64/           runnable Linux app (if --with-runtime)
+ *   dist/desktop/PebbleX-linux-x64/           runnable Linux app (if --with-runtime)
  *   dist/desktop/build-windows.bat             one-click Windows build
  *   dist/desktop/build-mac.sh                  one-click macOS build
  *   dist/desktop/build-linux.sh                one-click Linux build
@@ -30,7 +30,7 @@ function rmrf(p) { fs.rmSync(p, { recursive: true, force: true }); }
 function kb(n) { return (n / 1024).toFixed(1) + ' KB'; }
 function mb(n) { return (n / 1048576).toFixed(1) + ' MB'; }
 
-console.log('\n  NexaDesk — desktop packaging\n');
+console.log('\n  PebbleX — desktop packaging\n');
 
 /* ---------- 1. make sure the renderer bundle is current ---------- */
 execSync('node scripts/build.js', { cwd: ROOT, stdio: 'inherit' });
@@ -69,7 +69,7 @@ asar.createPackageWithOptions(stage, asarPath, { unpack: '**/assets/icons/*.png'
 
     /* ---------- 4. optional ready-to-run runtime ---------- */
     if (runtimeDir && fs.existsSync(runtimeDir)) {
-      const appDir = path.join(OUT, 'NexaDesk-linux-x64');
+      const appDir = path.join(OUT, 'PebbleX-linux-x64');
       rmrf(appDir);
       console.log('  copying Electron runtime  ' + mb(dirSize(runtimeDir)) + ' …');
       copyDir(runtimeDir, appDir);
@@ -78,10 +78,10 @@ asar.createPackageWithOptions(stage, asarPath, { unpack: '**/assets/icons/*.png'
       try { fs.chmodSync(path.join(appDir, 'electron'), 0o755); } catch (e) {}
       try { fs.chmodSync(path.join(appDir, 'chrome-sandbox'), 0o4755); } catch (e) {}
       fs.writeFileSync(path.join(appDir, 'run.sh'),
-        '#!/usr/bin/env bash\n# Launch NexaDesk. If it fails to start, install the GUI libraries listed in README.\n' +
+        '#!/usr/bin/env bash\n# Launch PebbleX. If it fails to start, install the GUI libraries listed in README.\n' +
         'cd "$(dirname "$0")"\nexec ./electron --no-sandbox "$@"\n');
       try { fs.chmodSync(path.join(appDir, 'run.sh'), 0o755); } catch (e) {}
-      console.log('  NexaDesk-linux-x64/ ..... ' + mb(dirSize(appDir)) + '  (run ./run.sh)');
+      console.log('  PebbleX-linux-x64/ ..... ' + mb(dirSize(appDir)) + '  (run ./run.sh)');
     } else if (runtimeDir) {
       console.log('  ! runtime dir not found: ' + runtimeDir);
     }
@@ -89,11 +89,11 @@ asar.createPackageWithOptions(stage, asarPath, { unpack: '**/assets/icons/*.png'
     /* ---------- 5. one-click build scripts ---------- */
     fs.writeFileSync(path.join(OUT, 'build-windows.bat'), `@echo off
 REM ============================================================
-REM  NexaDesk - build the Windows installer + portable exe
+REM  PebbleX - build the Windows installer + portable exe
 REM  Requires: Node.js 18+  (https://nodejs.org)
 REM ============================================================
 echo.
-echo   Building NexaDesk for Windows...
+echo   Building PebbleX for Windows...
 echo.
 cd /d "%~dp0..\\.."
 call npm install
@@ -102,8 +102,8 @@ call npm run dist:win
 if errorlevel 1 goto :err
 echo.
 echo   Done. Installers are in:  release\\
-echo     NexaDesk Setup x.x.x.exe   (installer)
-echo     NexaDesk x.x.x.exe         (portable)
+echo     PebbleX Setup x.x.x.exe   (installer)
+echo     PebbleX x.x.x.exe         (portable)
 echo.
 pause
 exit /b 0
@@ -116,13 +116,13 @@ exit /b 1
 
     fs.writeFileSync(path.join(OUT, 'build-mac.sh'), `#!/usr/bin/env bash
 # ============================================================
-#  NexaDesk - build the macOS .dmg (Intel + Apple Silicon)
+#  PebbleX - build the macOS .dmg (Intel + Apple Silicon)
 #  Requires: Node.js 18+   Run this ON a Mac.
 # ============================================================
 set -e
 cd "$(dirname "$0")/../.."
 echo
-echo "  Building NexaDesk for macOS..."
+echo "  Building PebbleX for macOS..."
 echo
 npm install
 npm run dist:mac
@@ -135,20 +135,20 @@ echo
 
     fs.writeFileSync(path.join(OUT, 'build-linux.sh'), `#!/usr/bin/env bash
 # ============================================================
-#  NexaDesk - build the Linux AppImage + .deb
+#  PebbleX - build the Linux AppImage + .deb
 #  Requires: Node.js 18+
 # ============================================================
 set -e
 cd "$(dirname "$0")/../.."
 echo
-echo "  Building NexaDesk for Linux..."
+echo "  Building PebbleX for Linux..."
 echo
 npm install
 npm run dist:linux
 echo
 echo "  Done. Artifacts are in:  release/"
-echo "    NexaDesk-x.x.x.AppImage   (chmod +x, then run)"
-echo "    nexadesk_x.x.x_amd64.deb  (sudo apt install ./that.deb)"
+echo "    PebbleX-x.x.x.AppImage   (chmod +x, then run)"
+echo "    PebbleX_x.x.x_amd64.deb  (sudo apt install ./that.deb)"
 echo
 `);
     try { fs.chmodSync(path.join(OUT, 'build-mac.sh'), 0o755); fs.chmodSync(path.join(OUT, 'build-linux.sh'), 0o755); } catch (e) {}

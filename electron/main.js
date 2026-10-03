@@ -17,7 +17,18 @@ let quitting = false;
 /* ------------------------------------------------------------------ *
  *  Paths & persistence
  * ------------------------------------------------------------------ */
-const dataDir = () => path.join(app.getPath('userData'), 'nexadesk-data');
+/* Data lives in `pebblex-data`. The app shipped briefly as NexaDesk, so anyone
+   who ran an early build already has their workspace in `nexadesk-data`.
+   Resolve to the legacy folder when it exists and the new one does not, so
+   renaming the folder can never orphan somebody's notes. */
+const LEGACY_DATA_DIR = 'nexadesk-data';
+const dataDir = () => {
+  const base = app.getPath('userData');
+  const fresh = path.join(base, 'pebblex-data');
+  const legacy = path.join(base, LEGACY_DATA_DIR);
+  if (fs.existsSync(legacy) && !fs.existsSync(fresh)) return legacy;
+  return fresh;
+};
 const dataFile = () => path.join(dataDir(), 'workspace.json');
 const settingsFile = () => path.join(dataDir(), 'settings.json');
 
@@ -137,27 +148,13 @@ function createWindow() {
     mainWindow.on('close', saveBounds);
   } catch (e) {}
 
-  // staged updates: if a newer renderer was downloaded into userData/updates, use it
-  const staged = path.join(app.getPath('userData'), 'updates', 'index.html');
-  const bundled = path.join(__dirname, '..', 'renderer', 'index.html');
-  mainWindow.loadFile(fs.existsSync(staged) ? staged : bundled);
+  mainWindow.loadFile(rendererIndex());
   if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
     mainWindow.focus();
   });
-
-  // Persist window geometry on close
-  const saveBounds = () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    const b = mainWindow.getBounds();
-    const s = readJSON(settingsFile(), {});
-    s.window = b;
-    writeJSON(settingsFile(), s);
-  };
-  mainWindow.on('resize', saveBounds);
-  mainWindow.on('move', saveBounds);
 
   // Open external links in the system browser, never inside the app
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -336,7 +333,7 @@ ipcMain.handle('notify', (_e, { title, body, silent }) => {
 
 ipcMain.handle('dialog:save', async (_e, { defaultPath, filters, content, base64 }) => {
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
-    defaultPath: defaultPath || 'nexadesk-export.json',
+    defaultPath: defaultPath || 'pebblex-export.json',
     filters: filters || [{ name: 'All files', extensions: ['*'] }]
   });
   if (canceled || !filePath) return { ok: false, canceled: true };

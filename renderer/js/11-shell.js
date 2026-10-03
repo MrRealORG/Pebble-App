@@ -78,7 +78,6 @@ const NAV = [
   ]},
   { group:'Explore', items:[
     { r:'games',      n:'Arcade',     ic:'game' },
-    { r:'media',      n:'Screenshot', ic:'camera' },
     { r:'focus',      n:'Focus',      ic:'target' }
   ]},
   { group:'Rewards', items:[
@@ -86,15 +85,14 @@ const NAV = [
     { r:'leaderboard',n:'Leaderboard',ic:'bar' }
   ]},
   { group:'Manage', items:[
-    { r:'apps',       n:'Apps',       ic:'grid' },
-    { r:'system',     n:'System',     ic:'sliders' }
+    { r:'apps',       n:'Apps',       ic:'grid' }
   ]}
 ];
 NX.NAV = NAV;
 
 function routeTitle(){
   for(const g of NAV){ const it = g.items.find(i=>i.r === NX.router.currentName); if(it) return it.n; }
-  const map = { settings:'Settings', store:'Store', leaderboard:'Leaderboard', apps:'Apps & features', system:'System' };
+  const map = { settings:'Settings', store:'Store', leaderboard:'Leaderboard', apps:'Apps & features' };
   return map[NX.router.currentName] || 'Pebble';
 }
 
@@ -330,7 +328,10 @@ NX.renderShell = function(routeName){
   app.innerHTML = '';
   const layout = h('<div style="display:flex;width:100%;height:100%"></div>');
   app.appendChild(layout);
-  renderSidebar(layout);
+  /* Go through NX.renderSidebar, not the local function: 56-sidebar.js
+     replaces it with the version that scrolls, folds and drags. Calling the
+     local one would silently keep the old flat column. */
+  NX.renderSidebar(layout);
   const mainCol = h('<div class="main-col"></div>');
   layout.appendChild(mainCol);
   const topHost = h('<div id="shell-top"></div>'); mainCol.appendChild(topHost);

@@ -31,12 +31,30 @@ const DEVICE_KEY = 'cloud:deviceId';
 /* ------------------------------------------------------------ *
  *  Config
  * ------------------------------------------------------------ */
+const DEFAULT_SUPABASE_URL = 'https://uqrkpssesnxhevkgcgsu.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_AQgLWYOskawdqLpqOmdk0g_J4WoSrH-';
+const DEFAULT_R2_ENDPOINT  = 'https://pebble-media-api.bbs-hub-cdn.workers.dev';
+const DEFAULT_R2_TOKEN     = '94b3b550afaf456b96b6bd8be83d07e422f66f2c76394ac5862a3ce3a445cbab';
+
 function blank(){
-  return { supabaseUrl:'', supabaseKey:'', r2Endpoint:'', gifKey:'' };
+  return {
+    supabaseUrl: DEFAULT_SUPABASE_URL,
+    supabaseKey: DEFAULT_SUPABASE_KEY,
+    r2Endpoint:  DEFAULT_R2_ENDPOINT,
+    chatEndpoint: '',
+    gifKey: ''
+  };
 }
 function readConfig(){
-  const s = NX.store.get(CFG_KEY, null);
-  return (s && typeof s === 'object') ? Object.assign(blank(), s) : blank();
+  const s = NX.store.get(CFG_KEY, null) || {};
+  const b = blank();
+  return {
+    supabaseUrl: (s.supabaseUrl && String(s.supabaseUrl).trim()) || b.supabaseUrl,
+    supabaseKey: (s.supabaseKey && String(s.supabaseKey).trim()) || b.supabaseKey,
+    r2Endpoint:  (s.r2Endpoint && String(s.r2Endpoint).trim()) || b.r2Endpoint,
+    chatEndpoint:(s.chatEndpoint && String(s.chatEndpoint).trim()) || b.chatEndpoint,
+    gifKey:      (s.gifKey && String(s.gifKey).trim()) || b.gifKey
+  };
 }
 function configured(){
   const c = readConfig();
@@ -54,6 +72,170 @@ function clearConfig(){ NX.store.set(CFG_KEY, blank()); teardown(); }
 
 function online(){
   return !(typeof navigator !== 'undefined' && navigator.onLine === false);
+}
+
+/* ------------------------------------------------------------ *
+ *  Zero-dependency REST Fallback Client
+ *  Ensures Supabase Auth and Workspace Sync function in desktop
+ *  and restricted environments even if external esm.sh dynamic
+ *  module imports are blocked or unavailable.
+ * ------------------------------------------------------------ */
+function createRestClient(cfg){
+  const baseUrl = cfg.supabaseUrl;
+  const apikey  = cfg.supabaseKey;
+
+  function getToken(){
+    const sess = NX.store.get('cloud:session', null);
+    return (sess && sess.access_token) ? sess.access_token : apikey;
+  }
+
+  function reqHeaders(extra){
+    return Object.assign({
+      'apikey': apikey,
+      'Authorization': 'Bearer ' + getToken(),
+      'Content-Type': 'application/json'
+    }, extra || {});
+  }
+
+  return {
+    auth: {
+      async signInWithPassword({ email, password }){
+        try{
+          const res = await fetch(baseUrl + '/auth/v1/token?grant_type=password', {
+            method: 'POST',
+            headers: reqHeaders(),
+            body: JSON.stringify({ email, password })
+          });
+          const data = await res.json().catch(()=>({}));
+          if(!res.ok){
+            return { data:null, error: new Error(data.msg || data.error_description || data.message || 'Login failed') };
+          }
+          NX.store.set('cloud:session', data);
+          return { data, error:null };
+        }catch(e){ return { data:null, error:e }; }
+      },
+
+      async signUp({ email, password, options }){
+        try{
+          const payload = { email, password };
+          if(options && options.data) payload.data = options.data;
+          const res = await fetch(baseUrl + '/auth/v1/signup', {
+            method: 'POST',
+            headers: reqHeaders(),
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json().catch(()=>({}));
+          if(!res.ok){
+            return { data:null, error: new Error(data.msg || data.error_description || data.message || 'Registration failed') };
+          }
+          if(data.session) NX.store.set('cloud:session', data.session);
+          return { data, error:null };
+        }catch(e){ return { data:null, error:e }; }
+      },
+
+      async signInWithOAuth({ provider, options }){
+        const redir = options && options.redirectTo ? '&redirect_to=' + encodeURIComponent(options.redirectTo) : '';
+        const url = baseUrl + '/auth/v1/authorize?provider=' + encodeURIComponent(provider) + redir;
+        return { data: { url }, error:null };
+      },
+
+      async signOut(){
+        try{
+          await fetch(baseUrl + '/auth/v1/logout', { method:'POST', headers: reqHeaders() }).catch(()=>{});
+        }catch(e){}
+        NX.store.set('cloud:session', null);
+        return { error:null };
+      },
+
+      async getSession(){
+        const sess = NX.store.get('cloud:session', null);
+        if(!sess || !sess.access_token) return { data:{ session:null }, error:null };
+        try{
+          const res = await fetch(baseUrl + '/auth/v1/user', {
+            method: 'GET',
+            headers: reqHeaders()
+          });
+          if(res.ok){
+            const user = await res.json().catch(()=>null);
+            if(user) return { data:{ session: Object.assign({}, sess, { user }) }, error:null };
+          }
+        }catch(e){}
+        return { data:{ session: sess }, error:null };
+      }
+    },
+
+    from(table){
+      const builder = {
+        _table: table,
+        _select: '*',
+        _filters: [],
+        _order: null,
+        _limit: null,
+        select(cols){ builder._select = cols || '*'; return builder; },
+        eq(col, val){ builder._filters.push(encodeURIComponent(col) + '=eq.' + encodeURIComponent(val)); return builder; },
+        is(col, val){ builder._filters.push(encodeURIComponent(col) + '=is.' + encodeURIComponent(val)); return builder; },
+        gt(col, val){ builder._filters.push(encodeURIComponent(col) + '=gt.' + encodeURIComponent(val)); return builder; },
+        order(col, opts){ builder._order = encodeURIComponent(col) + '.' + (opts && opts.ascending ? 'asc' : 'desc'); return builder; },
+        limit(n){ builder._limit = n; return builder; },
+        async maybeSingle(){
+          builder._limit = 1;
+          const { data, error } = await builder;
+          return { data: (data && data[0]) ? data[0] : null, error };
+        },
+        async insert(payload){
+          try{
+            const res = await fetch(baseUrl + '/rest/v1/' + table, {
+              method: 'POST',
+              headers: reqHeaders({ 'Prefer': 'return=representation' }),
+              body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(()=>[]);
+            if(!res.ok) return { data:null, error: new Error((data && (data.message || data.msg)) || ('HTTP ' + res.status)) };
+            return { data, error:null };
+          }catch(e){ return { data:null, error:e }; }
+        },
+        async update(payload){
+          try{
+            let qs = builder._filters.length ? '?' + builder._filters.join('&') : '';
+            const res = await fetch(baseUrl + '/rest/v1/' + table + qs, {
+              method: 'PATCH',
+              headers: reqHeaders({ 'Prefer': 'return=representation' }),
+              body: JSON.stringify(payload)
+            });
+            const data = await res.json().catch(()=>[]);
+            if(!res.ok) return { data:null, error: new Error((data && (data.message || data.msg)) || ('HTTP ' + res.status)) };
+            return { data, error:null };
+          }catch(e){ return { data:null, error:e }; }
+        },
+        then(resolve, reject){
+          let qs = '?select=' + encodeURIComponent(builder._select);
+          if(builder._filters.length) qs += '&' + builder._filters.join('&');
+          if(builder._order) qs += '&order=' + builder._order;
+          if(builder._limit) qs += '&limit=' + builder._limit;
+
+          return fetch(baseUrl + '/rest/v1/' + table + qs, {
+            method: 'GET',
+            headers: reqHeaders()
+          })
+          .then(async res => {
+            const data = await res.json().catch(()=>[]);
+            if(!res.ok) return { data:null, error: new Error((data && (data.message || data.msg)) || ('HTTP ' + res.status)) };
+            return { data: Array.isArray(data) ? data : [data], error:null };
+          })
+          .then(resolve, reject);
+        }
+      };
+      return builder;
+    },
+
+    channel(name){
+      return {
+        on(){ return this; },
+        subscribe(cb){ if(cb) cb('SUBSCRIBED'); return this; },
+        unsubscribe(){}
+      };
+    }
+  };
 }
 
 /* ------------------------------------------------------------ *
@@ -83,19 +265,53 @@ async function sdk(){
 async function sb(){
   if(_sb) return _sb;
   if(!configured() || !online()) return null;
-  const m = await sdk();
-  if(!m || !m.createClient) return null;
-  try{
-    const c = readConfig();
-    _sb = m.createClient(c.supabaseUrl, c.supabaseKey, {
-      auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true },
-      realtime:{ params:{ eventsPerSecond:5 } }
-    });
-    return _sb;
-  }catch(e){ _err = String(e && e.message || e); return null; }
+  const c = readConfig();
+  const m = await sdk().catch(()=>null);
+  if(m && m.createClient){
+    try{
+      _sb = m.createClient(c.supabaseUrl, c.supabaseKey, {
+        auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true },
+        realtime:{ params:{ eventsPerSecond:5 } }
+      });
+      return _sb;
+    }catch(e){ /* fall through to native rest fallback */ }
+  }
+  _sb = createRestClient(c);
+  return _sb;
 }
 
 function teardown(){ _sb = null; _mod = null; _loading = null; _err = null; }
+
+/* Connection test that verifies URL and publishable key reachability */
+async function testConnection(){
+  const c = readConfig();
+  if(!c.supabaseUrl || !c.supabaseKey){
+    return { ok:false, error:'Add your Supabase URL and publishable key in Settings → Cloud.' };
+  }
+  if(!online()){
+    return { ok:false, error:'You are offline — cannot reach Supabase.' };
+  }
+  try{
+    const res = await fetch(c.supabaseUrl + '/auth/v1/settings', {
+      method: 'GET',
+      headers: { 'apikey': c.supabaseKey }
+    });
+    if(!res.ok){
+      const t = await res.text().catch(()=>'');
+      return { ok:false, error:'Supabase returned HTTP ' + res.status + (t ? ': ' + t.slice(0, 100) : '') };
+    }
+    const data = await res.json().catch(()=>({}));
+    return {
+      ok: true,
+      data,
+      url: c.supabaseUrl,
+      signedIn: auth.signedIn,
+      user: auth.user
+    };
+  }catch(e){
+    return { ok:false, error:'Could not reach Supabase: ' + (e && e.message || e) };
+  }
+}
 
 /* single place that explains why a call did nothing */
 function notReady(){
@@ -226,14 +442,22 @@ const auth = {
 };
 
 function authMessage(e){
-  const m = {
-    'Invalid login credentials':'Wrong email or password.',
-    'User already registered':'That email already has an account.',
-    'Email not confirmed':'Confirm your email first, then sign in.',
-    'Password should be at least 8 characters':'Password needs at least 8 characters.',
-    'Failed to fetch':'Could not reach Supabase.'
-  };
-  return m[e && e.message] || String((e && e.message) || e || 'error');
+  const msg = String((e && (e.message || e.msg || e.error_description)) || e || '');
+  if(/invalid.*credential/i.test(msg)) return 'Wrong email or password.';
+  if(/already.*registered/i.test(msg)) return 'That email already has an account.';
+  if(/not confirmed/i.test(msg)) return 'Confirm your email first, then sign in.';
+  if(/least 8 char/i.test(msg)) return 'Password needs at least 8 characters.';
+  if(/rate limit/i.test(msg)) return 'Email rate limit reached. Please wait a few minutes before trying again.';
+  if(/failed to fetch/i.test(msg)) return 'Could not reach Supabase — check your network connection.';
+  return msg || 'Authentication error';
+}
+
+function dbError(e){
+  const msg = String((e && (e.message || e.msg)) || e || '');
+  if(/relation.*workspace_items/i.test(msg) || /schema cache/i.test(msg) || /workspace_items.*not found/i.test(msg)){
+    return 'Table workspace_items is not initialized in Supabase. Run Website/backend/supabase/init_pebblex_supabase.sql in your Supabase SQL editor.';
+  }
+  return msg || 'Database operation failed';
 }
 
 /* ------------------------------------------------------------ *
@@ -279,7 +503,7 @@ const sync = {
       if(found) await c.from('workspace_items').update(row).eq('id', found.id);
       else await c.from('workspace_items').insert(row);
       return { ok:true };
-    }catch(e){ return { ok:false, error:String(e && e.message || e) }; }
+    }catch(e){ return { ok:false, error: dbError(e) }; }
   },
 
   /* Full pull. Only newer-than rows are sent unless `full` is set. */
@@ -297,9 +521,9 @@ const sync = {
         .limit(500);
       if(opts && opts.since) q = q.gt('updated_at', opts.since);
       const { data, error } = await q;
-      if(error) return { ok:false, error: error.message, items:[] };
+      if(error) return { ok:false, error: dbError(error), items:[] };
       return { ok:true, items: data || [] };
-    }catch(e){ return { ok:false, error:String(e && e.message || e), items:[] }; }
+    }catch(e){ return { ok:false, error: dbError(e), items:[] }; }
   },
 
   /* Realtime. Fires for this user's rows only — RLS enforces that, we
@@ -380,7 +604,7 @@ const r2 = {
 };
 
 function authTokenHeaders(){
-  const t = NX.store.get('cloud:r2Token', '');
+  const t = NX.store.get('cloud:r2Token', '') || DEFAULT_R2_TOKEN;
   return t ? { Authorization:'Bearer ' + t } : {};
 }
 
@@ -480,6 +704,7 @@ NX.cloud = {
   provider:'supabase+cloudflare',
   readConfig, saveConfig, clearConfig, configured,
   auth, sync, chat, r2, deviceId,
+  testConnection,
   /* Path helpers are exposed at the top level too: 48-chat-social.js calls
      NX.cloud.dmPath / channelPath directly when opening a conversation. */
   dmPath: chat.dmPath,

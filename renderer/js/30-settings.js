@@ -8,21 +8,24 @@
 const { h, q, qa, util:U, icon } = NX;
 
 const SECTIONS = [
-  { id:'themes',    n:'Themes',       ic:'palette' },
-  { id:'google',    n:'Google',       ic:'cloud' },
+  { id:'themes',    n:'Themes',          ic:'palette' },
+  { id:'display',   n:'Display & Scale', ic:'sliders' },
+  { id:'sidebar',   n:'Sidebar',         ic:'list' },
+  { id:'cloud',     n:'Cloud & Sync',    ic:'cloud' },
+  { id:'google',    n:'Google',          ic:'refresh' },
   { id:'apps',      n:'Apps & features', ic:'grid' },
-  { id:'folders',   n:'Folders',      ic:'download' },
-  { id:'rewards',   n:'Rewards',      ic:'star' },
-  { id:'system',    n:'System',       ic:'sliders' },
-  { id:'profile',   n:'Profile',      ic:'user' },
-  { id:'mcp',       n:'MCP & AI',     ic:'api' },
-  { id:'customize', n:'Customize',    ic:'sliders' },
-  { id:'sound',     n:'Sound',        ic:'volume' },
-  { id:'hotkeys',   n:'Hotkeys',      ic:'zap' },
-  { id:'reliability', n:'Reliability', ic:'check' },
-  { id:'backup',    n:'Backup & Sync',ic:'download' },
-  { id:'storage',   n:'Storage',      ic:'layers' },
-  { id:'about',     n:'About',        ic:'book' }
+  { id:'folders',   n:'Folders',         ic:'download' },
+  { id:'rewards',   n:'Rewards',         ic:'star' },
+  { id:'system',    n:'System',          ic:'sliders' },
+  { id:'profile',   n:'Profile',         ic:'user' },
+  { id:'mcp',       n:'MCP & AI',        ic:'api' },
+  { id:'customize', n:'Customize',       ic:'sliders' },
+  { id:'sound',     n:'Sound',           ic:'volume' },
+  { id:'hotkeys',   n:'Hotkeys',         ic:'zap' },
+  { id:'reliability', n:'Reliability',   ic:'check' },
+  { id:'backup',    n:'Backup & Sync',   ic:'download' },
+  { id:'storage',   n:'Storage',         ic:'layers' },
+  { id:'about',     n:'About',           ic:'book' }
 ];
 
 let curSec = 'themes';
@@ -90,7 +93,148 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
       });
     }
 
-if(curSec === 'google'){
+    if(curSec === 'display'){
+      const sc = NX.getScale ? NX.getScale() : 1;
+      const getDesc = v => {
+        const pct = Math.round(v * 100);
+        if(pct <= 75) return 'Downscaled (Ultra-Compact) — Maximum content density for small laptop screens & 720p/1080p netbooks.';
+        if(pct <= 85) return 'Downscaled (Compact) — Roomy multitasking view for compact windows and laptops.';
+        if(pct === 100) return 'Standard 100% (Default) — Balanced scale designed for standard 1080p and 1440p displays.';
+        if(pct <= 125) return 'Upscaled (Comfortable) — Larger text, buttons, and badges for comfortable viewing on 1440p and 4K displays.';
+        return 'Upscaled (High-DPI / Accessible) — Maximum clarity and large interface elements for 4K / Ultra-HD displays.';
+      };
+
+      const getPill = v => {
+        const pct = Math.round(v * 100);
+        if(pct < 100) return `<span class="pill yellow sm">Downscaling (${pct}%)</span>`;
+        if(pct === 100) return `<span class="pill green sm">Default (100%)</span>`;
+        return `<span class="pill blue sm">Upscaling (${pct}%)</span>`;
+      };
+
+      host.innerHTML = `
+        <div class="card">
+          <div class="card-h">
+            <div class="tile sm" style="background:var(--blue-soft);color:var(--blue)">${icon('sliders')}</div>
+            <div>
+              <div class="c-title">Display & UI Scaling</div>
+              <div class="c-sub">Upscale for high-DPI (2K/4K) monitors or downscale for compact laptop screens.</div>
+            </div>
+            <div class="spacer"></div>
+            <span id="disp-sc-pill">${getPill(sc)}</span>
+          </div>
+          <div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+            <div>
+              <div class="row gap-8" style="align-items:center">
+                <button class="icon-btn" id="disp-sc-out" data-tip="Step Down (-5%)">${icon('minus',15)}</button>
+                <input type="range" class="sys-range" id="disp-sc-range" min="80" max="140" step="5" value="${Math.round(sc*100)}" style="flex:1">
+                <button class="icon-btn" id="disp-sc-in" data-tip="Step Up (+5%)">${icon('plus',15)}</button>
+                <button class="btn btn-soft btn-sm" id="disp-sc-reset">Reset (100%)</button>
+              </div>
+              <div class="row gap-6" style="margin-top:10px;flex-wrap:wrap">
+                <span class="faint tiny bold" style="align-self:center;margin-right:4px">Presets:</span>
+                ${[0.80, 0.85, 0.90, 1.0, 1.10, 1.25, 1.40].map(v=>
+                  `<button class="btn btn-soft btn-sm ${Math.abs(sc-v)<0.02?'btn-green':''}" data-disp-preset="${v}">${Math.round(v*100)}%</button>`
+                ).join('')}
+              </div>
+              <div class="faint tiny" id="disp-sc-desc" style="margin-top:10px;line-height:1.4">${getDesc(sc)}</div>
+            </div>
+
+            <!-- Live Scaling Preview -->
+            <div style="border-top:1px solid var(--line);padding-top:14px">
+              <div class="tiny bold" style="margin-bottom:8px">Live Preview at Current Scale</div>
+              <div class="card" style="padding:14px;background:var(--bg-2);border-radius:12px;border:1px solid var(--line)">
+                <div class="row gap-10" style="align-items:center">
+                  <div class="tile sm" style="background:var(--green-soft);color:var(--green)">${icon('check')}</div>
+                  <div style="flex:1">
+                    <div style="font-weight:700;font-size:13px">PebbleX Smooth UI Scaling Active</div>
+                    <div class="faint tiny">All fonts, panels, sidebars, and dialogue widgets scale smoothly together.</div>
+                  </div>
+                  <span class="pill green sm">Crisp Typography</span>
+                  <button class="btn btn-dark btn-sm">Sample Action</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="border-top:1px solid var(--line);padding-top:12px">
+              <div class="tiny bold">Display Modes & Information</div>
+              <div class="faint tiny" style="margin-top:4px;line-height:1.5">
+                • <b>Downscaling (70% - 85%)</b>: Compresses margins and text to reveal more notes, task lists, and calendar columns side-by-side without horizontal scrolling.<br>
+                • <b>Standard (100%)</b>: Default pixel-ratio render with native font metrics.<br>
+                • <b>Upscaling (115% - 150%)</b>: Increases button click targets and typography size for high-resolution displays (2560×1440, 4K UHD) or touchscreens.
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+      const range = q('#disp-sc-range', host);
+      const pill  = q('#disp-sc-pill', host);
+      const desc  = q('#disp-sc-desc', host);
+
+      const updateUI = v => {
+        const got = NX.setScale(v);
+        if(range) range.value = String(Math.round(got * 100));
+        if(pill) pill.innerHTML = getPill(got);
+        if(desc) desc.textContent = getDesc(got);
+        qa('[data-disp-preset]', host).forEach(b => {
+          const val = Number(b.dataset.dispPreset);
+          b.classList.toggle('btn-green', Math.abs(got - val) < 0.02);
+        });
+      };
+
+      const ro = q('#disp-sc-out', host); if(ro) ro.onclick = ()=> updateUI(NX.getScale() - 0.05);
+      const ri = q('#disp-sc-in',  host); if(ri) ri.onclick = ()=> updateUI(NX.getScale() + 0.05);
+      const rr = q('#disp-sc-reset', host); if(rr) rr.onclick = ()=> updateUI(1);
+      if(range) range.oninput = ()=> updateUI(Number(range.value) / 100);
+      qa('[data-disp-preset]', host).forEach(b => b.onclick = ()=> updateUI(Number(b.dataset.dispPreset)));
+    }
+
+    if(curSec === 'sidebar'){
+      /* UI scale lives here as well as in the sidebar footer, because the
+         footer buttons are hard to find when the sidebar is the thing that
+         is mis-sized. */
+      const sc = NX.getScale ? NX.getScale() : 1;
+      host.innerHTML = `
+        <div class="card">
+          <div class="card-h"><div class="tile sm">${icon('sliders')}</div>
+            <div><div class="c-title">UI size</div>
+            <div class="c-sub">Scales the whole app. Text, icons and spacing together.</div></div>
+            <div class="spacer"></div><span class="pill" id="sc-val">${Math.round(sc*100)}%</span></div>
+          <div class="card-b">
+            <div class="row gap-8" style="align-items:center">
+              <button class="icon-btn" id="sc-out" data-tip="Smaller">${icon('minus',15)}</button>
+              <input type="range" class="sys-range" id="sc-range" min="80" max="140" step="5" value="${Math.round(sc*100)}" style="flex:1">
+              <button class="icon-btn" id="sc-in" data-tip="Bigger">${icon('plus',15)}</button>
+              <button class="btn btn-soft btn-sm" id="sc-reset">Reset</button>
+            </div>
+            <div class="row gap-8" style="margin-top:8px">
+              ${[0.80, 0.85, 0.90, 1.0, 1.10, 1.25, 1.40].map(v=>`<button class="btn btn-soft btn-sm" data-sc-preset="${v}">${Math.round(v*100)}%</button>`).join('')}
+            </div>
+            <div class="faint tiny" style="margin-top:8px">A larger UI needs more room — if something looks clipped, drop a step.</div>
+          </div>
+        </div>
+        <div class="card"><div class="card-h"><div class="tile sm">${icon('list')}</div>
+          <div><div class="c-title">Categories</div>
+          <div class="c-sub">Fold a category away, hide it entirely, or drag rows between them in the sidebar.</div></div>
+        </div>
+        <div id="side-cfg-host"></div>`;
+
+      const val = q('#sc-val', host), range = q('#sc-range', host);
+      const show = v =>{ if(val) val.textContent = Math.round(v*100) + '%'; if(range) range.value = String(Math.round(v*100)); };
+      const set = v =>{ const got = NX.setScale(v); show(got); };
+
+      const ro = q('#sc-out', host); if(ro) ro.onclick = ()=> set(NX.getScale() - 0.05);
+      const ri = q('#sc-in',  host); if(ri) ri.onclick = ()=> set(NX.getScale() + 0.05);
+      const rr = q('#sc-reset', host); if(rr) rr.onclick = ()=> set(1);
+      if(range) range.oninput = ()=> set(Number(range.value) / 100);
+      qa('[data-sc-preset]', host).forEach(b => b.onclick = ()=> set(Number(b.dataset.scPreset)));
+
+      /* 56-sidebar.js owns the category list */
+      const ch = q('#side-cfg-host', host);
+      if(ch && NX.sidebarSettings) ch.appendChild(NX.sidebarSettings());
+      else if(ch) ch.innerHTML = '<div class="faint tiny">Sidebar module unavailable.</div>';
+    }
+
+    if(curSec === 'google'){
       const g = NX.google.cfg();
       const gl = (n,s)=>NX.glogo ? NX.glogo(n,s) : '';
       const lastSync = g.lastTasksSync ? U.relTime(g.lastTasksSync) : 'never';
@@ -335,9 +479,6 @@ const clientIn = q('#gd-client', host);
             <input type="range" class="sys-range" id="st-vol" min="0" max="100" disabled>
             <div class="faint tiny" id="st-vol-sub" style="margin-top:6px">Checking audio…</div>
           </div>
-          <div class="row gap-8">
-            <button class="btn btn-soft btn-sm" id="st-sys-page">${icon('sliders')} Open the system panel</button>
-          </div>
         </div></div>`;
 
       const bri = q('#st-bri', host), vol = q('#st-vol', host);
@@ -359,8 +500,6 @@ const clientIn = q('#gd-client', host);
       } else {
         bs.textContent = 'Desktop only'; vs.textContent = 'Desktop only';
       }
-      const sp = q('#st-sys-page', host);
-      if(sp) sp.onclick = ()=>NX.router.go('system');
     }
 
     if(curSec === 'rewards'){
@@ -1299,11 +1438,21 @@ function renderCloud(host){
     test.disabled = true;
     const label = test.textContent;
     test.textContent = 'Testing…';
-    const r = await NX.cloud.sync.pull({});
+    const r = await NX.cloud.testConnection();
     test.disabled = false;
     test.textContent = label;
-    if(r.ok) NX.toastOk('Cloud', 'Connected to Supabase' + (r.items && r.items.length ? ' — ' + r.items.length + ' items waiting' : '') + '.');
-    else NX.toastErr('Cloud', r.error || 'Could not reach Supabase.');
+    if(r.ok){
+      let msg = 'Connected to Supabase project successfully!';
+      if(r.signedIn && r.user){
+        msg += ' Signed in as ' + (r.user.name || r.user.email) + '.';
+      } else {
+        msg += ' Ready to sign in or create an account.';
+      }
+      NX.toastOk('Cloud Online', msg);
+    } else {
+      NX.toastErr('Connection Failed', r.error || 'Could not reach Supabase.');
+    }
+    renderBody();
   };
 
   const syncNow = q('#cl-sync-now', host);

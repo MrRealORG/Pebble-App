@@ -51,8 +51,6 @@ const REGISTRY = [
 
   { id:'games',       n:'Arcade',       ic:'game',    group:'Explore', on:true,
     d:'17 mini-games, daily challenge, achievements' },
-  { id:'media',       n:'Screenshot',   ic:'camera',  group:'Explore', on:true,
-    d:'Capture and annotate your screen' },
   { id:'focus',       n:'Focus',        ic:'target',  group:'Explore', on:true,
     d:'Pomodoro, ambient sound, focus shield' },
 
@@ -62,8 +60,6 @@ const REGISTRY = [
     d:'Your records and your league' },
   { id:'mediaLibrary',n:'Media library',ic:'layers',  group:'Rewards', on:true,
     d:'Every image you have imported' },
-  { id:'system',      n:'System',       ic:'sliders', group:'Rewards', on:true,
-    d:'Brightness, volume and battery' },
 
   { id:'weather',     n:'Weather card', ic:'cloud',   group:'Background', on:true, net:true,
     d:'Live forecast on the dashboard' },

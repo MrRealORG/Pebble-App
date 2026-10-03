@@ -154,11 +154,14 @@ async function start(){
     return;
   }
 
-  /* ---------- MAIN WINDOW (native): Rust guarantees the handoff ---------- */
+  /* ---------- MAIN WINDOW (native) ----------
+     It boots immediately but stays HIDDEN until login_done() reveals it.
+     The session is NOT force-written here any more: doing that made the
+     PIN screen decorative, because main believed it was already signed in
+     and raced the real login. The profile arrives with the profile-ready
+     event instead. */
   if(MAIN_WINDOW && NX.native.available && NX.native.mode === 'tauri'){
     hideSplash();
-    const sess = NX.store.get('session', null);
-    if(!sess || !sess.authed) NX.store.set('session', { authed:true, at:Date.now() });
     NX.router.go(NX.router.routes[hash] ? hash : 'dashboard');
     startEngines();
     return;
@@ -168,7 +171,7 @@ async function start(){
   hideSplash();
   const authed = NX.login.isAuthed();
   const auth = NX.store.get('auth', null);
-  if(hash === 'login' || !authed || (auth && auth.pinHash && !authed)){
+  if(hash === 'login' || !authed){
     NX.router.go('login');
     return;
   }
@@ -195,11 +198,21 @@ function startEngines(){
     if(window.__TAURI__ && window.__TAURI__.event && typeof window.__TAURI__.event.listen === 'function'){
       window.__TAURI__.event.listen('profile-ready', async ()=>{
         try {
+          /* Pull the session the login window just wrote. The main window
+             no longer writes one for itself, so without this the sidebar
+             could show a stale or missing profile after sign-in. */
           await NX.restoreBackend();
+          NX.store.set('session', { authed:true, at:Date.now() });
           const p = NX.store.get('profile', NX.defaults.profile);
           NX.events.emit('profile:updated', p);
-          NX.router.go('dashboard');
-        } catch(e){}
+          NX.refreshSidebarUser && NX.refreshSidebarUser();
+          NX.refreshBadges && NX.refreshBadges();
+          /* only re-route if we are still sitting on a dead route */
+          try{
+            const cur = NX.router.currentName;
+            if(!cur || cur === 'login' || !NX.router.routes[cur]) NX.router.go('dashboard');
+          }catch(e){ NX.router.go('dashboard'); }
+        } catch(e){ console.error('profile-ready', e); }
       });
     }
   } catch(e){}

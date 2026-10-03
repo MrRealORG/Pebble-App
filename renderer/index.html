@@ -84,8 +84,11 @@
 <link rel="stylesheet" href="css/13-chat.css">
 <link rel="stylesheet" href="css/14-weather.css">
 <link rel="stylesheet" href="css/15-rewards.css">
-<link rel="stylesheet" href="css/17-chat-social.css">
 <link rel="stylesheet" href="css/16-apps.css">
+<link rel="stylesheet" href="css/17-chat-social.css">
+<!-- 18 must be the LAST stylesheet: it is the fit/override layer and has to
+     win over the per-subsystem sheets above it. -->
+<link rel="stylesheet" href="css/18-responsive.css">
 </head>
 <body>
   <div id="nx-splash">
@@ -127,9 +130,8 @@
   <script src="js/23-todo.js"></script>
   <script src="js/24-ai.js"></script>
   <script src="js/25-timeless.js"></script>
-  <script src="js/26-reminders.js"></script>
-  <script src="js/28-media.js"></script>
-  <!-- 29-games.js defines NX.registerGames and MUST come before 38-arcade.js,
+    <script src="js/26-reminders.js"></script>
+    <!-- 29-games.js defines NX.registerGames and MUST come before 38-arcade.js,
        which calls it at load time. It used to be listed above 29, so
        38-arcade.js threw on load and took the extra games and the whole
        achievements module down with it. The bundle hid this because it
@@ -173,6 +175,10 @@
   <!-- 54 must load before 99-boot so google sync exists when engines
        start. Unique numeric prefix: scripts/build.js sorts by filename. -->
   <script src="js/54-google-sync.js"></script>
+  <!-- 56 replaces NX.renderSidebar with the scrollable/foldable/draggable
+       version, so it must load after 11-shell.js and before 99-boot (which
+       applies the saved UI scale). -->
+  <script src="js/56-sidebar.js"></script>
   <script src="js/99-boot.js"></script>
 </body>
 </html>

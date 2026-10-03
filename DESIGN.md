@@ -10,7 +10,7 @@
 
 | | |
 |---|---|
-| **Name** | PebbleX (package `pebblex`, desktop product `Pebble`, appId `com.nexadesk.app`) |
+| **Name** | PebbleX (package `pebblex`, desktop product `Pebble`, identifier `app.pebble.desktop`) |
 | **Tagline** | One calm workspace |
 | **Version** | 0.1.0 |
 | **Shape of the mark** | Rounded-square "pebble" glyph, dark tile + green rim light |

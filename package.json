@@ -8,7 +8,8 @@
   "license": "MIT",
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "node scripts/rewards-test.js && node scripts/apps-test.js && node scripts/google-test.js && node scripts/brand-test.js && node scripts/markup-test.js && node scripts/icon-test.js && node scripts/usage-sync-test.js && node cloud/pebble-media-api/test/usage-test.js",
+    "test": "node scripts/rewards-test.js && node scripts/apps-test.js && node scripts/google-test.js && node scripts/brand-test.js && node scripts/markup-test.js && node scripts/icon-test.js && node scripts/usage-sync-test.js && node scripts/sidebar-test.js && node scripts/sidebar-dom-test.js && node scripts/login-test.js && node cloud/pebble-media-api/test/usage-test.js && node scripts/cloud-test.js",
+    "test:cloud": "node scripts/cloud-test.js",
     "test:rewards": "node scripts/rewards-test.js",
     "test:apps": "node scripts/apps-test.js",
     "test:google": "node scripts/google-test.js",
@@ -16,6 +17,8 @@
     "test:markup": "node scripts/markup-test.js",
     "test:icon": "node scripts/icon-test.js",
     "test:usage": "node scripts/usage-sync-test.js",
+    "test:login": "node scripts/login-test.js",
+    "test:sidebar": "node scripts/sidebar-test.js && node scripts/sidebar-dom-test.js",
     "test:worker": "node cloud/pebble-media-api/test/usage-test.js",
     "test:rust": "cd src-tauri && cargo test --lib",
     "test:smoke": "node scripts/smoke-test.js",
@@ -28,7 +31,7 @@
     "@tauri-apps/cli": "^2.0.0"
   },
   "build": {
-    "appId": "com.nexadesk.app",
+    "appId": "app.pebble.desktop",
     "productName": "Pebble",
     "asar": true,
     "files": [

@@ -102,14 +102,14 @@ const VIEWS = [
 const ACTIONS = {
   note: `(function(){
       var n = NX.store.notes.all().find(function(x){ return /Product Launch/.test(x.title); }) || NX.store.notes.all()[0];
-      NX.localStore.set('nexadesk.notesView','doc');
-      NX.localStore.set('nexadesk.notesExpanded', NX.store.notes.all().map(function(x){ return x.id; }));
+      NX.localStore.set('pebblex.notesView','doc');
+      NX.localStore.set('pebblex.notesExpanded', NX.store.notes.all().map(function(x){ return x.id; }));
       location.hash = '#/notes/' + n.id;
       NX.router.render();
     })();`,
-  notedb: `(function(){ NX.localStore.set('nexadesk.notesView','db'); location.hash='#/notes'; NX.router.render(); })();`,
-  calmonth: `(function(){ NX.localStore.set('nexadesk.calMode','month'); location.hash='#/calendar'; NX.router.render(); })();`,
-  calweek: `(function(){ NX.localStore.set('nexadesk.calMode','week'); location.hash='#/calendar'; NX.router.render(); })();`,
+  notedb: `(function(){ NX.localStore.set('pebblex.notesView','db'); location.hash='#/notes'; NX.router.render(); })();`,
+  calmonth: `(function(){ NX.localStore.set('pebblex.calMode','month'); location.hash='#/calendar'; NX.router.render(); })();`,
+  calweek: `(function(){ NX.localStore.set('pebblex.calMode','week'); location.hash='#/calendar'; NX.router.render(); })();`,
   aiask: `(function(){
       location.hash = '#/ai'; NX.router.render();
       setTimeout(function(){
@@ -147,7 +147,7 @@ const ACTIONS = {
   authpop: `(function(){ setTimeout(function(){ NX.shellV2.loginScreen(function(){}); }, 1600); })();`,
   th_elera: `(function(){ NX.store.setSetting('theme','elera'); location.hash='#/dashboard'; NX.router.render(); })();`,
   tlfill: `(function(){ NX.store.setSetting('theme','elera'); var TL=NX.timelens; var apps=[['VS Code','productive',5400],['Chrome · github','productive',2600],['Discord','neutral',3100],['YouTube','distracting',2400],['Instagram','distracting',900],['Spotify','neutral',4200]]; apps.forEach(function(a,i){ TL.log(a[0], a[2], 'demo'); }); location.hash='#/timelens'; NX.router.render(); })();`,
-  authmode: `(function(){ document.body.innerHTML=''; document.body.style.overflow=''; var sc=document.createElement('script'); NX.localStore.set('nexadesk.authdemo','1'); location.search='?auth=1'; })();`,
+  authmode: `(function(){ document.body.innerHTML=''; document.body.style.overflow=''; var sc=document.createElement('script'); NX.localStore.set('pebblex.authdemo','1'); location.search='?auth=1'; })();`,
   petshot: `(function(){ NX.store.setSetting('theme','rose'); NX.store.setSetting('petEnabled', true); location.hash='#/home'; NX.router.render(); setTimeout(function(){ if(window.NX.pet){ NX.pet.P().mood=88; NX.pet.say('hi ☁️ feed me? 🍓', 9000); NX.pet.renderPet(); } }, 500); })();`
 };
 
@@ -226,7 +226,7 @@ async function waitForDebugger() {
     const q = async expr => { const r = await cdp('Runtime.evaluate', { expression: expr, returnByValue: true }); return r.result && r.result.value; };
     const boot = await q('JSON.stringify({nx: typeof window.NX, notes: window.NX?NX.store.notes.count():-1, mods: window.NX?NX.router.all().length:-1, appHidden: (document.getElementById("app")||{}).hidden})');
     // pre-complete onboarding so it does not cover every view
-    await q(`NX.store.setSetting('onboarded', true); NX.localStore.set('nexadesk.welcomed', true); var _o=document.getElementById('onboarding'); if(_o) _o.remove(); if(window.NX.easy) NX.easy.set(false); true`);
+    await q(`NX.store.setSetting('onboarded', true); NX.localStore.set('pebblex.welcomed', true); var _o=document.getElementById('onboarding'); if(_o) _o.remove(); if(window.NX.easy) NX.easy.set(false); true`);
     console.log('  boot     ' + boot + '\n');
     if (!boot || /"nx":"undefined"/.test(boot)) throw new Error('app did not boot in Chromium');
 
