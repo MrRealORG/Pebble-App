@@ -284,6 +284,21 @@ NX.GAMES = [
   { id:'gm_code',  name:'Break the Code',icon:'key',     color:'#D4A017', desc:'Crack a 4-digit lock in as few guesses as you can.' }
 ];
 NX.gameBest = function(id){ const b = S.get('gameBest:'+id, null); return b; };
-NX.setGameBest = function(id, score){ const cur = S.get('gameBest:'+id, null); if(cur==null || score>cur) S.set('gameBest:'+id, score); };
-NX.recordMin = function(id, score){ const cur = S.get('gameBest:'+id, null); if(cur==null || score<cur) S.set('gameBest:'+id, score); };
+NX.setGameBest = function(id, score){
+  const cur = S.get('gameBest:'+id, null);
+  if(cur==null || score>cur){
+    S.set('gameBest:'+id, score);
+    /* a new personal best is worth points (45-points.js caps it daily) */
+    const meta = (NX.GAMES || []).find(g => g.id === id);
+    NX.events.emit('points:newbest', { id, name: meta ? meta.name : id });
+  }
+};
+NX.recordMin = function(id, score){
+  const cur = S.get('gameBest:'+id, null);
+  if(cur==null || score<cur){
+    S.set('gameBest:'+id, score);
+    const meta = (NX.GAMES || []).find(g => g.id === id);
+    NX.events.emit('points:newbest', { id, name: meta ? meta.name : id });
+  }
+};
 })(window.NX);

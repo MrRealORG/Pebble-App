@@ -930,6 +930,16 @@ NX.registerGames = function(map){
   return Object.keys(map || {});
 };
 NX.launchGame = function(id, retried){
+  /* Entitlement gate. Runs BEFORE the registry lookup so a locked game
+     cannot be started by ANY path — grid click, command palette, deep
+     link, or a direct NX.launchGame() call. The second flag lets the
+     store launch a game it just unlocked without re-entering the gate. */
+  if(!retried && NX.store && NX.store.isUnlocked && !NX.store.isUnlocked('game:' + id)){
+    const meta = (NX.GAMES || []).find(g => g.id === id);
+    if(meta && NX.openGameGate) NX.openGameGate(meta);
+    else NX.toastInfo('Locked', String(id || ''));
+    return;
+  }
   let fn = NX.gameRegistry[id];
   if(typeof fn !== 'function' && !retried && NX.router.routes.games){
     /* built-ins are not registered until the Arcade renders once */

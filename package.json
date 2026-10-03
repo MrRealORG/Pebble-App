@@ -8,7 +8,8 @@
   "license": "MIT",
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "node scripts/smoke-test.js",
+    "test": "node scripts/rewards-test.js",
+    "test:smoke": "node scripts/smoke-test.js",
     "icons": "python3 scripts/make_icons.py",
     "tauri": "tauri",
     "tauri:dev": "node scripts/build.js && tauri dev",

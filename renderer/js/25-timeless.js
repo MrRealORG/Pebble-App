@@ -198,6 +198,7 @@ const tracker = {
   },
 
   start(){
+    setInterval(()=> this.hourlyBeacon(), 30000);
     setInterval(async ()=>{
       const now = Date.now();
       const dt = Math.min(10, Math.round((now - this.lastTick)/1000));
@@ -226,6 +227,21 @@ const tracker = {
       }
       NX.events.emit('timeless:tick');
     }, 2000);
+  },
+
+  /* Hourly signal for the points ledger's focus_hour rule.
+     45-points.js listens for 'timeless:hourly' but nothing emitted it, so that
+     rule never fired. It cannot be driven straight off the 2s poll above:
+     NX.store.set() serialises the WHOLE workspace, so emitting there would
+     flood the mirror and bring back AppHangB1. Instead fire at most once per
+     clock hour, tracked in the store so it survives a reload. */
+  hourlyBeacon(){
+    const hour = Math.floor(Date.now() / 3600e3);
+    let last = 0;
+    try{ last = parseInt(NX.store.get('timeless:lastBeaconHour', '0'), 10) || 0; }catch(e){}
+    if(last === hour) return;
+    NX.store.set('timeless:lastBeaconHour', String(hour));
+    NX.events.emit('timeless:hourly');
   }
 };
 NX.timeless = tracker;

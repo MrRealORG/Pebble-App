@@ -20,6 +20,9 @@ NX.recordPlay = function(id){
   const p = plays();
   p[id] = (p[id] || 0) + 1;
   NX.store.set('gamePlays', p);
+  /* 2 points per play, capped daily in 45-points.js */
+  const meta = (NX.GAMES || []).find(g => g.id === id);
+  NX.events.emit('points:played', { id, name: meta ? meta.name : id });
   NX.events.emit('arcade:changed');
 };
 NX.gamePlays = plays;
@@ -101,6 +104,8 @@ function recordDaily(solved, tries){
     delete d.lastSolved;
   }
   NX.store.set('dailyChallenge', d);
+  /* points for solving, with a streak bonus (capped daily) */
+  NX.events.emit('points:daily', { solved: !!solved, streak: NX.dailyState().streak });
   NX.events.emit('arcade:changed');
 }
 
@@ -167,6 +172,11 @@ NX.bumpWin = function(kind){
   const w = NX.store.get('gameWins', {}) || {};
   w[kind] = (w[kind] || 0) + 1;
   NX.store.set('gameWins', w);
+  const meta = (NX.GAMES || []).find(g => g.id === kind);
+  /* winning is the main earn path; 45-points.js turns score into points
+     and caps it daily so grinding one game cannot out-earn using the app */
+  const best = NX.gameBest ? NX.gameBest(kind) : null;
+  NX.events.emit('points:gamewin', { id: kind, name: meta ? meta.name : kind, score: best || 0 });
   NX.events.emit('arcade:changed');
   NX.checkAchievements();
 };
@@ -177,8 +187,10 @@ NX.checkAchievements = function(){
     if(b.unlocked && got.indexOf(b.id) === -1){
       got.push(b.id);
       changed = true;
+      /* achievements are worth points too */
+      NX.events.emit('points:badge', { id: b.id, title: b.t });
       setTimeout(()=>{
-        NX.toastOk('Achievement unlocked', b.t + ' · ' + b.d, { life:6000 });
+        NX.toastOk('Achievement unlocked', b.t + ' · ' + b.d + ' · +50 pts', { life:6000 });
         NX.confetti(innerWidth/2, 200);
         try{ NX.sfx.play('confetti'); }catch(e){}
       }, 220);

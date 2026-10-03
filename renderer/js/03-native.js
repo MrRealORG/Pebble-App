@@ -86,6 +86,48 @@ const native = {
     return r && r.ok ? r.data : null;
   },
 
+  /* ---- user image assets (see src-tauri/src/assets.rs) ---- */
+  /* Rust validates the bytes, strips EXIF/GPS and writes fixed-size
+     derivatives; only metadata comes back to the renderer. */
+  async assetImport(dataUrl, name, kind){
+    const r = await this.invoke('asset_import', { dataUrl, name: name || 'image', kind: kind || 'misc' });
+    return (r && r.ok && r.data) ? r.data : null;
+  },
+  async assetList(kind){
+    const r = await this.invoke('asset_list', { kind: kind || null });
+    return (r && r.ok && Array.isArray(r.data)) ? r.data : [];
+  },
+  async assetDelete(id){
+    const r = await this.invoke('asset_delete', { id });
+    return !!(r && r.ok && r.data);
+  },
+  async assetExport(id, dest){
+    const r = await this.invoke('asset_export', { id, dest: dest || 'pebble-image.png' });
+    return (r && r.ok && r.data) ? r.data : null;
+  },
+  async assetUsage(){
+    const r = await this.invoke('asset_usage');
+    return (r && r.ok && r.data) ? r.data : { bytes:0, count:0, dir:'' };
+  },
+  async assetPrune(){
+    const r = await this.invoke('asset_prune');
+    return (r && r.ok) ? (r.data || 0) : 0;
+  },
+
+  /* ---- local league (shared file, no server) ---- */
+  async leagueRead(){
+    const r = await this.invoke('league_read');
+    return (r && r.ok && r.data) ? r.data : '[]';
+  },
+  async leagueMerge(entry){
+    const r = await this.invoke('league_merge', { entry });
+    return !!(r && r.ok && r.data);
+  },
+  async leaguePath(){
+    const r = await this.invoke('league_path');
+    return (r && r.ok && r.data) ? r.data : '';
+  },
+
   /* real icon for an app — { ok, url } (asset.localhost png) */
   async appIcon(exe, name){
     const r = await this.invoke('app_icon', { exe: exe || '', name: name || '' });

@@ -83,6 +83,7 @@
 <link rel="stylesheet" href="css/12-ux.css">
 <link rel="stylesheet" href="css/13-chat.css">
 <link rel="stylesheet" href="css/14-weather.css">
+<link rel="stylesheet" href="css/15-rewards.css">
 </head>
 <body>
   <div id="nx-splash">
@@ -146,6 +147,18 @@
 <script src="js/41-ux.js"></script>
 <script src="js/42-chat.js"></script>
 <script src="js/44-weather-icons.js"></script>
+<script src="js/46-cloud.js"></script>
+  <!-- Rewards layer. Numbers are deliberately unique and ordered:
+       45-points  ledger, must precede 49-store (which spends points)
+       49-store   entitlements + theme/game gates (needs 29-games)
+       50-leaderboard uses NX.afterRouteRender from 14-agenda
+       51-media   picker + R2 sync
+       NOTE: 46/49 cannot share a prefix — scripts/build.js sorts by
+       filename and an ambiguous "46-" tie broke a module once already. -->
+  <script src="js/45-points.js"></script>
+  <script src="js/49-store.js"></script>
+  <script src="js/50-leaderboard.js"></script>
+  <script src="js/51-media-library.js"></script>
   <script src="js/99-boot.js"></script>
 </body>
 </html>

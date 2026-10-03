@@ -9,6 +9,7 @@ const { h, q, qa, util:U, icon } = NX;
 
 const SECTIONS = [
   { id:'themes',    n:'Themes',       ic:'palette' },
+  { id:'rewards',   n:'Rewards',      ic:'star' },
   { id:'profile',   n:'Profile',      ic:'user' },
   { id:'mcp',       n:'MCP & AI',     ic:'api' },
   { id:'customize', n:'Customize',    ic:'sliders' },
@@ -43,38 +44,187 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
     const p = NX.store.get('profile', NX.defaults.profile);
 
     if(curSec === 'themes'){
+      const unlockedCount = (NX.THEMES||[]).filter(t=>NX.store.isUnlocked('theme:'+t.id)).length;
       host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm">${icon('palette')}</div>
-        <div><div class="c-title">Themes</div><div class="c-sub">13 hand-tuned themes · Ctrl+J cycles instantly</div></div></div>
+        <div><div class="c-title">Themes</div><div class="c-sub">${unlockedCount} of ${(NX.THEMES||[]).length} unlocked · Ctrl+J cycles unlocked themes</div></div></div>
         <div class="card-b"><div class="theme-grid" id="th-grid"></div></div></div>`;
-      q('#th-grid', host).innerHTML = NX.THEMES.map(t=>`
-        <div class="theme-card ${s.theme===t.id?'on':''}" data-th="${t.id}">
+      q('#th-grid', host).innerHTML = NX.THEMES.map(t=>{
+        const owned = NX.store.isUnlocked('theme:'+t.id);
+        const price = NX.store.priceOf('theme', t.id);
+        return `<div class="theme-card ${s.theme===t.id?'on':''} ${owned?'':'locked'}" data-th="${t.id}"
+            data-tip="${U.esc(t.name + (owned ? '' : ' — unlock for ' + price + ' points'))}">
           <div class="theme-swatch" style="background:${t.bg}">
             <i class="ts-side" style="background:${t.side}"></i>
             <i class="ts-main" style="background:${t.main}"></i>
             <i class="ts-pill" style="background:${t.pill}"></i>
+            ${owned ? '' : `<span class="ts-lock">${icon('lock',12)} ${price}</span>`}
           </div>
           <div class="theme-name">${U.esc(t.name)} ${s.theme===t.id?`<span class="on-ic">${icon('check')}</span>`:''}</div>
+        </div>`;
+      }).join('');
+      qa('[data-th]', host).forEach(c=>c.onclick = ()=>{
+        const id = c.dataset.th;
+        if(NX.store.isUnlocked('theme:' + id)){
+          NX.applyTheme(id, { force:true });
+          NX.sfx.play('pop');
+          renderBody();
+        } else {
+          NX.openStore('theme:' + id);
+        }
+      });
+    }
+
+    if(curSec === 'rewards'){
+      const lv = NX.points.level();
+      const hist = NX.points.history().slice(-60).reverse();
+      const today = NX.points.today();
+      const ceil = NX.points.ceiling();
+      const cfg = NX.media ? NX.media.cfg() : { enabled:false };
+      const rows = hist.map(h=>`
+        <div class="rw-hist-row">
+          <span class="rw-hist-d ${h.d>=0?'pos':'neg'}">${h.d>=0?'+':''}${h.d}</span>
+          <span class="rw-hist-m">${U.esc(h.m || NX.points.reasonLabel(h.r))}</span>
+          <span class="rw-hist-t">${U.esc(U.relTime(h.t))}</span>
         </div>`).join('');
-      qa('[data-th]', host).forEach(c=>c.onclick = ()=>{ NX.applyTheme(c.dataset.th); NX.sfx.play('pop'); renderBody(); });
+
+      host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm">${icon('star')}</div>
+        <div><div class="c-title">Rewards</div><div class="c-sub">Earn by playing, focusing and finishing — never by spending money</div></div></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:16px">
+          <div class="row gap-16" style="align-items:center">
+            <div style="flex:1">
+              <div class="sh-bal">${NX.points.balance().toLocaleString()}</div>
+              <div class="faint tiny">points available · ${NX.points.lifetime().toLocaleString()} earned all-time</div>
+            </div>
+            <div style="flex:1">
+              <div class="row gap-8"><span class="pill green">L${lv.n} · ${U.esc(lv.title)}</span></div>
+              <span class="meter" style="display:block;margin-top:6px"><i style="width:${lv.pct}%"></i></span>
+              <div class="faint tiny">${lv.next - lv.cur} points to L${lv.n+1}</div>
+            </div>
+          </div>
+          <div class="rw-row">
+            <div class="rw-txt"><b>Earned today</b><span>${today} of the ${ceil} daily cap — caps keep the leaderboard honest</span></div>
+            <span class="pill ${today>=ceil?'yellow':'gray'}">${Math.round(today/ceil*100)}%</span>
+          </div>
+          <div class="row gap-8">
+            <button class="btn btn-green btn-sm" id="rw-store">${icon('star')} Open store</button>
+            <button class="btn btn-soft btn-sm" id="rw-lb">${icon('bar')} Leaderboard</button>
+          </div>
+        </div></div>
+
+        <div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('activity')}</div>
+          <div><div class="c-title">Recent activity</div><div class="c-sub">Last 60 ledger entries</div></div></div>
+          <div class="card-b"><div class="rw-hist">${rows || '<div class="faint small">Nothing yet — win a game to start earning.</div>'}</div></div></div>
+
+        <div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('cloud')}</div>
+          <div><div class="c-title">Image sync (optional)</div><div class="c-sub">Copies your images to cloud storage so they appear on your other devices</div></div></div>
+          <div class="card-b" style="display:flex;flex-direction:column;gap:12px">
+            <div class="rw-row">
+              <div class="rw-txt"><b>Cloud sync</b><span>Images always save locally first. This is strictly optional.</span></div>
+              <label class="switch"><input type="checkbox" id="rw-sync" ${cfg.enabled?'checked':''}><span></span></label>
+            </div>
+            <div class="field"><label>Sync address</label>
+              <input class="input" id="rw-api" placeholder="https://your-worker.workers.dev" value="${U.esc(cfg.api||'')}"></div>
+            <div class="field"><label>Access token</label>
+              <input class="input" id="rw-token" type="password" placeholder="Paste the Worker token" value="${U.esc(cfg.token||'')}"></div>
+            <div class="row gap-8">
+              <button class="btn btn-soft btn-sm" id="rw-test">${icon('check')} Test connection</button>
+              <button class="btn btn-dark btn-sm" id="rw-push">${icon('upload')} Sync now</button>
+            </div>
+            <div class="faint tiny" id="rw-sync-note">${U.esc(cfg.enabled ? 'Sync is on.' : 'Sync is off — nothing leaves this device.')}</div>
+          </div></div>
+
+        <div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('trash')}</div>
+          <div><div class="c-title">Reset rewards</div><div class="c-sub">Clears your balance and everything you unlocked</div></div></div>
+          <div class="card-b"><button class="btn btn-danger btn-sm" id="rw-reset">${icon('trash')} Reset points & unlocks</button></div></div>`;
+
+      q('#rw-store', host).onclick = ()=>NX.router.go('store');
+      q('#rw-lb', host).onclick = ()=>NX.router.go('leaderboard');
+
+      const note = q('#rw-sync-note', host);
+      const apiIn = q('#rw-api', host);
+      const tokIn = q('#rw-token', host);
+      const syncIn = q('#rw-sync', host);
+      const persist = ()=>{
+        if(NX.media) NX.media.setCfg({ enabled: syncIn.checked, api: apiIn.value.trim(), token: tokIn.value.trim() });
+      };
+      syncIn.onchange = ()=>{ persist(); note.textContent = syncIn.checked ? 'Sync is on.' : 'Sync is off — nothing leaves this device.'; };
+      apiIn.onchange = persist;
+      tokIn.onchange = persist;
+
+      q('#rw-test', host).onclick = async ()=>{
+        persist();
+        note.textContent = 'Testing…';
+        const r = await NX.media.health();
+        note.textContent = r.ok
+          ? (r.auth ? 'Connected. The service wants a token — paste it above.' : 'Connected. No token required.')
+          : r.error;
+      };
+      q('#rw-push', host).onclick = async ()=>{
+        persist();
+        note.textContent = 'Uploading…';
+        const r = await NX.media.pushAll({ force:true });
+        note.textContent = (r.skipped) ? 'Already synced recently.'
+          : 'Synced ' + r.ok + ' image' + (r.ok===1?'':'s') + (r.fail ? ', ' + r.fail + ' failed' : '') + '.';
+      };
+
+      q('#rw-reset', host).onclick = ()=>{
+        NX.confirm('Reset all rewards?', 'Your balance goes to zero and every unlocked theme, game and frame is locked again. This cannot be undone.', ()=>{
+          NX.points.reset();
+          NX.store.set('entitlements', null);
+          NX.applyTheme('elera', { force:true });
+          NX.toastOk('Rewards reset', 'Back to zero.');
+          renderBody();
+          NX.refreshPointsChip && NX.refreshPointsChip();
+        }, { icon:'trash', yes:'Reset everything' });
+      };
     }
 
     if(curSec === 'profile'){
       host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm">${icon('user')}</div>
         <div><div class="c-title">Profile</div><div class="c-sub">How you appear in chat & across the workspace</div></div></div>
         <div class="card-b" style="display:flex;flex-direction:column;gap:14px;max-width:440px">
-          <div class="row gap-12"><span class="avatar xl" style="background:${U.esc(p.avatar)}">${U.initials(p.name)}</span>
+          <div class="row gap-12"><span id="pf-av">${NX.avatarHtml ? NX.avatarHtml(p,'xl') : `<span class="avatar xl" style="background:${U.esc(p.avatar)}">${U.initials(p.name)}</span>`}</span>
             <div style="flex:1">
               <div class="field"><label>Display name</label><input class="input" id="pf-name" value="${U.esc(p.name)}" maxlength="24"></div>
+              <div class="row gap-6" style="margin-top:8px">
+                <button class="btn btn-soft btn-sm" id="pf-up">${icon('camera')} Upload photo</button>
+                ${(NX.store.get('entitlements',{})||{}).avatarImg ? `<button class="btn btn-ghost btn-sm" id="pf-rm">Remove</button>` : ''}
+              </div>
             </div></div>
-          <div class="field"><label>Avatar color</label><div class="row gap-6" id="pf-colors" style="flex-wrap:wrap">
+          <div class="field"><label>Avatar colour</label><div class="row gap-6" id="pf-colors" style="flex-wrap:wrap">
             ${['#7CD56E','#5EB8FF','#E8853D','#8B5CF6','#E05C9C','#0FA3A3','#E25C4A','#D4A017'].map(c=>
               `<button data-c="${c}" style="width:30px;height:30px;border-radius:50%;background:${c};border:2.5px solid ${p.avatar===c?'var(--ink)':'transparent'}"></button>`).join('')}
-          </div></div>
+          </div>
+          <span class="faint tiny">Location data is stripped from every upload on import.</span></div>
           <div class="field"><label>Bio</label><input class="input" id="pf-bio" value="${U.esc(p.bio||'')}" maxlength="80"></div>
           <div class="row"><button class="btn btn-green" id="pf-save">${icon('check')} Save profile</button>
             <button class="btn btn-soft" id="pf-lock">${icon('logout')} Lock workspace (PIN)</button></div>
         </div></div>`;
-      qa('#pf-colors [data-c]', host).forEach(b=>b.onclick = ()=>{ p.avatar = b.dataset.c; NX.store.set('profile', p); renderBody(); });
+      qa('#pf-colors [data-c]', host).forEach(b=>b.onclick = ()=>{ p.avatar = b.dataset.c; NX.store.set('profile', p); renderBody(); NX.refreshSidebarUser && NX.refreshSidebarUser(); });
+      q('#pf-up', host).onclick = ()=>{
+        NX.media && NX.media.pick({ kind:'avatar' }).then(meta=>{
+          if(!meta) return;
+          const e = NX.store.get('entitlements', {}) || {};
+          const old = e.avatarImg;
+          e.avatarImg = meta.url;
+          NX.store.set('entitlements', e);
+          if(old && NX.media) NX.media.remove(old);
+          const av = q('#pf-av', host);
+          if(av) av.innerHTML = NX.avatarHtml(NX.store.get('profile', p), 'xl');
+          NX.toastOk('Photo saved', 'Stripped of location data, stored on this device.');
+          NX.refreshSidebarUser && NX.refreshSidebarUser();
+        });
+      };
+      const rm = q('#pf-rm', host);
+      if(rm) rm.onclick = ()=>{
+        const e = NX.store.get('entitlements', {}) || {};
+        const old = e.avatarImg;
+        e.avatarImg = null;
+        NX.store.set('entitlements', e);
+        if(old && NX.media) NX.media.remove(old);
+        renderBody();
+        NX.refreshSidebarUser && NX.refreshSidebarUser();
+      };
       q('#pf-save', host).onclick = ()=>{
         const nm = q('#pf-name', host).value.trim(); if(nm) p.name = nm;
         p.bio = q('#pf-bio', host).value.trim();
@@ -508,6 +658,8 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
       };
     }
 
+    if(curSec === 'cloud'){ renderCloud(host); }
+
     if(curSec === 'storage'){
       const dump = NX.store.dump();
       const size = new Blob([JSON.stringify(dump)]).size;
@@ -739,4 +891,148 @@ NX.exportWorkspace = function(){
   U.download('pebble-workspace-' + U.todayKey() + '.json', JSON.stringify(NX.store.dump(), null, 2));
   NX.toastOk('Exported', 'Workspace JSON downloaded.');
 };
+
+/* ============================================================
+   CLOUD (optional Firebase)
+
+   Deliberately honest about what this is: cloud stays OFF until a config is
+   pasted, the local PIN keeps working regardless, and nothing in here is
+   required for Pebble to function. The SDK is fetched lazily so a failure
+   cannot affect boot.
+   ============================================================ */
+function renderCloud(host){
+  const cfg = NX.cloud ? NX.cloud.readConfig() : {};
+  const st = NX.cloud ? NX.cloud.status() : { configured:false, signedIn:false, offline:false };
+  const user = NX.cloud ? NX.cloud.auth.user : null;
+  const field = (id, label, val, ph, hint) => `
+    <label class="nx-field">
+      <span class="nx-field-label">${U.esc(label)}</span>
+      <input id="${id}" value="${U.esc(val||'')}" placeholder="${U.esc(ph||'')}" spellcheck="false" autocomplete="off">
+      ${hint ? `<span class="faint tiny">${U.esc(hint)}</span>` : ''}
+    </label>`;
+
+  host.innerHTML = `
+    <div class="card">
+      <div class="card-h"><div class="tile sm" style="background:var(--green-soft);color:var(--green)">${icon('cloud')}</div>
+        <div><div class="c-title">Cloud (optional)</div>
+        <div class="c-sub">Optional Firebase sync for cloud chat. Pebble is fully functional offline without it.</div></div></div>
+      <div class="card-b" style="display:flex;flex-direction:column;gap:14px">
+        <div style="border-left:3px solid var(--green);padding:10px 12px;background:var(--green-soft);border-radius:0 10px 10px 0">
+          <div class="small"><b>Your PIN login is unaffected.</b> Cloud sign-in is a separate, optional identity used only for
+          cloud chat. It is never required.</div>
+        </div>
+
+        <div class="row gap-8" style="flex-wrap:wrap">
+          <span class="pill ${st.configured?'green':'yellow'}">${st.configured?'Configured':'Not configured'}</span>
+          <span class="pill ${st.signedIn?'green':''}">${st.signedIn?'Signed in':'Not signed in'}</span>
+          ${st.offline ? '<span class="pill yellow">Offline</span>' : ''}
+          ${user ? `<span class="pill">${U.esc(user.name||user.email||'user')}</span>` : ''}
+        </div>
+
+        <div class="row gap-8">
+          <button class="btn btn-green" id="cl-save">${icon('check')} Save config</button>
+          <button class="btn btn-soft" id="cl-test">Test connection</button>
+          <button class="btn btn-soft" id="cl-clear">Clear</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+          ${field('cl-apiKey','API key',cfg.apiKey,'AIza…','Firebase console → Project settings → Your apps → SDK setup')}
+          ${field('cl-projectId','Project ID',cfg.projectId,'my-project')}
+          ${field('cl-databaseURL','Realtime Database URL',cfg.databaseURL,'https://my-project-default-rtdb.firebaseio.com')}
+          ${field('cl-authDomain','Auth domain (optional)',cfg.authDomain,'my-project.firebaseapp.com')}
+          ${field('cl-appId','App ID (optional)',cfg.appId,'1:123…:web:abc')}
+        </div>
+
+        <div class="faint tiny">The Firebase SDK is not bundled with Pebble. It is fetched from Google's CDN the first time a cloud
+        feature is actually used, so the offline app stays small and a failed fetch only disables cloud features.</div>
+
+        <div style="border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:12px">
+          <div><div class="c-title" style="font-size:13px">Account</div>
+            <div class="c-sub">Optional — only needed for cloud chat.</div></div>
+          <div class="row gap-8">
+            <button class="btn btn-soft" id="cl-signin">Sign in</button>
+            <button class="btn btn-soft" id="cl-register">Create account</button>
+            <button class="btn btn-soft" id="cl-google">${icon('user')} Continue with Google</button>
+            <button class="btn btn-soft" id="cl-signout">Sign out</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const val = id => { const el = q('#'+id, host); return el ? String(el.value || '').trim() : ''; };
+  const collect = ()=>({
+    apiKey: val('cl-apiKey'),
+    projectId: val('cl-projectId'),
+    databaseURL: val('cl-databaseURL').replace(/\/+$/,''),
+    authDomain: val('cl-authDomain'),
+    appId: val('cl-appId')
+  });
+
+  const save = q('#cl-save', host);
+  if(save) save.onclick = ()=>{
+    const c = collect();
+    if(!c.apiKey || !c.projectId || !c.databaseURL){
+      NX.toastErr('Cloud', 'API key, Project ID and Database URL are all required.');
+      return;
+    }
+    NX.cloud.saveConfig(c);
+    NX.toastOk('Cloud', 'Config saved.');
+    renderBody();
+  };
+
+  const test = q('#cl-test', host);
+  if(test) test.onclick = async ()=>{
+    NX.cloud.saveConfig(collect());
+    test.disabled = true;
+    const label = test.textContent;
+    test.textContent = 'Testing…';
+    const r = await NX.cloud.chat.history('__probe__');
+    test.disabled = false;
+    test.textContent = label;
+    if(r.ok) NX.toastOk('Cloud', 'Connected to Realtime Database.');
+    else NX.toastErr('Cloud', r.error || 'Could not reach the database.');
+  };
+
+  const clr = q('#cl-clear', host);
+  if(clr) clr.onclick = ()=>{ NX.cloud.clearConfig(); NX.toastOk('Cloud', 'Config cleared.'); renderBody(); };
+
+  const ask = mode =>{
+    const email = window.prompt(mode === 'in' ? 'Email' : 'Email for your new account');
+    if(!email) return null;
+    const pass = window.prompt('Password (6+ characters)');
+    return pass ? { email:String(email).trim(), pass } : null;
+  };
+
+  const si = q('#cl-signin', host);
+  if(si) si.onclick = async ()=>{
+    const c = ask('in'); if(!c) return;
+    si.disabled = true;
+    const r = await NX.cloud.auth.signIn(c.email, c.pass);
+    si.disabled = false;
+    if(r.ok){ NX.toastOk('Cloud', 'Signed in as ' + (r.user.name || r.user.email)); renderBody(); }
+    else NX.toastErr('Cloud', r.error);
+  };
+
+  const rg = q('#cl-register', host);
+  if(rg) rg.onclick = async ()=>{
+    const c = ask('reg'); if(!c) return;
+    rg.disabled = true;
+    const r = await NX.cloud.auth.register(c.email, c.pass);
+    rg.disabled = false;
+    if(r.ok){ NX.toastOk('Cloud', 'Account created.'); renderBody(); }
+    else NX.toastErr('Cloud', r.error);
+  };
+
+  const gg = q('#cl-google', host);
+  if(gg) gg.onclick = async ()=>{
+    gg.disabled = true;
+    const r = await NX.cloud.auth.signInWithGoogle();
+    gg.disabled = false;
+    if(r.ok){ NX.toastOk('Cloud', 'Signed in as ' + (r.user.name || r.user.email)); renderBody(); }
+    else NX.toastErr('Cloud', r.error);
+  };
+
+  const so = q('#cl-signout', host);
+  if(so) so.onclick = async ()=>{ await NX.cloud.auth.signOut(); renderBody(); };
+}
 })(window.NX);

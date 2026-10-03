@@ -24,18 +24,40 @@ const THEMES = [
   { id:'neon',        name:'Neon',        dark:true,  bg:'#0C0C0F', side:'#0C0C0F', main:'#141419', pill:'#5EF38C' }
 ];
 NX.THEMES = THEMES;
-NX.applyTheme = function(id){
+/* Locked themes are gated. `force` is required in exactly two places:
+   boot (so a locked-but-saved theme can never brick startup) and an
+   explicit equip after purchase. Everything else goes through the
+   gate and bounces the user to the store. */
+NX.applyTheme = function(id, opts){
   const t = THEMES.find(x=>x.id===id) || THEMES[0];
+  if(!opts || !opts.force){
+    const unlocked = NX.store && NX.store.isUnlocked && NX.store.isUnlocked('theme:' + t.id);
+    if(!unlocked){
+      if(NX.openStore) NX.openStore('theme:' + t.id);
+      return false;
+    }
+  }
   document.documentElement.setAttribute('data-theme', t.id);
   const s = NX.store.get('settings'); s.theme = t.id; NX.store.set('settings', s);
-  document.querySelector('meta[name="theme-color"]')?.remove();
+  return true;
 };
+/* Ctrl+J must SKIP locked themes, otherwise the hotkey looks broken
+   the moment any theme is locked. */
 NX.cycleTheme = function(){
   const s = NX.store.get('settings');
   const i = THEMES.findIndex(t=>t.id===s.theme);
-  const next = THEMES[(i+1) % THEMES.length];
-  NX.applyTheme(next.id);
-  NX.toastInfo('Theme', next.name, { life:1800 });
+  const isUnlocked = id => !(NX.store && NX.store.isUnlocked) || NX.store.isUnlocked('theme:' + id);
+  let next = null;
+  for(let step = 1; step <= THEMES.length; step++){
+    const cand = THEMES[(i + step) % THEMES.length];
+    if(isUnlocked(cand.id)){ next = cand; break; }
+  }
+  /* everything locked (should be impossible: 4 are always free) —
+     fall back to the current theme rather than looping forever */
+  next = next || THEMES[i] || THEMES[0];
+  if(NX.applyTheme(next.id)){
+    NX.toastInfo('Theme', next.name, { life:1800 });
+  }
 };
 
 /* ---------------- nav model ---------------- */
@@ -57,13 +79,17 @@ const NAV = [
     { r:'games',      n:'Arcade',     ic:'game' },
     { r:'media',      n:'Screenshot', ic:'camera' },
     { r:'focus',      n:'Focus',      ic:'target' }
+  ]},
+  { group:'Rewards', items:[
+    { r:'store',      n:'Store',      ic:'star' },
+    { r:'leaderboard',n:'Leaderboard',ic:'bar' }
   ]}
 ];
 NX.NAV = NAV;
 
 function routeTitle(){
   for(const g of NAV){ const it = g.items.find(i=>i.r === NX.router.currentName); if(it) return it.n; }
-  const map = { settings:'Settings' };
+  const map = { settings:'Settings', store:'Store', leaderboard:'Leaderboard' };
   return map[NX.router.currentName] || 'Pebble';
 }
 
@@ -80,6 +106,23 @@ function badgeFor(r){
   if(r === 'reminders'){ const n = NX.store.get('reminders', []).filter(x=>!x.fired).length; return n || ''; }
   return '';
 }
+
+/* The footer used to read "Pro plan" — a hardcoded string that meant
+   nothing. It now shows the real level and balance. */
+function sideBalText(){
+  if(!NX.points) return '';
+  const lv = NX.points.level();
+  return 'L' + lv.n + ' · ' + NX.points.balance().toLocaleString() + ' pts';
+}
+
+/** Repaint just the sidebar user block, without rebuilding the shell. */
+NX.refreshSidebarUser = function(){
+  const profile = NX.store.get('profile', NX.defaults.profile);
+  const av = q('#side-user-av');
+  if(av && NX.avatarHtml) av.innerHTML = NX.avatarHtml(profile, 'lg');
+  const bal = q('#side-bal');
+  if(bal) bal.textContent = sideBalText();
+};
 
 function renderSidebar(host){
   const profile = NX.store.get('profile', NX.defaults.profile);
@@ -131,8 +174,8 @@ function renderSidebar(host){
     <button class="nav-item" data-name="Widget" data-route="__widget">
       <span class="ni-icon">${icon('widget')}</span><span class="ni-name">Desktop widget</span></button>
     <div class="side-user" data-tip="Your profile">
-      <span class="avatar lg" style="background:${U.esc(profile.avatar)}">${U.initials(profile.name)}</span>
-      <span class="su-txt"><span class="su-name">${U.esc(profile.name)}</span><span class="su-plan">${U.esc(profile.plan||'Pro')} plan</span></span>
+      <span id="side-user-av">${NX.avatarHtml ? NX.avatarHtml(profile,'lg') : `<span class="avatar lg" style="background:${U.esc(profile.avatar)}">${U.initials(profile.name)}</span>`}</span>
+      <span class="su-txt"><span class="su-name">${U.esc(profile.name)}</span><span class="su-plan side-bal" id="side-bal">${sideBalText()}</span></span>
     </div>
   </div>`);
   foot.querySelector('[data-route="__widget"]').onclick = ()=>NX.widget && NX.widget.toggle();
@@ -181,6 +224,7 @@ function renderTopbar(host){
       <button class="icon-btn" data-tip="Notifications" id="tp-bell">${icon('bell')}</button>
       ${unread? `<span class="bell-badge" id="tp-bell-badge">${unread>9?'9+':unread}</span>`:''}
     </span>
+    ${pointsChip()}
     <button class="btn btn-dark" id="tp-new">${icon('plus')} New</button>
   </header>`);
   bar.querySelector('#tp-search').onclick = ()=> (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette());
@@ -190,6 +234,8 @@ function renderTopbar(host){
   if(bugBtn) bugBtn.onclick = ()=> NX.openBugReporter && NX.openBugReporter();
   bar.querySelector('#tp-grid').onclick = (e)=>NX.menu(e.currentTarget, NAV.flatMap(g=>[{label:g.group, header:true}].concat(g.items.map(it=>({ label:it.n, icon:it.ic, onClick:()=>NX.router.go(it.r) })))));
   bar.querySelector('#tp-bell').onclick = (e)=>NX.openNotifCenter(e.currentTarget);
+  const ptsBtn = bar.querySelector('#tp-points');
+  if(ptsBtn) ptsBtn.onclick = ()=>NX.router.go('store');
   bar.querySelector('#tp-new').onclick = (e)=>NX.menu(e.currentTarget, [
     { label:'New note', icon:'notes', onClick:()=>{ NX.router.go('notes'); setTimeout(()=>NX.newNote && NX.newNote(), 60); } },
     { label:'New task', icon:'todo', onClick:()=>{ NX.router.go('todo'); setTimeout(()=>NX.newTask && NX.newTask(), 60); } },
@@ -220,6 +266,39 @@ NX.refreshBadges = function(){
     const wrap = q('.bell-wrap');
     wrap && wrap.appendChild(h(`<span class="bell-badge" id="tp-bell-badge">${unread>9?'9+':unread}</span>`));
   }
+};
+
+/** Balance chip in the topbar. Only rendered once points exists —
+    11-shell.js loads before 45-points.js, so this must tolerate its
+    absence rather than assume it. */
+function pointsChip(){
+  if(!NX.points) return '';
+  return `<button class="hud-points" id="tp-points" data-tip="Your points — click for the store">
+    <span class="hud-points-ic">${icon('star',12)}</span>
+    <span class="hud-points-val" id="tp-points-val">${NX.points.balance().toLocaleString()}</span>
+    <span class="hud-points-lv" id="tp-points-lv">L${NX.points.level().n}</span>
+  </button>`;
+}
+
+NX.refreshPointsChip = function(){
+  const val = q('#tp-points-val');
+  const lv = q('#tp-points-lv');
+  if(!NX.points) return;
+  if(val){
+    const before = val.textContent;
+    const now = NX.points.balance().toLocaleString();
+    val.textContent = now;
+    if(before !== now){
+      const chip = q('#tp-points');
+      if(chip){
+        chip.classList.remove('bump');
+        void chip.offsetWidth;
+        chip.classList.add('bump');
+      }
+    }
+  }
+  if(lv) lv.textContent = 'L' + NX.points.level().n;
+  NX.refreshSidebarUser && NX.refreshSidebarUser();
 };
 
 /* ---------------- app route ---------------- */
@@ -298,8 +377,14 @@ document.addEventListener('keydown', (e)=>{
   else if(mod && e.key.toLowerCase() === 'j'){ e.preventDefault(); NX.cycleTheme(); }
   else if(mod && e.key.toLowerCase() === 'w' && e.shiftKey){ e.preventDefault(); NX.widget && NX.widget.toggle(); }
   else if(mod && e.shiftKey && e.key.toLowerCase() === 'b'){ e.preventDefault(); NX.openBugReporter && NX.openBugReporter(); }
+  else if(mod && e.shiftKey && e.key.toLowerCase() === 's'){ e.preventDefault(); NX.router.go('store'); }
+  else if(mod && e.shiftKey && e.key.toLowerCase() === 'l'){ e.preventDefault(); NX.router.go('leaderboard'); }
   else if(e.key === 'Escape'){ NX.closeMenu(); }
 });
+
+/* live balance + level, repainted in place (never a shell rebuild) */
+NX.events.on('points:changed', ()=>{ NX.refreshPointsChip && NX.refreshPointsChip(); });
+NX.events.on('store:entitlements', ()=>{ NX.refreshSidebarUser && NX.refreshSidebarUser(); });
 
 /* live day in topbar */
 setInterval(()=>{ const s = q('#tp-sub'); if(s) s.textContent = U.dayName(0); }, 60e3);
