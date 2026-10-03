@@ -266,10 +266,11 @@ NX.routeInShell('dashboard', 'Dashboard', 'dashboard', function(view){
           body = q('#db-wx-body', view), at = q('#db-wx-at', view), ic = q('#db-wx-ic', view);
     if(!body) return;   // navigated away
     if(w && w.ok){
-      city.textContent = `${w.emoji}  ${w.temp}°C — ${U.esc(w.city)}`;
+      /* animated SVG instead of the flat emoji glyph */
+      city.innerHTML = `<span class="wx-temp">${NX.wxIcon(w.icon || 'cloudy')}<b>${w.temp}°C</b></span> — ${U.esc(w.city)}`;
       sub.textContent = `${U.esc(w.desc)} · feels ${w.feels}°`;
       at.textContent = w.cached ? 'cached' : 'live';
-      ic.innerHTML = `<span style="font-size:20px">${w.emoji}</span>`;
+      ic.innerHTML = NX.wxIcon(w.icon || 'cloudy');
       body.innerHTML = `<div class="wx-row">
           <div class="wx-cell"><div class="wx-k">High / Low</div><div class="wx-v">${w.hi}° / ${w.lo}°</div></div>
           <div class="wx-cell"><div class="wx-k">Wind</div><div class="wx-v">${w.wind} km/h</div></div>
@@ -283,8 +284,8 @@ NX.routeInShell('dashboard', 'Dashboard', 'dashboard', function(view){
   })();
 
   /* ---------- joke of the moment (fresh on every visit) ---------- */
-  async function loadJoke(){
-    const j = await NX.joke.load();
+  async function loadJoke(force){
+    const j = await NX.joke.load(force);
     const body = q('#db-joke-body', view); if(!body) return;
     if(j && j.ok){
       body.innerHTML = `<div class="joke-box">
@@ -299,6 +300,6 @@ NX.routeInShell('dashboard', 'Dashboard', 'dashboard', function(view){
     }
   }
   loadJoke();
-  const ja = q('#db-joke-another', view); if(ja) ja.onclick = loadJoke;
+  const ja = q('#db-joke-another', view); if(ja) ja.onclick = ()=> loadJoke(true);
 });
 })(window.NX);

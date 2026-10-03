@@ -154,31 +154,60 @@ NX.ensureDefaults = function(){
    NX.weather.load() -> { ok, city, temp, desc, hi, lo, wind, hum, emoji, at }
    NX.joke.load()    -> { ok, setup, punchline, source, at }
 --------------------------------------------------------------------------- */
+/* [ description, legacy emoji, animated icon key ]
+   The emoji column is kept so nothing else that reads it breaks, but the UI
+   renders the animated SVG icon from the third column instead. */
 const WCODES = {
-  0:['Clear sky','\u2600\uFE0F'],1:['Mainly clear','\uD83C\uDF24\uFE0F'],2:['Partly cloudy','\u26C5'],3:['Overcast','\u2601\uFE0F'],
-  45:['Fog','\uD83C\uDF2B\uFE0F'],48:['Icy fog','\uD83C\uDF2B\uFE0F'],51:['Light drizzle','\uD83C\uDF26\uFE0F'],53:['Drizzle','\uD83C\uDF26\uFE0F'],55:['Heavy drizzle','\uD83C\uDF27\uFE0F'],
-  61:['Light rain','\uD83C\uDF27\uFE0F'],63:['Rain','\uD83C\uDF27\uFE0F'],65:['Heavy rain','\u26C8\uFE0F'],71:['Light snow','\uD83C\uDF28\uFE0F'],73:['Snow','\uD83C\uDF28\uFE0F'],
-  75:['Heavy snow','\u2744\uFE0F'],77:['Snow grains','\uD83C\uDF28\uFE0F'],80:['Rain showers','\uD83C\uDF26\uFE0F'],81:['Showers','\uD83C\uDF27\uFE0F'],
-  82:['Violent showers','\u26C8\uFE0F'],85:['Snow showers','\uD83C\uDF28\uFE0F'],86:['Heavy snow showers','\u2744\uFE0F'],95:['Thunderstorm','\u26C8\uFE0F'],
-  96:['Storm + hail','\u26C8\uFE0F'],99:['Severe storm','\u26C8\uFE0F']
+  0:['Clear sky','\u2600\uFE0F','clear'],1:['Mainly clear','\uD83C\uDF24\uFE0F','mostly-clear'],
+  2:['Partly cloudy','\u26C5','partly'],3:['Overcast','\u2601\uFE0F','cloudy'],
+  45:['Fog','\uD83C\uDF2B\uFE0F','fog'],48:['Icy fog','\uD83C\uDF2B\uFE0F','fog'],
+  51:['Light drizzle','\uD83C\uDF26\uFE0F','drizzle'],53:['Drizzle','\uD83C\uDF26\uFE0F','drizzle'],
+  55:['Heavy drizzle','\uD83C\uDF27\uFE0F','rain'],
+  61:['Light rain','\uD83C\uDF27\uFE0F','rain'],63:['Rain','\uD83C\uDF27\uFE0F','rain'],
+  65:['Heavy rain','\u26C8\uFE0F','rain'],
+  71:['Light snow','\uD83C\uDF28\uFE0F','snow'],73:['Snow','\uD83C\uDF28\uFE0F','snow'],
+  75:['Heavy snow','\u2744\uFE0F','snow'],77:['Snow grains','\uD83C\uDF28\uFE0F','snow'],
+  80:['Rain showers','\uD83C\uDF26\uFE0F','showers'],81:['Showers','\uD83C\uDF27\uFE0F','showers'],
+  82:['Violent showers','\u26C8\uFE0F','showers'],85:['Snow showers','\uD83C\uDF28\uFE0F','snow'],
+  86:['Heavy snow showers','\u2744\uFE0F','snow'],95:['Thunderstorm','\u26C8\uFE0F','storm'],
+  96:['Storm + hail','\u26C8\uFE0F','storm'],99:['Severe storm','\u26C8\uFE0F','storm']
 };
 NX.WCODES = WCODES;
 
 let _wxCache = null;
+const GEO_TTL = 6 * 3600e3;      /* your location does not change hourly */
+const WX_TTL  = 15 * 60e3;      /* a forecast only needs refreshing every 15 min */
 
 NX.weather = {
+  /* Geolocation used to be re-resolved on EVERY dashboard visit, which meant
+     two or three chained network round-trips before the card could paint.
+     Cache it hard — it is effectively constant for a given machine. */
   async geo(){
     try{
+      const raw = sessionStorage.getItem('nx.geo');
+      if(raw){
+        const g = JSON.parse(raw);
+        if(g && g.at && (Date.now() - g.at) < GEO_TTL && g.lat != null) return { lat:g.lat, lon:g.lon, city:g.city };
+      }
+    }catch(e){}
+    const save = (lat, lon, city) => {
+      try{ sessionStorage.setItem('nx.geo', JSON.stringify({ lat, lon, city, at:Date.now() })); }catch(e){}
+      return { lat, lon, city };
+    };
+    try{
       const d = await (await fetch('https://ipapi.co/json/', { cache:'no-store' })).json();
-      if(d && d.latitude != null) return { lat:d.latitude, lon:d.longitude, city:d.city || d.region || 'Your area' };
+      if(d && d.latitude != null) return save(d.latitude, d.longitude, d.city || d.region || 'Your area');
     }catch(e){}
     try{
       const d = await (await fetch('https://get.geojs.io/v1/ip/geo.json', { cache:'no-store' })).json();
-      if(d && d.latitude) return { lat:parseFloat(d.latitude), lon:parseFloat(d.longitude), city:d.city || d.region || 'Your area' };
+      if(d && d.latitude) return save(parseFloat(d.latitude), parseFloat(d.longitude), d.city || d.region || 'Your area');
     }catch(e){}
     return null;
   },
   async load(){
+    /* serve the cached reading immediately, then refresh in the background */
+    const fresh = _wxCache && (Date.now() - _wxCache.at) < WX_TTL;
+    if(fresh) return Object.assign({}, _wxCache, { cached:true });
     try{
       const g = await this.geo();
       if(!g) throw new Error('no-geo');
@@ -187,9 +216,9 @@ NX.weather = {
         '&daily=temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=1';
       const w = await (await fetch(u, { cache:'no-store' })).json();
       const c = w.current || {};
-      const wc = WCODES[c.weather_code] || ['Weather','\uD83C\uDF21\uFE0F'];
+      const wc = WCODES[c.weather_code] || ['Weather','\uD83C\uDF21\uFE0F','cloudy'];
       const r = { ok:true, city:g.city, temp:Math.round(c.temperature_2m), feels:Math.round(c.apparent_temperature),
-        desc:wc[0], emoji:wc[1],
+        desc:wc[0], emoji:wc[1], icon:wc[2] || 'cloudy',
         hi:Math.round(w.daily && w.daily.temperature_2m_max ? w.daily.temperature_2m_max[0] : c.temperature_2m),
         lo:Math.round(w.daily && w.daily.temperature_2m_min ? w.daily.temperature_2m_min[0] : c.temperature_2m),
         wind:Math.round(c.wind_speed_10m), hum:c.relative_humidity_2m, at:Date.now() };
@@ -202,6 +231,8 @@ NX.weather = {
   }
 };
 
+let _jokeCache = null;
+
 const LOCAL_JOKES = [
   ['Why do programmers prefer dark mode?','Because light attracts bugs.'],
   ['There are 10 types of people in the world.','Those who understand binary and those who don\'t.'],
@@ -211,20 +242,27 @@ const LOCAL_JOKES = [
 ];
 
 NX.joke = {
-  async load(){
+  /* Same problem as the weather: two chained network calls on every dashboard
+     visit, so the card visibly reloaded each time. Cached for the session with
+     an explicit refresh for the "Another" button. */
+  async load(force){
+    if(!force && _jokeCache && (Date.now() - _jokeCache.at) < 30 * 60e3) return Object.assign({}, _jokeCache, { cached:true });
     try{
       const d = await (await fetch('https://official-joke-api.appspot.com/random_joke', { cache:'no-store' })).json();
-      if(d && d.setup) return { ok:true, setup:d.setup, punchline:d.punchline, source:'official-joke-api', at:Date.now() };
+      if(d && d.setup){ _jokeCache = { ok:true, setup:d.setup, punchline:d.punchline, source:'official-joke-api', at:Date.now() }; return _jokeCache; }
     }catch(e){}
     try{
       const d = await (await fetch('https://v2.jokeapi.dev/joke/Any?safe-mode', { cache:'no-store' })).json();
       if(d && !d.error){
-        if(d.type === 'twopart') return { ok:true, setup:d.setup, punchline:d.delivery, source:'jokeapi', at:Date.now() };
-        return { ok:true, setup:d.joke, punchline:'', source:'jokeapi', at:Date.now() };
+        _jokeCache = d.type === 'twopart'
+          ? { ok:true, setup:d.setup, punchline:d.delivery, source:'jokeapi', at:Date.now() }
+          : { ok:true, setup:d.joke, punchline:'', source:'jokeapi', at:Date.now() };
+        return _jokeCache;
       }
     }catch(e){}
     const lj = NX.util.pick(LOCAL_JOKES);
-    return { ok:true, setup:lj[0], punchline:lj[1], source:'offline', at:Date.now() };
+    _jokeCache = { ok:true, setup:lj[0], punchline:lj[1], source:'offline', at:Date.now() };
+    return _jokeCache;
   }
 };
 
