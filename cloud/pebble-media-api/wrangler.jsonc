@@ -14,7 +14,7 @@
      six weeks at 1,000 daily users. See schema.sql. */
   "d1_databases": [
     { "binding": "pebble_usage", "database_name": "pebble-usage",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID" }
+      "database_id": "c7902822-6b69-46b4-a230-afcfedc5b564" }
   ],
 
   "vars": {

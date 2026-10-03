@@ -20,8 +20,8 @@ const MAX_FLUSH_ROWS  = 200;
 const MAX_SECONDS_APP = 86400;   /* one app cannot exceed 24h in a day */
 const MAX_DAYS_BACK   = 400;
 
-/* control characters, written as escapes so this file stays plain text */
-const CTRL = /[\\u0000-\\u001f\\u007f]/g;
+/* control characters, escaped so this file stays plain text */
+const CTRL = /[\u0000-\u001f\u007f]/g;
 
 function todayStr(d){
   const t = d || new Date();
