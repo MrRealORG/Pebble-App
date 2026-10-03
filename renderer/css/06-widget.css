@@ -188,17 +188,22 @@ body.widget-mode *::after {
   color: var(--ink-3);
 }
 
-/* Quick Note in Widget */
+/* Quick Note in Widget.
+   Matched to .w-row on purpose: the old hard 1px border read as a stray line
+   across the widget once the row was narrower than the border radius. */
 .widget-quick-note {
   display: flex;
+  align-items: center;
   gap: 6px;
   background: var(--surface-2);
-  border-radius: 10px;
-  padding: 4px 8px;
-  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 7px 10px;
+  border: none;
+  min-width: 0;
 }
 .widget-quick-note input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   color: var(--ink);
@@ -248,6 +253,15 @@ body.widget-mode *::after {
 }
 
 /* Mini Compact Mode (The smaller widget requested!) */
+
+/* The mini bar is only ever shown in mini mode. Previously the class list on
+   it was toggled from JS, but `.w-hide-mini` is only styled inside
+   `.mini-mode`, so in full mode nothing hid the mini bar and the clock
+   rendered twice. One CSS rule now owns this, driven by the widget's own
+   class, so the two layouts can never both be visible. */
+.widget:not(.mini-mode) .w-mini-bar {
+  display: none !important;
+}
 .widget.mini-mode {
   padding: 8px 12px;
   gap: 6px;
@@ -273,4 +287,123 @@ body.widget-mode *::after {
   color: var(--green-deep);
   padding: 2px 7px;
   border-radius: 99px;
+}
+
+/* ============================================================
+   RESPONSIVE BEHAVIOUR
+
+   The widget is its own resizable window, so its viewport is the
+   breakpoint source. Without this, shrinking the window clipped the
+   task list and pushed content past the rounded edge. Sections now
+   compact in order of importance: chrome first, then the clock, then
+   the task list, which is the only part allowed to scroll.
+   ============================================================ */
+.widget {
+  overflow: hidden;
+}
+.widget > * {
+  flex: none;
+}
+.widget-tasks-list,
+.w-quick-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* short window: tighten the vertical rhythm */
+@media (max-height: 460px) {
+  .widget {
+    padding: 13px;
+    gap: 8px;
+  }
+  .widget .w-clock {
+    font-size: 27px;
+  }
+}
+@media (max-height: 400px) {
+  .widget {
+    padding: 11px;
+    gap: 7px;
+  }
+  .widget .w-clock {
+    font-size: 23px;
+  }
+  .widget .w-date {
+    display: none;
+  }
+}
+@media (max-height: 330px) {
+  .widget {
+    padding: 9px;
+    gap: 6px;
+  }
+  .widget .w-score {
+    display: none;
+  }
+  .widget .w-row {
+    padding: 6px 8px;
+  }
+}
+
+/* narrow window: stop the row contents from colliding */
+@media (max-width: 270px) {
+  .widget {
+    padding: 11px;
+    gap: 7px;
+  }
+  .widget .w-clock {
+    font-size: 22px;
+  }
+  .widget .w-score {
+    gap: 7px;
+  }
+  .widget .w-row {
+    padding: 7px 8px;
+    gap: 7px;
+  }
+  .widget-quick-note {
+    padding: 6px 8px;
+  }
+  .widget-quick-note input {
+    font-size: 11px;
+  }
+  .widget-head-actions,
+  .widget-btns {
+    gap: 2px;
+  }
+}
+@media (max-width: 210px) {
+  .widget .w-clock {
+    font-size: 19px;
+  }
+  .widget-quick-note button {
+    padding: 3px 6px;
+  }
+  /* the pomo button is the first thing to go when there is no room */
+  .widget .w-row #wg-pomo-btn {
+    display: none;
+  }
+}
+
+/* The task block is the only elastic region in the widget: it absorbs the
+   leftover height and scrolls when the window is short, instead of pushing
+   the rounded corner out of view. */
+.widget .w-tasks-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.widget .w-tasks-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: none;
+}
+.widget .w-tasks-head .tiny {
+  cursor: pointer;
+  flex: none;
 }

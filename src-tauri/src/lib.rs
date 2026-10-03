@@ -327,19 +327,47 @@ pub const BROWSERS: &[&str] = &[
 ];
 
 fn browser_site_from_title(title: &str) -> Option<String> {
-    // "GitHub · Sign in — Mozilla Firefox" / "YouTube - Google Chrome"
-    for sep in [" - Google Chrome", " — Mozilla Firefox", " - Mozilla Firefox", " — Brave", " - Brave", " - Microsoft​ Edge", " - Microsoft Edge", " - Opera", " - Vivaldi", " - Arc"] {
-        if let Some(pos) = title.find(sep) {
-            let site = title[..pos].trim();
+    // Browsers do not agree on the dash they put before their own name. Chrome,
+    // Edge, Brave and Opera use " - Name", Firefox uses an em dash, and Brave in
+    // particular commonly uses an EN DASH (U+2013) that matched nothing here —
+    // so a Brave window never resolved to a site and the raw tab title was
+    // recorded instead. Normalise every dash variant before matching.
+    let norm: String = title
+        .chars()
+        .map(|c| match c {
+            '\u{2010}' | '\u{2011}' | '\u{2012}' | '\u{2013}' | '\u{2014}' | '\u{2015}' => '\u{2014}',
+            _ => c,
+        })
+        .collect();
+
+    for sep in [
+        " - Google Chrome",
+        " \u{2014} Mozilla Firefox",
+        " - Mozilla Firefox",
+        " \u{2014} Brave",
+        " - Brave",
+        " \u{2014} Microsoft Edge",
+        " - Microsoft Edge",
+        " \u{2014} Opera",
+        " - Opera",
+        " \u{2014} Vivaldi",
+        " - Vivaldi",
+        " \u{2014} Arc",
+        " - Arc",
+        " \u{2014} Chromium",
+        " - Chromium",
+    ] {
+        if let Some(pos) = norm.find(sep) {
+            let site = norm[..pos].trim();
             if !site.is_empty() {
                 return Some(site.to_string());
             }
         }
     }
-    // fallback: first segment before " - " / " — "
-    for sep in [" - ", " — "] {
-        if let Some(pos) = title.find(sep) {
-            let site = title[..pos].trim();
+    // fallback: first segment before a dash
+    for sep in [" \u{2014} ", " - "] {
+        if let Some(pos) = norm.find(sep) {
+            let site = norm[..pos].trim();
             if !site.is_empty() && site.len() < 120 {
                 return Some(site.to_string());
             }

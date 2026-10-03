@@ -201,3 +201,12 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
 .stat .s-num{font-size:23px;font-weight:800;letter-spacing:-.02em;line-height:1.15;font-variant-numeric:tabular-nums}
 .stat .s-num .of{font-size:13px;color:var(--ink-3);font-weight:600}
 .stat .s-num .unit{font-size:14px;color:var(--ink-2);font-weight:600}
+
+/* Secondary line inside a stat tile, e.g. the round count under Focused Time. */
+.stat .s-sub {
+  font-size: 11px;
+  color: var(--ink-3);
+  font-weight: 500;
+  white-space: nowrap;
+  margin-top: 1px;
+}

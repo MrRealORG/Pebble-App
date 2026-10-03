@@ -262,6 +262,18 @@ function focusWeek(){
 }
 NX.focusLog = { rounds: roundLog, streak: focusStreak, week: focusWeek, add: logRound };
 
+/* Focused Time — the TimeLens distinction that matters: only time inside a
+   focus round you deliberately started. A day can be long and productive and
+   still have zero Focused Time, because focus only moves when you say so. */
+function focusedSec(offset){
+  const k = U.todayKey(new Date(Date.now() - (offset||0)*86400e3));
+  return roundLog().filter(r => U.todayKey(r.at) === k).reduce((a,r)=> a + (r.sec||0), 0);
+}
+function focusedRounds(offset){
+  const k = U.todayKey(new Date(Date.now() - (offset||0)*86400e3));
+  return roundLog().filter(r => U.todayKey(r.at) === k).length;
+}
+
 const pomo = {
   st:null, timer:null, meta:null,
   start(meta){
@@ -335,6 +347,15 @@ NX.routeInShell('timeless', 'Timeless', 'clock', function(view){
       const tEl = q('#tl-live-time', view); if(tEl) tEl.textContent = U.fmtClock((Date.now()-tracker.live.started)/1000);
       const pEl = q('#tl-live-pill', view);
       if(pEl){ pEl.className = 'pill ' + CATS[tracker.live.cat].pill; pEl.textContent = CATS[tracker.live.cat].l; }
+      /* keep the detection badge honest: it flips to "watching" the moment
+         the native watcher actually reads a window */
+      const dEl = q('#tl-detect-pill', view);
+      if(dEl){
+        const native = NX.native.available && NX.native.mode === 'tauri';
+        const label = tracker.nativeOk ? 'watching' : (native ? 'starting' : 'web mode');
+        dEl.className = 'pill ' + (tracker.nativeOk ? 'green' : 'yellow');
+        if(dEl.textContent !== label) dEl.textContent = label;
+      }
       const ic = q('#tl-live-ic', view);
       if(ic && tracker.live.iconKey !== ic.dataset.k){
         ic.dataset.k = tracker.live.iconKey;
@@ -384,6 +405,12 @@ function renderPage(view){
 
   const goalPct = Math.min(100, Math.round((ft.prod/60)/goalMin*100));
   const distPct = Math.min(100, Math.round((ft.distr/60)/distLimit*100));
+  const focused = focusedSec(currentDay);
+  const focusedN = focusedRounds(currentDay);
+  /* detection state, surfaced so a silent watcher is obvious instead of
+     looking like "the app does not see anything" */
+  const nativeMode = NX.native.available && NX.native.mode === 'tauri';
+  const watcher = tracker.nativeOk ? 'watching' : (nativeMode ? 'starting' : 'web mode');
 
   page.innerHTML = `
   <div class="card stat-strip anim-in">
@@ -392,6 +419,9 @@ function renderPage(view){
       <span class="pill ${s>=70?'green':s>=40?'yellow':'red'}" style="margin-left:auto">${s>=70?'On track':s>=40?'Keep going':'Red flag'}</span></div>
     <div class="stat"><div class="tile">${icon('clock')}</div>
       <div><div class="s-label">Productive${currentDay?' · day':''}</div><div class="s-num">${U.fmtTime(ft.prod)}</div></div></div>
+    <div class="stat"><div class="tile">${icon('target')}</div>
+      <div><div class="s-label">Focused${currentDay?' · day':''}</div><div class="s-num">${U.fmtTime(focused)}</div>
+        <div class="s-sub">${focusedN} ${focusedN===1?'round':'rounds'}</div></div></div>
     <div class="stat"><div class="tile">${icon('eye')}</div>
       <div><div class="s-label">Distraction${currentDay?' · day':''}</div><div class="s-num">${U.fmtTime(ft.distr)}</div></div>
       <span class="delta ${distPct>=100?'down':'up'}" style="margin-left:auto">${distPct}% of limit</span></div>
@@ -407,8 +437,13 @@ function renderPage(view){
       <div class="live-session anim-in" style="animation-delay:.04s">
         <span class="ar-ic" id="tl-live-ic" data-k="" style="background:${U.colorFor(tracker.live.app)}">${U.initials(tracker.live.app)}</span>
         <div><div class="ls-name" id="tl-live-name">${U.esc(tracker.live.app)}</div>
-          <div class="ls-sub">Detected automatically — every app on this PC, every site you visit</div></div>
+          <div class="ls-sub" id="tl-detect">${nativeMode
+            ? (tracker.nativeOk
+                ? 'Detecting apps &amp; sites — native watcher active'
+                : 'Native watcher starting… it needs a moment before the first window is read')
+            : 'Web mode: app detection needs the desktop app. Only in-app routes are tracked here.'}</div></div>
         <div style="text-align:right">
+          <span class="pill ${tracker.nativeOk?'green':'yellow'}" id="tl-detect-pill">${watcher}</span>
           <span class="pill" id="tl-live-pill">${CATS[tracker.live.cat].l}</span>
           <div class="ls-time" id="tl-live-time">${U.fmtClock((Date.now()-tracker.live.started)/1000)}</div>
         </div>

@@ -479,17 +479,25 @@
 .nt-fmt:hover{background:var(--surface-3);color:var(--ink)}
 
 .ne-split{display:flex;flex:1;min-height:0;overflow:hidden;position:relative}
-.ne-split .ne-body{flex:1;border:none;outline:none;resize:none;background:var(--surface);color:var(--ink);padding:18px 22px;font-size:14.5px;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;height:100%;overflow-y:auto;box-sizing:border-box}
-.ne-split .ne-preview{display:none}
+/* min-width:0 matters here. Flex items default to min-width:auto, so the
+   textarea and the rendered pane both refuse to shrink below their content
+   width; in Split mode the pair then overflows .ne-split and the preview
+   paints over the editor with its text clipped at the window edge. */
+.ne-split .ne-body{flex:1;min-width:0;border:none;outline:none;resize:none;background:var(--surface);color:var(--ink);padding:18px 22px;font-size:14.5px;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;height:100%;overflow-y:auto;overflow-x:hidden;box-sizing:border-box}
+.ne-split .ne-preview{display:none;min-width:0}
 
-.ne-split.mode-split .ne-body{flex:1;border-right:1px solid var(--line)}
-.ne-split.mode-split .ne-preview{display:block;flex:1;overflow-y:auto;padding:18px 24px;background:var(--surface-2);color:var(--ink);box-sizing:border-box}
+.ne-split.mode-split .ne-body{flex:1 1 50%;min-width:0;border-right:1px solid var(--line)}
+.ne-split.mode-split .ne-preview{display:block;flex:1 1 50%;min-width:0;overflow-y:auto;overflow-x:hidden;padding:18px 24px;background:var(--surface-2);color:var(--ink);box-sizing:border-box}
+.ne-split.mode-split .ne-preview>*:first-child{margin-top:0}
+.ne-split.mode-split .ne-preview pre,.ne-split.mode-split .ne-preview table{max-width:100%;overflow-x:auto}
+/* long unbroken strings (paths, urls) must wrap instead of forcing the pane wide */
+.ne-split .ne-body,.ne-split .ne-preview{overflow-wrap:anywhere;word-break:break-word}
 
-.ne-split.mode-edit .ne-body{flex:1;border-right:none}
+.ne-split.mode-edit .ne-body{flex:1;min-width:0;border-right:none}
 .ne-split.mode-edit .ne-preview{display:none}
 
 .ne-split.mode-preview .ne-body{display:none}
-.ne-split.mode-preview .ne-preview{display:block;flex:1;overflow-y:auto;padding:26px 36px;background:var(--surface);color:var(--ink);max-width:880px;margin:0 auto;width:100%;box-sizing:border-box}
+.ne-split.mode-preview .ne-preview{display:block;flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;padding:26px 36px;background:var(--surface);color:var(--ink);max-width:880px;margin:0 auto;width:100%;box-sizing:border-box}
 
 /* markdown preview elements */
 .md-p{margin:4px 0 10px;line-height:1.7}
@@ -1183,3 +1191,12 @@
 }
 
 
+
+/* The notes sidebar header must never clip its controls. The search box takes
+   the slack (flex:1 1 auto + min-width:0) and is allowed to shrink, while
+   "+ New" and the collapse chevron hold their intrinsic width. Previously the
+   search box's flex:1 plus the button's default flex-shrink:1 squeezed the
+   button until only "+ N" was visible. */
+.notes-list-col .row.gap-8 > .search-box{min-width:0}
+.notes-list-col .nt-new-btn{flex:0 0 auto;white-space:nowrap}
+.notes-list-col .nt-new-btn svg{flex:none}

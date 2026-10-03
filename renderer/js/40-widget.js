@@ -36,7 +36,7 @@ function widgetHTML(){
     </div>
 
     <!-- Mini Mode Content -->
-    <div class="w-mini-bar ${isMini?'':'w-hide-mini'}" data-tauri-drag-region>
+    <div class="w-mini-bar" data-tauri-drag-region>
       <div class="w-mini-clock" id="wg-clock-mini" data-tauri-drag-region>${U.esc(U.hhmm(now))}</div>
       <div class="w-mini-badge" data-tauri-drag-region>Focus ${goalPct}%</div>
       <span class="faint tiny" style="margin-left:auto" data-tauri-drag-region>${totalOpenTasks} task${totalOpenTasks===1?'':'s'}</span>
@@ -67,8 +67,8 @@ function widgetHTML(){
     </div>
 
     <!-- Quick Tasks Section -->
-    <div class="w-hide-mini" style="display:flex;flex-direction:column;gap:5px">
-      <div style="display:flex;align-items:center;justify-content:space-between">
+    <div class="w-hide-mini w-tasks-wrap">
+      <div class="w-tasks-head">
         <span class="w-sec">Tasks (${totalOpenTasks})</span>
         <span class="faint tiny" style="cursor:pointer" id="wg-see-all-tasks">view all</span>
       </div>

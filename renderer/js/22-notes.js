@@ -622,8 +622,8 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       <!-- Left sidebar: Search, Folders, Notes list -->
       <div class="notes-list-col">
         <div class="row gap-8">
-          <div class="search-box" style="flex:1;width:auto">${icon('search')}<input id="nt-search" placeholder="Search notes…"></div>
-          <button class="btn btn-dark" id="nt-new" data-tip="New note">${icon('plus')} New</button>
+          <div class="search-box" style="flex:1 1 auto;min-width:0;width:auto">${icon('search')}<input id="nt-search" placeholder="Search notes…"></div>
+          <button class="btn btn-dark nt-new-btn" id="nt-new" data-tip="New note">${icon('plus')} New</button>
           <button class="icon-btn sm" id="nt-collapse-sidebar" data-tip="Hide notes list" style="flex:none">${icon('chevL',14)}</button>
         </div>
         <div class="nt-folders" id="nt-folders"></div>
