@@ -117,8 +117,6 @@
 <script src="js/13-capture.js"></script>
 <script src="js/14-agenda.js"></script>
 <script src="js/15-notes-pro.js"></script>
-<script src="js/38-arcade.js"></script>
-<script src="js/39-data.js"></script>
   <script src="js/19-extsync.js"></script>
   <script src="js/20-dashboard.js"></script>
   <script src="js/21-chat.js"></script>
@@ -128,7 +126,14 @@
   <script src="js/25-timeless.js"></script>
   <script src="js/26-reminders.js"></script>
   <script src="js/28-media.js"></script>
+  <!-- 29-games.js defines NX.registerGames and MUST come before 38-arcade.js,
+       which calls it at load time. It used to be listed above 29, so
+       38-arcade.js threw on load and took the extra games and the whole
+       achievements module down with it. The bundle hid this because it
+       concatenates in sorted filename order. -->
   <script src="js/29-games.js"></script>
+  <script src="js/38-arcade.js"></script>
+  <script src="js/39-data.js"></script>
   <script src="js/31-prompts.js"></script>
   <script src="js/30-settings.js"></script>
   <script src="js/32-focus.js"></script>

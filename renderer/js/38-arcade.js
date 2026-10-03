@@ -655,7 +655,16 @@ NX.GAMES = (NX.GAMES || []).concat([
   { id:'gm_2048r',  name:'2048 Rush',   icon:'grid',     color:'#E8853D', desc:'Sixty seconds. Merge fast, chase the score.' },
   { id:'gm_minex',  name:'Expert Mines',icon:'bug',      color:'#E25C4A', desc:'16×16 with 40 mines. For people who enjoy pressure.' }
 ]);
-NX.registerGames({ gm_wordle: wordle, gm_2048r: timed2048, gm_minex: minesExpert });
+/* 29-games.js owns the registry. If this file is ever loaded before it, an
+   unguarded call throws and silently takes the extra games AND every badge in
+   this module down with it — which is exactly what happened when index.html
+   listed this file above 29-games.js. Degrade to a no-op with a loud warning
+   instead of destroying the module. */
+if(typeof NX.registerGames === 'function'){
+  NX.registerGames({ gm_wordle: wordle, gm_2048r: timed2048, gm_minex: minesExpert });
+}else{
+  console.error('[PebbleX] 38-arcade.js loaded before 29-games.js — extra games not registered');
+}
 
 /* badges react to anything that changes arcade state */
 NX.events.on('store:gameBest', ()=> NX.checkAchievements());
