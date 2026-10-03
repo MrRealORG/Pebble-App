@@ -241,9 +241,13 @@ NX.routeInShell = function(name, title, ic, renderFn, onMount){
   NX.router.register(name, {
     title, icon: ic, layout:'app',
     render(app){
-      const view = (q('#shell-view') && q('#shell-view').dataset.route === name)
-        ? q('#shell-view')
-        : NX.renderShell(name);
+      /* Build the shell ONCE and reuse it. This used to compare
+         dataset.route against the incoming name, so switching tabs tore the
+         whole shell down — sidebar, topbar, badges — and rebuilt it before the
+         view rendered. That is why every tab felt like it loaded twice. The
+         title, the active nav item and the badges are all updated in place
+         below, so nothing needs rebuilding per navigation. */
+      const view = q('#shell-view') || NX.renderShell(name);
       view.dataset.route = name;
       // update topbar title without rebuilding search/bell
       const t = q('.topbar .page-title > span');
@@ -258,6 +262,9 @@ NX.routeInShell = function(name, title, ic, renderFn, onMount){
         console.error('['+name+']', e);
         view.innerHTML = `<div class="empty"><div class="e-title">This view stumbled</div><div class="e-sub">${U.esc(e.message)}</div></div>`;
       }
+      /* the split pane lives outside the reused shell, so it is (re)applied
+         here rather than being rebuilt with the shell */
+      try{ if(NX.applySplit) NX.applySplit(); }catch(e){}
     },
     onMount(){ if(onMount) onMount(); }
   });

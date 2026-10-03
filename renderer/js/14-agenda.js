@@ -337,21 +337,45 @@ NX.splitView = {
   }
 };
 
-(function patchShell(){
-  const _renderShell = NX.renderShell;
-  NX.renderShell = function(routeName){
-    const view = _renderShell.apply(NX, arguments);
+(function splitShell(){
+  /* The split pane used to be built inside renderShell, which only worked
+     because the shell was rebuilt on every navigation. The shell is now built
+     once and reused, so the split is applied explicitly: after each route
+     render and whenever the setting changes. */
+  NX.applySplit = function(){
+    const view = q('#shell-view');
+    const col = view && view.closest('.main-col');
+    if(!view || !col) return;
     const split = NX.splitView.get();
-    if(split === 'off' || !split || routeName === split){ return view; }
-    const host = view.closest('.main-col');
-    if(!host) return view;
-    const wrap = h('<div class="nx-split"></div>');
+    const current = NX.router.currentName;
+    const wrap = q('.nx-split', col);
+    const wantSplit = !!split && split !== 'off' && split !== current;
+
+    if(!wantSplit){
+      if(wrap){
+        col.appendChild(view);          // lift it back out of the wrapper
+        wrap.remove();
+        view.style.flex = '';
+      }
+      return;
+    }
+
+    const paint = ()=>{
+      const sub = q('#nx-split-host');
+      if(!sub) return;
+      sub.innerHTML = `<div class="nx-split-title"><span class="tiny faint">${U.esc((SPLITS.find(s=>s.v===split)||{}).l || split)} · preview</span></div>`;
+      NX.renderInto(sub, split);
+    };
+
+    if(wrap){ paint(); return; }       // already applied, just refresh
+
+    const wrapNew = h('<div class="nx-split"></div>');
     const main = h('<div class="nx-split-main"></div>');
     const side = h('<div class="nx-split-side"></div>');
     main.appendChild(view);
-    wrap.appendChild(main);
-    wrap.appendChild(side);
-    host.appendChild(wrap);
+    wrapNew.appendChild(main);
+    wrapNew.appendChild(side);
+    col.appendChild(wrapNew);
     view.style.flex = '1';
     side.innerHTML = `<div class="nx-split-bar">
         <span class="ni-icon">${icon(({notes:'notes',todo:'todo',chat:'chat',today:'sun'})[split] || 'notes')}</span>
@@ -359,11 +383,14 @@ NX.splitView = {
         <button class="icon-btn sm" id="sp-close" data-tip="Close split view">${icon('x')}</button>
       </div>
       <div class="nx-split-host" id="nx-split-host"></div>`;
-    q('#sp-close', side).onclick = ()=>NX.splitView.set('off');
-    const sub = q('#nx-split-host', side);
-    if(sub) NX.renderInto(sub, split);
-    return view;
+    const close = q('#sp-close', side);
+    if(close) close.onclick = ()=>NX.splitView.set('off');
+    paint();
   };
+
+  /* re-apply whenever the setting changes */
+  const _set = NX.splitView.set.bind(NX.splitView);
+  NX.splitView.set = function(v){ _set(v); NX.applySplit(); };
 })();
 
 /* render a compact read-only panel — deliberately NOT the live route,

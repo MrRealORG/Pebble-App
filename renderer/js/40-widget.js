@@ -112,6 +112,42 @@ function attachWidgetEvents(root){
     };
   }
 
+  // Right-click menu for the widget
+  const menuBox = root.querySelector('#pebble-widget-box') || root;
+  if(menuBox && !menuBox.__hasCtx){
+    menuBox.__hasCtx = true;
+    menuBox.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const s = NX.store.get('settings', {});
+      const items = [
+        { label:'Open PebbleX', icon:'rocket', onClick:()=> openMain() },
+        '-',
+        { label: isMini ? 'Exit mini mode' : 'Mini mode', icon:'minimize',
+          onClick:()=>{ const b = root.querySelector('#wg-mini-toggle'); if(b) b.click(); } },
+        { label:'Start a focus session', icon:'target',
+          onClick:()=>{ const b = root.querySelector('#wg-pomo-btn'); if(b) b.click(); } },
+        '-',
+        { label: s.widgetOnTop === false ? 'Pin on top' : 'Unpin from top', icon:'pin',
+          onClick:()=>{ const st = NX.store.get('settings',{}); st.widgetOnTop = st.widgetOnTop === false; NX.store.set('settings', st); } },
+        '-',
+        { label:'Hide widget', icon:'x', danger:true, onClick:()=> NX.widget.apply(false) }
+      ];
+      /* NX.menu anchors to an element; a zero-size probe at the cursor keeps
+         the menu exactly under the pointer */
+      const probe = h('<div style="position:fixed;left:' + e.clientX + 'px;top:' + e.clientY + 'px;width:0;height:0"></div>');
+      document.body.appendChild(probe);
+      try{ NX.menu(probe, items); }catch(err){ console.error(err); }
+      setTimeout(()=> probe.remove(), 0);
+    });
+  }
+
+  function openMain(){
+    try{
+      if(NX.native.available && typeof NX.native.showMain === 'function') NX.native.showMain();
+    }catch(e){}
+  }
+
   // Open full app
   const openBtn = root.querySelector('#wg-open-main');
   if(openBtn){

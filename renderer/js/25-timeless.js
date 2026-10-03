@@ -84,6 +84,54 @@ function iconHTML(key, rec){
   return placeholder;
 }
 
+/* Browser titles are noisy and unstable: Discord titles carry the channel and
+   an unread count ("(1684) Discord | speaker - ... "), so every poll produced
+   a NEW key and the Apps list filled up with dozens of near-duplicate Discord
+   rows. Collapse a raw title to a stable host + a clean label. */
+const SITE_CANON = [
+  [ /discord/i,            'discord.com',   'Discord' ],
+  [ /youtube|youtu\.?be/i, 'youtube.com',   'YouTube' ],
+  [ /github|github copilot/i, 'github.com', 'GitHub' ],
+  [ /facebook|fb/i,       'facebook.com',  'Facebook' ],
+  [ /instagram/i,          'instagram.com', 'Instagram' ],
+  [ /reddit/i,             'reddit.com',    'Reddit' ],
+  [ /twitter|^x\.com|\bx\b/i, 'x.com',      'X' ],
+  [ /tiktok/i,             'tiktok.com',    'TikTok' ],
+  [ /netflix/i,            'netflix.com',   'Netflix' ],
+  [ /twitch/i,             'twitch.tv',     'Twitch' ],
+  [ /linkedin/i,           'linkedin.com',  'LinkedIn' ],
+  [ /amazon|amzn/i,        'amazon.com',    'Amazon' ],
+  [ /stackoverflow/i,      'stackoverflow.com', 'Stack Overflow' ],
+  [ /notion/i,             'notion.so',     'Notion' ],
+  [ /figma/i,              'figma.com',     'Figma' ],
+  [ /wikipedia/i,          'wikipedia.org', 'Wikipedia' ],
+  [ /gmail|mail/i,         'mail.google.com', 'Gmail' ],
+  [ /outlook/i,            'outlook.live.com', 'Outlook' ],
+  [ /spotify/i,            'spotify.com',   'Spotify' ],
+  [ /pinterest/i,          'pinterest.com', 'Pinterest' ],
+  [ /linkedin|teams|slack/i, null, null ]
+];
+/* strip a leading unread/channel counter, emoji, pipes and dots */
+function cleanTitle(raw){
+  return String(raw || '')
+    .replace(/^\s*[\(\[]\s*\d{1,6}\s*[\)\]]\s*/g, '')   // (1684)
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '')
+    .replace(/[|·•]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+function normalizeSite(raw){
+  const cleaned = cleanTitle(raw);
+  for(const [re, host, label] of SITE_CANON){
+    if(re.test(cleaned)) return host ? { key:host, label } : { key:cleaned.toLowerCase(), label:cleaned };
+  }
+  /* no brand matched: a bare host is already stable, otherwise collapse the
+     noisy title down to something readable and lowercase for the key */
+  if(/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(cleaned)) return { key:cleaned.toLowerCase(), label:cleaned };
+  const squashed = cleaned.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48);
+  return { key: squashed || 'site', label: cleaned.slice(0, 48) || 'Website' };
+}
+
 /* ---------------- tracking engine ---------------- */
 const tracker = {
   live: { app:'Pebble', cat:'prod', isSite:false, started:Date.now(), url:'', iconKey:'' },
@@ -130,9 +178,14 @@ const tracker = {
     const today = U.todayKey();
     const all = NX.store.get('timeless', {});
     const day = all[today] = all[today] || {};
-    const key = String(name).toLowerCase();
-    const rec = day[key] = day[key] || { name, cat:this.catFor(key, name), sec:0, isSite:!!isSite };
-    rec.cat = this.catFor(key, name);       // manual locks stick; rules apply live
+    let key = String(name).toLowerCase(), label = name;
+    if(isSite){
+      const n = normalizeSite(name);
+      key = n.key; label = n.label;
+    }
+    const rec = day[key] = day[key] || { name:label, cat:this.catFor(key, label), sec:0, isSite:!!isSite };
+    rec.name = label;
+    rec.cat = this.catFor(key, label);   // manual locks stick; rules apply live
     rec.sec += sec;
     rec.last = Date.now();
     rec.isSite = !!isSite;

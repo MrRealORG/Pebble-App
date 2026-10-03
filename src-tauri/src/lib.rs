@@ -1451,7 +1451,19 @@ fn build_main_window(app: &tauri::App) -> Result<(), String> {
     .min_inner_size(940.0, 600.0)
     .center()
     .visible(false)
+    .maximized(false)
     .resizable(true);
+    /* Open on a screen that can actually hold the window. A fixed 1360x860 was
+       larger than the work area on a small or high-DPI laptop, so the window
+       opened clipped or off the bottom edge. Scale to ~88% of the primary
+       monitor's work area, clamped to the 940x600 minimum. */
+    if let Some(mon) = app.primary_monitor().ok().flatten() {
+        let scale = mon.scale_factor().max(1.0);
+        let size = mon.size();
+        let avail_w = (size.width as f64 / scale * 0.88).max(940.0);
+        let avail_h = (size.height as f64 / scale * 0.88).max(600.0);
+        builder = builder.inner_size(avail_w.min(1600.0), avail_h.min(1000.0));
+    }
     builder = builder.on_download(move |_webview, event| {
         use tauri::webview::DownloadEvent;
         match event {

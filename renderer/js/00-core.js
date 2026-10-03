@@ -288,7 +288,12 @@ window.NX = window.NX || {};
     document.body.classList.toggle('login-mode', Router.layout === 'login');
     document.body.classList.toggle('widget-mode', Router.layout === 'widget');
     try{
-      app.innerHTML = '';
+      /* Only wipe the host for standalone layouts (login, widget) which paint
+         directly into #nx-app. Wiping it for app-layout routes destroyed the
+         shell — sidebar, topbar, badges — on every single navigation, so the
+         route had to rebuild all of it and each tab switch looked like it
+         loaded twice. Shell routes clear their own view instead. */
+      if(r.layout !== 'app') app.innerHTML = '';
       r.render(app, params);
       if(r.onMount) r.onMount(app, params);
     }catch(e){
