@@ -179,7 +179,11 @@ async function start(){
 function startEngines(){
   try{ NX.timeless.start(); }catch(e){ console.error('timeless', e); }
   try{ NX.reminderScheduler.start(); }catch(e){ console.error('reminders', e); }
-  try{ NX.widget.apply(); }catch(e){}
+  /* The widget is NOT auto-opened at boot. It used to be, because
+     settings.widgetEnabled defaulted to true — so a desktop widget popped up
+     unbidden on every launch, and creating that window during boot is what
+     wedged the UI thread. It is now opened deliberately: the taskbar button,
+     Shift+W, the action palette, or Settings. */
   try{ NX.extsync.start(); }catch(e){ console.error('extsync', e); }
 
   /* listen for profile handoff from login window */

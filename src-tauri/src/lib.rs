@@ -20,7 +20,7 @@ use std::os::windows::process::CommandExt;
 
 mod ext_bridge;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 static AUTHED: AtomicBool = AtomicBool::new(false);
 
 /* ----------------------------------------------------------
@@ -100,14 +100,25 @@ fn atomic_write(path: &PathBuf, bytes: &[u8]) {
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    let tmp = path.with_extension("json.tmp");
+    // Every window (main, login, widget) mirrors the workspace independently, so
+    // a single shared temp filename had them clobbering each other: one window
+    // could rename another's half-written file into place, and the Windows
+    // copy-fallback could read a truncated temp. Give each write its own name so
+    // the rename is the only thing that touches the real file.
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = path.with_extension(format!("tmp.{}.{}", std::process::id(), seq));
     if let Ok(mut f) = fs::File::create(&tmp) {
         let _ = f.write_all(bytes);
         let _ = f.sync_all();
+    } else {
+        return;
     }
     if fs::rename(&tmp, path).is_err() {
         // Fallback for Windows file locks
         if fs::copy(&tmp, path).is_ok() {
+            let _ = fs::remove_file(&tmp);
+        } else {
             let _ = fs::remove_file(&tmp);
         }
     }
@@ -122,8 +133,13 @@ fn read_doc(path: &PathBuf) -> Option<serde_json::Value> {
     serde_json::from_str::<serde_json::Value>(&raw).ok()
 }
 
+/// Read the whole workspace back.
+///
+/// Async because every window calls this during boot — main, login and widget
+/// all boot at once — and a sync command parses the document on the UI thread,
+/// delaying the first paint of each one.
 #[tauri::command]
-fn load_workspace() -> String {
+async fn load_workspace() -> String {
     match read_doc(&workspace_file()) {
         Some(v) => {
             // migrate v3.0 key-value store: { workspace: {doc}, settings: {...} }
@@ -1184,8 +1200,17 @@ fn asr_record(timeout_ms: u32) -> Result<String, String> {
    widget + login flow
 ---------------------------------------------------------- */
 
+/// Show/hide the desktop widget.
+///
+/// MUST be async, and the window MUST be built on a background thread.
+/// This used to be a sync command that called `builder.build()` directly, which
+/// runs on the UI thread — and creating a WebView2 window from inside a command
+/// that occupies the UI thread deadlocks, because initialising the new webview
+/// needs that same thread to pump its messages. The app then froze solid
+/// (AppHangB1): the login window stopped responding, the main window never
+/// painted (blank white), and the half-built widget showed "not responding".
 #[tauri::command(rename_all = "snake_case")]
-fn widget_toggle(app: AppHandle, show: Option<bool>) -> Result<(), String> {
+async fn widget_toggle(app: AppHandle, show: Option<bool>) -> Result<(), String> {
     let want = show.unwrap_or_else(|| {
         app.get_webview_window("widget")
             .and_then(|w| w.is_visible().ok())
@@ -1198,37 +1223,48 @@ fn widget_toggle(app: AppHandle, show: Option<bool>) -> Result<(), String> {
             let _ = w.set_focus();
             return Ok(());
         }
-        let mut builder = WebviewWindowBuilder::new(
-            &app,
-            "widget",
-            WebviewUrl::App("index.html".into()),
-        )
-        .initialization_script("window.__PEBBLE_WINDOW__ = 'widget';")
-        .title("Pebble Widget")
-        .inner_size(320.0, 490.0)
-        .resizable(true)
-        .decorations(false)
-        .skip_taskbar(true)
-        .always_on_top(true)
-        .shadow(true)
-        .transparent(true);
-        if let Ok(Some(m)) = app.primary_monitor() {
-            let sz = m.size();
-            let sf = m.scale_factor().max(1.0);
-            builder = builder.position(
-                (sz.width as f64 - 330.0) / sf,
-                (sz.height as f64 - 550.0) / sf,
-            );
-        }
-        builder.build().map_err(|e| e.to_string())?;
+        let app2 = app.clone();
+        std::thread::spawn(move || {
+            // let the UI thread finish whatever it is doing first
+            std::thread::sleep(Duration::from_millis(80));
+            let mut builder = WebviewWindowBuilder::new(
+                &app2,
+                "widget",
+                WebviewUrl::App("index.html".into()),
+            )
+            .initialization_script("window.__PEBBLE_WINDOW__ = 'widget';")
+            .title("Pebble Widget")
+            .inner_size(320.0, 490.0)
+            .resizable(true)
+            .decorations(false)
+            .skip_taskbar(true)
+            .always_on_top(true)
+            .shadow(true)
+            .transparent(true);
+            if let Ok(Some(m)) = app2.primary_monitor() {
+                let sz = m.size();
+                let sf = m.scale_factor().max(1.0);
+                builder = builder.position(
+                    (sz.width as f64 - 330.0) / sf,
+                    (sz.height as f64 - 550.0) / sf,
+                );
+            }
+            let _ = builder.build();
+        });
     } else if let Some(w) = app.get_webview_window("widget") {
         let _ = w.hide();
     }
     Ok(())
 }
 
+/// Finish login: hand off from the login window to the main window.
+///
+/// Async for the same reason as `widget_toggle` — this calls show/set_focus/
+/// emit, and doing that from a sync command occupies the UI thread while the
+/// main window's webview needs it, so the handoff wedged and the login button
+/// stayed stuck on "Welcome, ..." forever.
 #[tauri::command(rename_all = "snake_case")]
-fn login_done(app: AppHandle, name: String) -> bool {
+async fn login_done(app: AppHandle, name: String) -> bool {
     // mark authed FIRST so the login window's close event doesn't quit the app
     AUTHED.store(true, Ordering::Relaxed);
     if let Some(main) = app.get_webview_window("main") {

@@ -11,7 +11,7 @@ NX.defaults = {
   'profile': { name:'You', handle:'you', avatar:'#7CD56E', bio:'Making things happen.', plan:'Pro' },
   'settings': {
     theme:'elera', sfx:true, sfxVolume:0.5, reduceMotion:false,
-    compactMode:false, widgetEnabled:true, widgetOnTop:true,
+    compactMode:false, widgetEnabled:false, widgetOnTop:true,
     focusGoalMin:240, distractionLimitMin:120, lang:'en'
   },
   'servers': [
