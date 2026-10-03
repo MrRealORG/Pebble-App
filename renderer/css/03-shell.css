@@ -65,6 +65,21 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
   background:var(--bg);
 }
 .sidebar.mini{width:var(--sidebar-mini)}
+
+/* Collapsed rail. The brand wordmark and the pin markers had no mini rules, so
+   they kept their full width and spilled out of the 68px rail — the collapsed
+   sidebar looked broken rather than deliberate. */
+.sidebar.mini .brand{position:relative;padding:6px 0 14px;justify-content:center}
+.sidebar.mini .brand .brand-name{display:none}
+/* the chevron would not fit beside the mark in a 68px rail, so it floats over
+   the top-right corner and stays out of the way until hovered */
+.sidebar.mini .brand .collapse-btn{
+  position:absolute;top:4px;right:2px;margin:0;
+  opacity:.55;transition:opacity .15s ease;
+}
+.sidebar.mini .brand .collapse-btn:hover{opacity:1}
+.sidebar.mini .ni-pin,.sidebar.mini .ni-hover-star{display:none}
+.sidebar.mini .side-user{justify-content:center}
 .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 14px;position:relative}
 .brand .brand-mark{
   width:34px;height:34px;border-radius:11px;background:var(--tile);color:var(--tile-ink);

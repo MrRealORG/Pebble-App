@@ -11,31 +11,35 @@
 .nx-swap{
   position:fixed;z-index:60;overflow:hidden;pointer-events:none;
   background:var(--bg);backface-visibility:hidden;contain:layout paint;
-  will-change:transform,opacity,filter;
+  will-change:transform,opacity;
 }
-.nx-swap.out{animation:nx-swap-out .40s cubic-bezier(.32,.72,0,1) both}
-.nx-enter{animation:nx-view-in .38s cubic-bezier(.22,.72,.24,1) both}
+.nx-swap.out{animation:nx-swap-out .26s cubic-bezier(.32,.72,0,1) both}
+.nx-enter{animation:nx-view-in .26s cubic-bezier(.22,.72,.24,1) both}
 
 /* forward = the old page steps back, the new one arrives from below */
-.nx-swap--fwd{--dx:-44px;--dy:-14px;--sc:.955}
+.nx-swap--fwd{--dx:-34px;--dy:-10px;--sc:.965}
 .nx-swap--fwd.out{animation-name:nx-swap-out}
 
 /* back = reverse */
-.nx-swap--back{--dx:44px;--dy:14px;--sc:.955}
+.nx-swap--back{--dx:34px;--dy:10px;--sc:.965}
 .nx-swap--back.out{animation-name:nx-swap-out-b}
 
+/* No blur anywhere in these transitions. Animating filter:blur() over a
+   full-viewport layer forces the compositor to re-rasterise every frame, and
+   because the outgoing and incoming views were both blurred at once you saw
+   what looked like the page loading twice. Opacity and transform are GPU-only
+   and cost nothing. */
 @keyframes nx-swap-out{
-  from{transform:translate3d(0,0,0) scale(1);filter:blur(0);opacity:1}
-  to{transform:translate3d(var(--dx),var(--dy),0) scale(var(--sc));filter:blur(7px);opacity:0}
+  from{transform:translate3d(0,0,0) scale(1);opacity:1}
+  to{transform:translate3d(var(--dx),var(--dy),0) scale(var(--sc));opacity:0}
 }
 @keyframes nx-swap-out-b{
-  from{transform:translate3d(0,0,0) scale(1);filter:blur(0);opacity:1}
-  to{transform:translate3d(calc(var(--dx) * -1),calc(var(--dy) * -1),0) scale(var(--sc));filter:blur(7px);opacity:0}
+  from{transform:translate3d(0,0,0) scale(1);opacity:1}
+  to{transform:translate3d(calc(var(--dx) * -1),calc(var(--dy) * -1),0) scale(var(--sc));opacity:0}
 }
 @keyframes nx-view-in{
-  from{opacity:0;transform:translate3d(0,16px,0) scale(.994);filter:blur(6px)}
-  60%{filter:blur(0)}
-  to{opacity:1;transform:none;filter:blur(0)}
+  from{opacity:0;transform:translate3d(0,14px,0)}
+  to{opacity:1;transform:none}
 }
 
 /* ============================================================

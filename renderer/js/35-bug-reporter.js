@@ -220,8 +220,13 @@ NX.openBugReporter = async function(initialErr){
       const resetBtn = q('#br-safe-reset', tabBody);
       if(resetBtn) resetBtn.onclick = () => {
         NX.confirm('Reset UI Layout?', 'This will reset view layout and sidebar collapsed states without deleting any notes, tasks, or settings.', () => {
-          ['ui:notesSidebarCollapsed', 'ui:sidebarCollapsed', 'viewMode'].forEach(k => {
-            try { localStorage.removeItem('px:' + k); } catch(e){}
+          /* Two bugs here. It removed 'px:'+key, but the store's prefix is 'pebble.',
+             so this reset never actually cleared anything; and it listed
+             ui:sidebarCollapsed, a key nothing writes, instead of
+             ui:sidebarMini, the one the sidebar toggle uses. Go through
+             NX.store.del so the prefix can never drift again. */
+          ['ui:notesSidebarCollapsed', 'ui:sidebarMini', 'ui:sidebarCollapsed', 'viewMode'].forEach(k => {
+            try { NX.store && NX.store.del ? NX.store.del(k) : localStorage.removeItem('pebble.' + k); } catch(e){}
           });
           NX.toastOk('UI layout reset', 'Reloading view…');
           setTimeout(() => location.reload(), 300);

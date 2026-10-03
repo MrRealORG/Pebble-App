@@ -68,7 +68,12 @@ function routeTitle(){
 }
 
 /* ---------------- shell render ---------------- */
-let sidebarMini = false;
+/* Read the persisted state instead of hardcoding false. The toggle saved to
+   ui:sidebarMini but nothing ever read it back, so the sidebar silently sprang
+   open on every launch and the collapse looked broken. */
+let sidebarMini = (function(){
+  try{ return !!NX.store.get('ui:sidebarMini', false); }catch(e){ return false; }
+})();
 
 function badgeFor(r){
   if(r === 'todo'){ const t = NX.store.get('tasks', []).filter(x=>!x.done).length; return t || ''; }
@@ -149,6 +154,11 @@ function renderSidebar(host){
     sidebarMini = !sidebarMini;
     sb.classList.toggle('mini', sidebarMini);
     NX.store.set('ui:sidebarMini', sidebarMini);
+    /* the pill has to re-measure at the new width, and the layout needs a
+       frame before it settles */
+    requestAnimationFrame(()=>{ try{ NX.motion && NX.motion.syncNav && NX.motion.syncNav(); }catch(e){} });
+    /* let the width transition finish, then tell the view host it changed */
+    setTimeout(()=> window.dispatchEvent(new Event('resize')), 280);
   };
   host.appendChild(sb);
   return sb;
