@@ -196,12 +196,23 @@ const _routeInShell = NX.routeInShell;
 NX.routeInShell = function(name, title, ic, renderFn, onMount){
   return _routeInShell(name, title, ic, function(view){
     renderFn(view);
-    const fn = afterRender[name];
-    if(fn){ try{ fn(view); }catch(e){ console.error('[after:'+name+']', e); } }
+    const hooks = afterRender[name] || [];
+    for(let i=0;i<hooks.length;i++){
+      try{ hooks[i](view); }
+      catch(e){ console.error('[after:'+name+']', e); }
+    }
   }, onMount);
 };
-NX.afterRouteRender = function(name, fn){ afterRender[name] = fn; };
-NX.renderRouteHook = function(name){ return afterRender[name]; };
+/* several features can hook the same route — returns an unregister fn */
+NX.afterRouteRender = function(name, fn){
+  (afterRender[name] = afterRender[name] || []).push(fn);
+  return function(){
+    const arr = afterRender[name] || [];
+    const i = arr.indexOf(fn);
+    if(i > -1) arr.splice(i,1);
+  };
+};
+NX.renderRouteHook = function(name){ return (afterRender[name] || []).slice(); };
 
 /* ============================================================
    FOCUS — round history, streak and break reminders

@@ -60,10 +60,12 @@
    ============================================================ */
 .sidebar{position:relative}
 .nav-pill{
-  position:absolute;left:0;right:0;top:0;height:40px;z-index:0;opacity:0;
+  /* left/right mirror the sidebar's own padding, so width can never
+     go stale — only the vertical offset is measured in JS */
+  position:absolute;left:10px;right:10px;top:0;height:40px;z-index:0;opacity:0;
   background:var(--green);border-radius:13px;
-  box-shadow:0 4px 14px var(--green-ring);
-  transition:transform .38s cubic-bezier(.34,1.24,.4,1),height .26s ease,opacity .24s ease,width .26s ease;
+  box-shadow:0 3px 10px rgba(124,213,110,.28);
+  transition:transform .38s cubic-bezier(.34,1.24,.4,1),height .26s ease,opacity .24s ease;
   pointer-events:none;
 }
 .sidebar .nav-item{z-index:1}

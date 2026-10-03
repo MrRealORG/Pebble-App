@@ -316,10 +316,13 @@ NX.router.register('widget', {
     }
     root.innerHTML = widgetHTML();
     attachWidgetEvents(root);
-    setInterval(refreshWidget, 1000);
   }
 });
 
-setInterval(() => { if(widget.floating) refreshWidget(); }, 1000);
-NX.events.on('notifs:changed', () => { if(widget.floating) refreshWidget(); });
+/* One refresh loop for the whole process, covering both the dedicated widget
+   window and the floating in-app widget. It used to be started inside render(),
+   which stacked a permanent 1s timer on every re-render of the route. */
+const widgetIsMounted = () => !!(document.getElementById('pebble-widget-box') || widget.floating);
+setInterval(() => { if(widgetIsMounted()) refreshWidget(); }, 1000);
+NX.events.on('notifs:changed', () => { if(widgetIsMounted()) refreshWidget(); });
 })(window.NX);

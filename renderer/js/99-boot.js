@@ -28,7 +28,101 @@ function hideSplash(){
   }
 }
 
+/* ============================================================
+   Boot failsafe.
+
+   Without this, ANY throw during boot — a script that 404s, a
+   backend restore that rejects, a typo in any module — leaves the
+   user staring at an infinite splash screen with no message and no
+   way forward. That is the worst possible failure mode for a
+   packaged desktop app, so boot is wrapped, and a hard timer
+   guarantees the splash always comes down.
+   ============================================================ */
+
+/* modules that must exist for a healthy boot; a missing one is
+   almost always a file that never shipped in the build */
+const REQUIRED = ['store','router','ensureDefaults','restoreBackend','renderShell','events','toast','h','q','icon'];
+
+function missingModules(){
+  if(!window.NX) return ['window.NX'];
+  return REQUIRED.filter(k => window.NX[k] === undefined);
+}
+
+let booted = false;
+
+function bootFailed(err){
+  booted = true;
+  clearTimeout(failsafe);
+  hideSplash();
+
+  /* if the app is salvageable, get the user in rather than leaving
+     them on a dead screen */
+  const canContinue = !!(window.NX && window.NX.router && window.NX.renderShell);
+  const missing = missingModules();
+  const msg = String((err && (err.stack || err.message)) || err || 'unknown boot failure');
+
+  let box = document.getElementById('nx-boot-error');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'nx-boot-error';
+    box.style.cssText = 'position:fixed;inset:0;z-index:99999;display:flex;align-items:center;'
+      + 'justify-content:center;background:rgba(8,10,14,.94);backdrop-filter:blur(8px);'
+      + 'font:13px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#e8ecf4;padding:24px';
+    document.body.appendChild(box);
+  }
+  box.innerHTML =
+      '<div style="max-width:680px;width:100%;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);'
+    + 'border-radius:16px;padding:26px 28px;box-shadow:0 24px 60px rgba(0,0,0,.5)">'
+    + '<div style="font-size:15px;font-weight:650;margin-bottom:6px">PebbleX could not finish starting</div>'
+    + '<div style="color:#9aa4b8;margin-bottom:16px">'
+    + (missing.length
+        ? 'These modules did not load: <b style="color:#e8ecf4">' + missing.join(', ') + '</b>'
+        : 'The app started but an initialisation step failed.')
+    + '</div>'
+    + '<pre style="max-height:230px;overflow:auto;margin:0 0 18px;padding:12px 14px;background:rgba(0,0,0,.34);'
+    + 'border:1px solid rgba(255,255,255,.07);border-radius:10px;font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;'
+    + 'color:#ffb4a2;white-space:pre-wrap;word-break:break-word">' + String(msg).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])) + '</pre>'
+    + '<div style="display:flex;gap:9px;flex-wrap:wrap">'
+    + (canContinue
+        ? '<button id="nx-boot-go" style="padding:9px 16px;border-radius:9px;border:1px solid rgba(255,255,255,.16);'
+          + 'background:rgba(255,255,255,.09);color:#e8ecf4;font:inherit;font-weight:600;cursor:pointer">Continue anyway</button>'
+        : '')
+    + '<button id="nx-boot-reload" style="padding:9px 16px;border-radius:9px;border:1px solid rgba(255,255,255,.16);'
+      + 'background:rgba(255,255,255,.05);color:#e8ecf4;font:inherit;cursor:pointer">Reload</button>'
+    + '</div></div>';
+
+  const go = document.getElementById('nx-boot-go');
+  if(go) go.onclick = ()=>{ try{ box.remove(); }catch(e){} try{ NX.router.start(); NX.router.go('dashboard'); }catch(e){} };
+  const re = document.getElementById('nx-boot-reload');
+  if(re) re.onclick = ()=> location.reload();
+
+  try{ console.error('[PebbleX] boot failed', err, '| missing:', missing); }catch(e){}
+}
+
+/* hard ceiling: even if boot() never settles (hangs on an await),
+   the splash comes down and the reason is surfaced */
+const failsafe = setTimeout(()=>{
+  if(booted) return;
+  bootFailed(new Error('Startup did not complete within 10 seconds.'));
+}, 10000);
+
+/* a <script> that fails to load fires an error event on the element,
+   which does not bubble to window.onerror — catch those explicitly */
+window.addEventListener('error', ev=>{
+  if(ev && ev.target && ev.target !== window && ev.target.tagName === 'SCRIPT'){
+    console.error('[PebbleX] script failed to load:', ev.target.src || ev.target.dataset.src || '(inline)');
+  }
+}, true);
+
 async function boot(){
+  try{
+  await start();
+  booted = true;
+  clearTimeout(failsafe);
+  }catch(e){ bootFailed(e); }
+}
+
+async function start(){
   NX.ensureDefaults();
 
   /* theme before first paint */

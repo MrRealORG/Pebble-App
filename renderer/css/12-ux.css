@@ -1,0 +1,178 @@
+/* ============================================================
+   PebbleX v0.1 — 12-ux.css
+   Status chips, storage breakdown, snapshots, skeletons,
+   inline field errors, focus rings, truncation, overlay stack.
+   Loaded last — it deliberately overrides component defaults.
+   ============================================================ */
+
+/* ============================================================
+   1. TOPBAR STATUS CHIPS
+   ============================================================ */
+.nx-status{
+  display:flex;align-items:center;gap:2px;flex:none;
+  padding:0 4px;border-radius:var(--r-pill);background:var(--surface);
+  box-shadow:var(--sh-card);
+}
+.nx-status-btn{
+  display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;
+  border-radius:var(--r-pill);font-size:11px;font-weight:700;color:var(--ink-3);
+  transition:background .14s,color .14s;
+}
+.nx-status-btn:hover{background:var(--surface-2);color:var(--ink)}
+.nx-status-btn svg{width:13px;height:13px}
+.nx-status-btn.warn{color:var(--yellow);background:var(--yellow-soft)}
+.nx-status .icon-btn{width:30px;height:30px;border-radius:var(--r-pill)}
+@media (max-width:1180px){ .nx-status-btn span{display:none} .nx-status{padding:0 2px} }
+
+/* ============================================================
+   2. STORAGE BREAKDOWN
+   ============================================================ */
+.store{display:flex;flex-direction:column;gap:14px}
+.store-total{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--green-soft);border-radius:14px;padding:14px 16px;
+}
+.store-total b{font-size:22px;font-weight:800;letter-spacing:-.02em;display:block;line-height:1.1}
+.store-total i{font-style:normal;font-size:11.5px;color:var(--ink-2)}
+.store-rows{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto;padding-right:2px}
+.store-row{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:12px;background:var(--surface-2)}
+.store-row:hover{background:var(--surface-3)}
+.store-ic{
+  width:28px;height:28px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:var(--surface);color:var(--ink-2);
+}
+.store-ic svg{width:15px;height:15px}
+.store-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.store-txt b{font-size:12.5px;font-weight:700}
+.store-txt i{font-style:normal;font-size:10.5px;color:var(--ink-3)}
+.store-txt .meter{height:4px}
+.store-txt .meter > i{background:var(--green)}
+.store-bytes{font-size:11px;font-weight:700;color:var(--ink-3);flex:none;font-variant-numeric:tabular-nums}
+
+/* ============================================================
+   3. SETTINGS SEARCH BOX
+   Must span BOTH grid columns — it is injected as a sibling of
+   .set-nav, so without this it steals column 1 and blows the
+   whole two-column layout apart.
+   ============================================================ */
+.set-search{
+  grid-column:1 / -1;
+  display:flex;align-items:center;gap:8px;height:38px;padding:0 14px;
+  border-radius:var(--r-pill);background:var(--surface);box-shadow:var(--sh-card);
+  margin-bottom:2px;border:1px solid transparent;transition:border-color .15s;
+  align-self:start;
+}
+.set-search:focus-within{border-color:var(--green)}
+.set-search svg{width:15px;height:15px;color:var(--ink-3);flex:none}
+.set-search input{flex:1;border:none;background:none;outline:none;font-size:13.5px;color:var(--ink);min-width:0}
+.set-search .kbd{flex:none}
+
+/* keep the nav column and body side by side no matter what is injected */
+.settings-layout{grid-template-columns:220px minmax(0,1fr);gap:18px;align-items:start}
+.settings-layout > .set-nav{grid-column:1;grid-row:2}
+.settings-layout > #set-body{grid-column:2;grid-row:2;min-width:0}
+.set-nav{position:sticky;top:0;max-height:calc(100vh - 120px);overflow-y:auto;scrollbar-width:thin}
+@media (max-width:900px){
+  .settings-layout{grid-template-columns:1fr}
+  .settings-layout > .set-nav{grid-column:1;grid-row:auto;position:static;max-height:none;
+    flex-direction:row;flex-wrap:wrap;overflow:visible}
+  .settings-layout > #set-body{grid-column:1;grid-row:auto}
+  .set-nav button{width:auto}
+}
+
+/* ============================================================
+   4. SKELETONS
+   ============================================================ */
+.nx-skel{display:flex;flex-direction:column;gap:10px;padding:4px 0}
+.nx-skel.block{padding:12px}
+.skel-row{display:flex;align-items:center;gap:11px}
+.skel-ic{width:30px;height:30px;border-radius:10px;flex:none}
+.skel-lines{flex:1;display:flex;flex-direction:column;gap:6px}
+.skel-lines .skel{height:9px}
+.skel{background:linear-gradient(90deg,var(--surface-2) 25%,var(--surface-3) 50%,var(--surface-2) 75%);background-size:200% 100%;animation:skel 1.2s infinite}
+.am-bubble .skel{background:linear-gradient(90deg,var(--surface-3) 25%,var(--line-strong) 50%,var(--surface-3) 75%);background-size:200% 100%;animation:skel 1.2s infinite}
+
+/* ============================================================
+   5. INLINE FIELD VALIDATION
+   ============================================================ */
+.nx-invalid{border-color:var(--red)!important;box-shadow:0 0 0 3px var(--red-soft)!important;animation:nx-shake .4s ease}
+.nx-field-error{
+  display:flex;align-items:center;gap:6px;margin-top:6px;
+  font-size:11.5px;font-weight:600;color:var(--red);
+  animation:nx-fade-up .2s ease both;
+}
+.nx-field-error svg{width:13px;height:13px;flex:none}
+
+/* ============================================================
+   6. FOCUS RINGS for custom controls
+   ============================================================ */
+.switch:focus-within,
+.task-pick:focus-visible,
+.check:focus-visible,
+.cap-mode:focus-visible,
+.wl-key:focus-visible,
+.seg button:focus-visible,
+.chip:focus-visible,
+.nav-item:focus-visible,
+.qs-item:focus-visible,
+.gs-item:focus-visible,
+.theme-card:focus-visible,
+.bulk-bar .btn:focus-visible,
+.stroop-swatch:focus-visible,
+.sud-cell:focus-visible,
+.mine-cell:focus-visible,
+.set-nav button:focus-visible,
+.mstodo-task-item:focus-within,
+.capch input:focus-visible{
+  outline:2px solid var(--green);outline-offset:2px;border-radius:8px;
+}
+.mstodo-task-item{transition:background .12s}
+.mstodo-task-item:focus-within{background:var(--surface-2);border-radius:10px}
+select:focus-visible,.fx-range:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+
+/* ============================================================
+   7. TRUNCATION
+   ============================================================ */
+.t-name{
+  display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  max-width:100%;
+}
+.mstodo-task-title,.mstodo-task-sub,.chan-item,.cs-name,.nt-folder,
+.set-row .sr-t,.set-row .sr-d,.ag-txt b,.ag-txt i{
+  overflow:hidden;text-overflow:ellipsis;
+}
+.mstodo-task-info{min-width:0;overflow:hidden}
+.mstodo-task-title{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chan-item .ch-name,.chan-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+
+/* long unbroken strings (urls, hashes) never blow out a row */
+.mstodo-task-sub,.api-result,.nx-field-error span,.store-txt b{
+  word-break:break-word;
+}
+
+/* ============================================================
+   8. OVERLAY STACK
+   ============================================================ */
+.nx-overlay-depth{
+  position:fixed;left:12px;bottom:12px;z-index:1300;
+  padding:6px 11px;border-radius:var(--r-pill);background:var(--ink);color:var(--bg);
+  font-size:10.5px;font-weight:800;letter-spacing:.04em;
+}
+
+/* ============================================================
+   9. REDUCED MOTION for everything added in this file
+   ============================================================ */
+@media (prefers-reduced-motion: reduce){
+  .skel,.skel-lines .skel,.am-bubble .skel{animation:none!important}
+  .nx-field-error{animation:none!important}
+  .nx-invalid{animation:none!important}
+  .store-txt .meter > i{transition:none!important}
+  .arc-badge,.store-row{transition:none!important}
+  .skel{background:var(--surface-2)}
+}
+body.no-motion .skel,
+body.no-motion .skel-lines .skel,
+body.no-motion .am-bubble .skel{animation:none!important;background:var(--surface-2)}
+body.no-motion .nx-field-error,
+body.no-motion .nx-invalid{animation:none!important}
+body.no-motion .store-txt .meter > i{transition:none!important}

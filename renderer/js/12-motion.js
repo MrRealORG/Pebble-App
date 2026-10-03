@@ -177,9 +177,10 @@ function placePill(target){
     sb.appendChild(pill);
   }
   const pr = sb.getBoundingClientRect(), ar = target.getBoundingClientRect();
+  const top = Math.round(ar.top - pr.top - sb.scrollTop);
+  /* measuring height only — width comes from left/right in CSS */
   pill.style.height = ar.height + 'px';
-  pill.style.width = ar.width + 'px';
-  pill.style.transform = 'translateY(' + Math.round(ar.top - pr.top - sb.scrollTop) + 'px)';
+  pill.style.transform = 'translateY(' + top + 'px)';
   pill.style.opacity = '1';
 }
 
@@ -587,6 +588,30 @@ window.addEventListener('resize', ()=> M.syncNav());
 document.addEventListener('click', e=>{
   if(e.target.closest && e.target.closest('.collapse-btn')) setTimeout(()=> M.syncNav(), 280);
 });
+/* the sidebar is rebuilt on every navigation, so re-measure once the
+   new layout has actually settled — otherwise the pill lands on a
+   stale position and looks like a floating blob */
+(function keepPillHonest(){
+  if(typeof ResizeObserver === 'undefined') return;
+  let last = null;
+  const check = ()=>{
+    const sb = q('.sidebar');
+    if(!sb){ last = null; return; }
+    const on = q('.nav-item.on', sb);
+    const key = sb.className + '|' + (on ? on.dataset.route : '') + '|' + sb.children.length;
+    if(key === last) return;
+    last = key;
+    requestAnimationFrame(()=> M.syncNav());
+  };
+  const ro = new ResizeObserver(check);
+  const attach = ()=>{
+    const sb = q('.sidebar');
+    if(sb && ro) { try{ ro.disconnect(); ro.observe(sb); }catch(e){} }
+  };
+  document.addEventListener('DOMContentLoaded', attach);
+  document.addEventListener('click', attach);
+  setInterval(attach, 1500);
+})();
 
 /* boot */
 try{ M.recent = NX.store.get('recentRoutes', []) || []; }catch(e){ M.recent = []; }

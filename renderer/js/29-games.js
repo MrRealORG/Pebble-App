@@ -908,14 +908,45 @@ NX.routeInShell('games', 'Arcade', 'game', function(view){
     gameCleanup = null;
   }
 
-  function launch(id){
-    NX.sfx.play('open');
-    ({ gm_2048:g2048, gm_mem:memory, gm_react:reaction, gm_snake:snake, gm_word:scramble, gm_click:clicker,
-       gm_simon:simon, gm_math:mathRush, gm_aim:aimTrainer,
-       gm_type:typing, gm_mine:mines, gm_sudoku:sudoku, gm_stroop:stroop, gm_code:code }[id] || (()=>{}))();
-    setTimeout(()=>q('#gm-live', view) && q('#gm-live', view).scrollIntoView({behavior:'smooth', block:'start'}), 60);
-  }
+  function launch(id){ NX.launchGame(id); }
+
+  /* built-ins are closure-scoped, so they register on first render */
+  NX.registerGames({
+    gm_2048:g2048, gm_mem:memory, gm_react:reaction, gm_snake:snake, gm_word:scramble,
+    gm_click:clicker, gm_simon:simon, gm_math:mathRush, gm_aim:aimTrainer,
+    gm_type:typing, gm_mine:mines, gm_sudoku:sudoku, gm_stroop:stroop, gm_code:code
+  });
 
   renderGrid();
 });
+
+/* ---------- registry ----------
+   Other files (38-arcade.js) add games at load time via
+   NX.registerGames({ id: launchFn }) and get scoring, bests and
+   playtime for free. Built-ins join on the first Arcade render.   */
+NX.gameRegistry = NX.gameRegistry || {};
+NX.registerGames = function(map){
+  Object.assign(NX.gameRegistry, map || {});
+  return Object.keys(map || {});
+};
+NX.launchGame = function(id, retried){
+  let fn = NX.gameRegistry[id];
+  if(typeof fn !== 'function' && !retried && NX.router.routes.games){
+    /* built-ins are not registered until the Arcade renders once */
+    try{ NX.router.go('games'); }catch(e){}
+    fn = NX.gameRegistry[id];
+    if(typeof fn !== 'function'){
+      NX.toastInfo('Not available', String(id || ''));
+      return;
+    }
+  }
+  if(typeof fn !== 'function'){ NX.toastInfo('Not available', String(id || '')); return; }
+  try{ NX.sfx.play('open'); }catch(e){}
+  if(NX.recordPlay) NX.recordPlay(id);
+  fn();
+  setTimeout(()=>{
+    const live = q('#gm-live', document);
+    if(live && live.scrollIntoView) live.scrollIntoView({ behavior:'smooth', block:'start' });
+  }, 60);
+};
 })(window.NX);

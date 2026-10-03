@@ -23,6 +23,19 @@ body.widget-mode #nx-app {
   display: none !important;
 }
 
+/* The widget window is created with transparent + always_on_top +
+   decorations(false) + shadow. On Windows that is a layered WebView2
+   surface, and backdrop-filter on a layered surface pushes the compositor
+   onto a path that can blank or take down the window. The widget is a small
+   panel sitting over the desktop and gains nothing from a blur, so every
+   backdrop filter is dropped while the widget owns the window. */
+body.widget-mode *,
+body.widget-mode *::before,
+body.widget-mode *::after {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
 .widget {
   width: 100%;
   height: 100%;

@@ -1,0 +1,120 @@
+/* ============================================================
+   PebbleX v0.1 — 11-arcade.css
+   Daily challenge, achievements, arcade stats, Wordle board,
+   timed 2048 and the expert minesweeper grid.
+   ============================================================ */
+
+/* ============================================================
+   1. ARCADE HEADER STRIP
+   ============================================================ */
+.arc-strip{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  margin-bottom:14px;padding:10px 14px;border-radius:var(--r-lg);
+  background:var(--surface);box-shadow:var(--sh-card);
+}
+.arc-strip-stat{display:flex;align-items:center;gap:10px;flex:none;padding-right:6px}
+.arc-strip-stat > span:last-child{display:flex;flex-direction:column;min-width:0}
+.arc-strip-stat b{font-size:15px;font-weight:800;letter-spacing:-.01em;line-height:1.1}
+.arc-strip-stat i{font-style:normal;font-size:10.5px;color:var(--ink-3);font-weight:600}
+@media (max-width:720px){ .arc-strip-stat i{display:none} }
+
+/* ============================================================
+   2. DAILY CHALLENGE
+   ============================================================ */
+.arc-panels{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);
+  gap:16px;margin:16px 0;align-items:start;
+}
+@media (max-width:1100px){ .arc-panels{grid-template-columns:1fr} }
+.arc-col{display:flex;flex-direction:column;gap:16px;min-width:0}
+.arc-done{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  font-size:13.5px;font-weight:700;color:var(--green-deep);
+  background:var(--green-soft);border-radius:12px;padding:14px;
+}
+.arc-done svg{width:17px;height:17px}
+.arc-days{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+.arc-days i{
+  width:14px;height:14px;border-radius:5px;background:var(--surface-3);
+  display:block;border:1px solid var(--line);
+}
+.arc-days i.ok{background:var(--green);border-color:var(--green)}
+
+/* ============================================================
+   3. ACHIEVEMENTS
+   ============================================================ */
+.arc-badges{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+  gap:8px;max-height:340px;overflow-y:auto;padding-right:2px;
+}
+.arc-badge{
+  display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:12px;
+  background:var(--surface-2);opacity:.62;filter:grayscale(.6);
+  transition:opacity .2s,filter .2s,transform .15s;
+}
+.arc-badge:hover{transform:translateY(-1px)}
+.arc-badge.on{opacity:1;filter:none;background:var(--green-soft)}
+.arc-badge-ic{
+  width:32px;height:32px;border-radius:10px;flex:none;display:flex;
+  align-items:center;justify-content:center;background:var(--surface);color:var(--ink-3);
+}
+.arc-badge.on .arc-badge-ic{background:var(--green);color:#0E2B0A}
+.arc-badge-ic svg{width:16px;height:16px}
+.arc-badge-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.arc-badge-txt b{font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arc-badge-txt i{font-style:normal;font-size:10px;color:var(--ink-3);font-weight:600}
+.arc-badge-txt .meter{height:4px}
+.arc-badge-txt .meter > i{background:var(--green);transition:width .5s ease}
+
+/* ============================================================
+   4. STATS
+   ============================================================ */
+.arc-stats{display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto;padding-right:2px}
+.arc-stat{display:flex;align-items:center;gap:11px;padding:7px 10px;border-radius:11px}
+.arc-stat:hover{background:var(--surface-2)}
+.arc-stat-ic{
+  width:28px;height:28px;border-radius:9px;flex:none;display:flex;
+  align-items:center;justify-content:center;color:#fff;
+}
+.arc-stat-ic svg{width:15px;height:15px}
+.arc-stat-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+.arc-stat-txt b{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.arc-stat-txt i{font-style:normal;font-size:10.5px;color:var(--ink-3)}
+.arc-stat-best{font-size:10.5px;font-weight:700;color:var(--ink-3);flex:none;font-variant-numeric:tabular-nums}
+
+/* ============================================================
+   5. WORDLE
+   ============================================================ */
+.wl-board{display:flex;flex-direction:column;gap:6px;align-items:center;margin:16px 0}
+.wl-row{display:flex;gap:6px}
+.wl-cell{
+  width:52px;height:52px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+  background:var(--surface-2);border:2px solid var(--line);
+  font-weight:800;font-size:22px;letter-spacing:.02em;text-transform:uppercase;
+  transition:background .18s ease,border-color .18s ease;
+}
+.wl-cell.cur{border-color:var(--green)}
+.wl-cell.correct{background:var(--green);border-color:var(--green);color:#0E2B0A}
+.wl-cell.present{background:var(--yellow);border-color:var(--yellow);color:#3A2C00}
+.wl-cell.absent{background:var(--line-strong);border-color:var(--line-strong);color:var(--ink-3)}
+.wl-keys{display:flex;flex-direction:column;gap:6px;align-items:center;margin:6px 0 14px}
+.wl-kline{display:flex;gap:5px;justify-content:center}
+.wl-key{
+  width:40px;height:44px;border-radius:8px;background:var(--surface-2);
+  font-weight:800;font-size:12.5px;color:var(--ink);text-transform:uppercase;
+  transition:background .12s,transform .1s;
+}
+.wl-key:hover{background:var(--surface-3)}
+.wl-key:active{transform:scale(.94);background:var(--line-strong)}
+.wl-key.wide{width:64px;font-size:11px}
+
+/* ============================================================
+   6. EXPERT MINESWEEPER
+   ============================================================ */
+.mine-grid.expert{width:min(560px,100%);gap:2px;padding:10px}
+.mine-cell.sm{
+  aspect-ratio:1;border-radius:6px;font-size:11px;
+  background:var(--surface);box-shadow:none;border:1px solid var(--line);
+}
+.mine-cell.sm:hover{background:var(--surface-3)}
+.mine-cell.sm.open{background:var(--surface-3);border-color:transparent;box-shadow:none}
