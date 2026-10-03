@@ -12,14 +12,17 @@
     "windows": [],
     "security": {
       "csp": null,
-      "assetProtocol": {
-        "enable": true,
-        "scope": [
-          "$APPDATA/pebble/icons/**",
-          "$DATA/pebble/icons/**",
-          "**/pebble/icons/**"
-        ]
-      }
+"assetProtocol": {
+      "enable": true,
+      "scope": [
+        "$APPDATA/pebble/icons/**",
+        "$DATA/pebble/icons/**",
+        "**/pebble/icons/**",
+        "$APPDATA/pebble/assets/**",
+        "$DATA/pebble/assets/**",
+        "**/pebble/assets/**"
+      ]
+    }
     }
   },
   "bundle": {

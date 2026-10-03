@@ -19,7 +19,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 dirs = "5"
 base64 = "0.22"
-image = { version = "0.25", default-features = false, features = ["png"] }
+# png/jpeg/gif are needed to DECODE user uploads in assets.rs. Only png was
+# enabled before, which meant any JPEG upload — i.e. almost every real photo —
+# would have been rejected as an unknown format.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif"] }
 xcap = "0.4"
 arboard = "3"
 notify-rust = "4"

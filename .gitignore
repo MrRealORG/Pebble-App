@@ -39,3 +39,12 @@ $RECYCLE.BIN/
 *.sublime-project
 *.sublime-workspace
 .gemini/
+
+# Live credential for the pebble-media Worker. NEVER commit.
+.pebble-media-token
+*.pem
+*.p12
+.env
+.env.*
+!.env.example
+

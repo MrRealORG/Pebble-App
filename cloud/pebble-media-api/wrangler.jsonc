@@ -1,0 +1,14 @@
+{
+  "name": "pebble-media-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+
+  "r2_buckets": [
+    { "binding": "pebble_media", "bucket_name": "pebble-media" }
+  ],
+
+  "vars": {
+    "PEBBLE_ORIGIN": "http://tauri.localhost"
+  }
+}

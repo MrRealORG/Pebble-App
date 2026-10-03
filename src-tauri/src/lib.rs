@@ -18,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
+mod assets;
 mod ext_bridge;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -999,7 +1000,7 @@ struct SaveFileResult {
     path: Option<String>,
 }
 
-fn safe_name(name: &str) -> String {
+pub(crate) fn safe_name(name: &str) -> String {
     let base = name.rsplit(['\\', '/']).next().unwrap_or(name);
     let cleaned: String = base
         .chars()
@@ -1033,6 +1034,105 @@ struct ReadTextResult {
     ok: bool,
     text: String,
     error: String,
+}
+
+/* ----------------------------------------------------------
+   user image assets (see assets.rs for the security model)
+---------------------------------------------------------- */
+
+#[tauri::command]
+fn asset_import(data_url: String, name: String, kind: String) -> assets::AssetResult {
+    assets::import(data_url, name, kind)
+}
+
+#[tauri::command]
+fn asset_list(kind: Option<String>) -> Vec<assets::AssetMeta> {
+    assets::list_assets(kind)
+}
+
+#[tauri::command]
+fn asset_delete(id: String) -> bool {
+    assets::delete(id)
+}
+
+#[tauri::command]
+fn asset_export(id: String, dest: String) -> SaveFileResult {
+    match assets::export(id, dest) {
+        Some(p) => SaveFileResult { ok: true, path: Some(p) },
+        None => SaveFileResult { ok: false, path: None },
+    }
+}
+
+#[derive(Serialize)]
+struct AssetUsage {
+    bytes: u64,
+    count: usize,
+    dir: String,
+}
+
+#[tauri::command]
+fn asset_usage() -> AssetUsage {
+    AssetUsage {
+        bytes: assets::library_bytes(),
+        count: assets::list_assets(None).len(),
+        dir: assets::assets_dir().to_string_lossy().to_string(),
+    }
+}
+
+#[tauri::command]
+fn asset_prune() -> usize {
+    assets::prune_to_budget()
+}
+
+/* ----------------------------------------------------------
+   local league — a shared JSON file so a family PC or a synced
+   folder can act as a real (small) leaderboard with no server.
+   Values are re-clamped on read by the renderer, so a hand-edited
+   league file cannot manufacture a top rank.
+---------------------------------------------------------- */
+
+fn league_file() -> PathBuf {
+    data_dir().join("league.json")
+}
+
+#[tauri::command]
+async fn league_read() -> String {
+    match fs::read_to_string(league_file()) {
+        Ok(s) => s,
+        Err(_) => "[]".to_string(),
+    }
+}
+
+#[tauri::command]
+async fn league_merge(entry: String) -> bool {
+    let incoming: serde_json::Value = match serde_json::from_str(&entry) {
+        Ok(v) => v,
+        Err(_) => return false,
+    };
+    let pid = incoming.get("pid").and_then(|v| v.as_str()).unwrap_or("").to_string();
+    if pid.is_empty() {
+        return false;
+    }
+
+    let mut members: Vec<serde_json::Value> = fs::read_to_string(league_file())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| Vec::new());
+
+    // upsert by pid, and hard-cap the roster so a corrupt file cannot grow
+    // the list without bound
+    members.retain(|m| m.get("pid").and_then(|v| v.as_str()).unwrap_or("") != pid);
+    members.push(incoming);
+    members.truncate(500);
+
+    let body = serde_json::to_string(&members).unwrap_or_else(|_| "[]".to_string());
+    atomic_write(&league_file(), body.as_bytes());
+    true
+}
+
+#[tauri::command]
+fn league_path() -> String {
+    league_file().to_string_lossy().to_string()
 }
 
 #[tauri::command]
@@ -1539,6 +1639,8 @@ pub fn run() {
             capture_monitor, list_monitors,
             read_clipboard, write_clipboard, read_clipboard_image,
             save_file, read_text_file, open_external, show_item, open_path, trash_path,
+            asset_import, asset_list, asset_delete, asset_export, asset_usage, asset_prune,
+            league_read, league_merge, league_path,
             app_paths, win_min, win_max, win_close, set_login_item, taskbar_progress, asr_record,
             widget_toggle, widget_size, login_done, quit_app, show_main,
             note_vault_status, note_write_file, note_read_file, note_delete_file, pick_text_files,
