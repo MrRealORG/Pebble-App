@@ -197,9 +197,28 @@ const tracker = {
     NX.store.set('timeless', all);   // sync write keeps totals/live UI exact
   },
 
+  /* Timeless polls the foreground window every 2s. That is fine while the
+     user wants it and pure waste when they don't, so disabling the module
+     has to actually stop the poll rather than just hide the screen. */
+  setEnabled(on){
+    if(on){
+      if(this._enabled) return;
+      this._enabled = true;
+      this.lastTick = Date.now();
+      this.start();
+    } else {
+      this._enabled = false;
+      if(this._timers){ this._timers.forEach(clearInterval); this._timers = []; }
+      this.live = null;
+    }
+  },
+
   start(){
-    setInterval(()=> this.hourlyBeacon(), 30000);
-    setInterval(async ()=>{
+    if(!this._enabled) return;
+    if(this._timers) this._timers.forEach(clearInterval);
+    this._timers = [];
+    this._timers.push(setInterval(()=> this.hourlyBeacon(), 30000));
+    this._timers.push(setInterval(async ()=>{
       const now = Date.now();
       const dt = Math.min(10, Math.round((now - this.lastTick)/1000));
       this.lastTick = now;
@@ -226,7 +245,7 @@ const tracker = {
         this.bump(label, dt, false);
       }
       NX.events.emit('timeless:tick');
-    }, 2000);
+    }, 2000));
   },
 
   /* Hourly signal for the points ledger's focus_hour rule.

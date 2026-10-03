@@ -9,7 +9,7 @@ export const fireSecret = (name: string) => window.dispatchEvent(new CustomEvent
 export function Toasts() {
   const { toasts, dismiss } = useStore();
   return (
-    <div className="fixed bottom-[18px] right-[18px] z-[1000] flex w-[340px] max-w-[calc(100vw-36px)] flex-col gap-[10px]">
+    <div aria-live="polite" aria-relevant="additions" className="fixed bottom-[18px] right-[18px] z-[1000] flex w-[340px] max-w-[calc(100vw-36px)] flex-col gap-[10px]">
       <AnimatePresence>
         {toasts.map((t) => {
           const k = t.kind ?? "ok";

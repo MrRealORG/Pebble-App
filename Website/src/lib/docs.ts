@@ -5,6 +5,7 @@ export const DOC_SECTIONS: DocSection[] = [
   { id: "installation", title: "Installation", group: "Getting started", icon: "download" },
   { id: "quick-tour", title: "Quick tour (video)", group: "Getting started", icon: "play" },
   { id: "first-launch", title: "First launch", group: "Getting started", icon: "zap" },
+  { id: "web-workspace", title: "Web workspace & sync", group: "Getting started", icon: "globe" },
   { id: "chat", title: "Chat", group: "Workspace", icon: "chat" },
   { id: "notes", title: "Notes", group: "Workspace", icon: "note" },
   { id: "tasks", title: "Tasks & Kanban", group: "Workspace", icon: "tasks" },

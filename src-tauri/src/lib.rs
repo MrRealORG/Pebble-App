@@ -20,6 +20,7 @@ use std::os::windows::process::CommandExt;
 
 mod assets;
 mod ext_bridge;
+mod sysctl;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 static AUTHED: AtomicBool = AtomicBool::new(false);
@@ -74,7 +75,7 @@ fn poke_first_instance() {
    data dir helpers
 ---------------------------------------------------------- */
 
-fn data_dir() -> PathBuf {
+pub(crate) fn data_dir() -> PathBuf {
     dirs::data_dir()
         .or_else(dirs::home_dir)
         .unwrap_or_else(|| PathBuf::from("."))
@@ -792,7 +793,7 @@ fn read_clipboard_image() -> ClipImgResult {
    REAL notes vault — folders + .md files on disk
 ---------------------------------------------------------- */
 
-fn notes_vault_root() -> PathBuf {
+pub(crate) fn notes_vault_root() -> PathBuf {
     dirs::document_dir()
         .or_else(dirs::home_dir)
         .unwrap_or_else(data_dir)
@@ -1641,6 +1642,9 @@ pub fn run() {
             save_file, read_text_file, open_external, show_item, open_path, trash_path,
             asset_import, asset_list, asset_delete, asset_export, asset_usage, asset_prune,
             league_read, league_merge, league_path,
+            sysctl::sys_brightness, sysctl::sys_brightness_set,
+            sysctl::sys_volume, sysctl::sys_volume_set,
+            sysctl::sys_power, sysctl::sys_foreground_app, sysctl::sys_data_locations,
             app_paths, win_min, win_max, win_close, set_login_item, taskbar_progress, asr_record,
             widget_toggle, widget_size, login_done, quit_app, show_main,
             note_vault_status, note_write_file, note_read_file, note_delete_file, pick_text_files,

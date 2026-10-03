@@ -84,6 +84,8 @@
 <link rel="stylesheet" href="css/13-chat.css">
 <link rel="stylesheet" href="css/14-weather.css">
 <link rel="stylesheet" href="css/15-rewards.css">
+<link rel="stylesheet" href="css/17-chat-social.css">
+<link rel="stylesheet" href="css/16-apps.css">
 </head>
 <body>
   <div id="nx-splash">
@@ -148,6 +150,8 @@
 <script src="js/42-chat.js"></script>
 <script src="js/44-weather-icons.js"></script>
 <script src="js/46-cloud.js"></script>
+<script src="js/47-chat-commands.js"></script>
+<script src="js/48-chat-social.js"></script>
   <!-- Rewards layer. Numbers are deliberately unique and ordered:
        45-points  ledger, must precede 49-store (which spends points)
        49-store   entitlements + theme/game gates (needs 29-games)
@@ -159,6 +163,12 @@
   <script src="js/49-store.js"></script>
   <script src="js/50-leaderboard.js"></script>
   <script src="js/51-media-library.js"></script>
+  <!-- 52-modules loads BEFORE 53-apps (the app tiles read the registry)
+       and both must load before 99-boot, which starts the engines via
+       modules.isOn(). Unique numeric prefixes only: scripts/build.js
+       sorts by filename and an ambiguous tie breaks a module. -->
+  <script src="js/52-modules.js"></script>
+  <script src="js/53-apps.js"></script>
   <script src="js/99-boot.js"></script>
 </body>
 </html>

@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type MouseEvent as RME } from "react";
 import { animate, motion, useInView, useMotionValueEvent, useScroll, useSpring, useTransform } from "framer-motion";
-import { Icon, BrandMark } from "../components/Icon";
+import { Icon, PebbleGlyph } from "../components/Icon";
 import { useStore } from "../lib/store";
-import { THEMES } from "../lib/themes";
+import { THEMES, themeById } from "../lib/themes";
+import { sfx } from "../lib/audio";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -251,70 +252,211 @@ export function HorizontalModules() {
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   const p = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.4 });
   const x = useTransform(p, [0, 1], [0, -dist]);
-  const progW = useTransform(p, [0, 1], ["0%", "100%"]);
-  const total = 5;
+  const total = 6;
   const [step, setStep] = useState(1);
-  useMotionValueEvent(p, "change", (v: number) => setStep(Math.min(total, Math.floor(v * (total + 0.15)) + 1)));
-
-  const panels: { img: string | null; icon: string | null; over: string; title: string; body: string; tint: string }[] = [
-    { img: "/images/desk.jpg", icon: null, over: "01 — Desk", title: "Made for the desk you already love.", body: "Desktop density, not landing-page density. 14px body, 38px controls, 40px nav rows.", tint: "var(--green-soft)" },
-    { img: "/images/dark-pebble.jpg", icon: null, over: "02 — Mark", title: "A pebble with one green contour.", body: "The mark is a dark tile with a single #7CD56E rim light. It is the only glow in the whole product.", tint: "var(--surface-2)" },
-    { img: "/images/pebbles-hero.jpg", icon: null, over: "03 — Balance", title: "Cards elevate. Wells recess.", body: "Surface plus shadow is a card. Surface-2 and surface-3 are wells and tracks. Hairlines sit between them.", tint: "var(--surface-2)" },
-    { img: null, icon: null, over: "04 — Rule", title: "Structure never moves.", body: "A theme swaps token values only. Never layout, never radius, never spacing. 13 themes, one skeleton.", tint: "var(--green-soft)" },
-    { img: null, icon: "zap", over: "05 — Motion", title: "Short, functional, finished.", body: "Every animation lands between 120 and 400 milliseconds. It confirms what happened, then gets out of the way.", tint: "var(--surface-2)" },
-  ];
+  useMotionValueEvent(p, "change", (v: number) => setStep(Math.min(total, Math.floor(v * (total + 0.2)) + 1)));
 
   return (
-    <section ref={ref} className="relative" style={{ height: "340vh" }}>
+    <section ref={ref} className="relative" style={{ height: "360vh" }}>
       <div className="sticky top-0 flex h-screen flex-col justify-center overflow-hidden">
-        <div className="mx-auto mb-8 flex w-full max-w-[1180px] items-end justify-between gap-6 px-6">
+        <div className="mx-auto mb-7 flex w-full max-w-[1180px] items-end justify-between gap-6 px-6">
           <div>
-            <div className="overline">Scroll down · the page turns</div>
+            <div className="overline">Scroll down · read sideways</div>
             <h2 className="mt-2 text-[clamp(30px,3.6vw,46px)] font-extrabold leading-[1.02] tracking-[-0.045em]">
               Designed to <span className="text-ink-3">disappear.</span>
             </h2>
+            <p className="mt-2 max-w-[420px] text-[14px] leading-relaxed text-ink-2">Six rules that make every screen in PebbleX feel like the same room.</p>
           </div>
-          <div className="hidden w-40 shrink-0 sm:block">
-            <div className="mono-num mb-2 text-right text-[11.5px] font-semibold text-ink-3">
-              {String(step).padStart(2, "0")} / {String(total).padStart(2, "0")}
+          <div className="hidden w-52 shrink-0 sm:block">
+            <div className="mb-2 flex items-center justify-end gap-1.5">
+              {SLIDES.map((s, i) => (
+                <motion.span
+                  key={s.id}
+                  className="h-1.5 rounded-full"
+                  animate={{ width: i + 1 === step ? 22 : 6, background: i + 1 <= step ? "var(--green)" : "var(--surface-3)" }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                />
+              ))}
             </div>
-            <div className="h-1 overflow-hidden rounded-full bg-surface-3">
-              <motion.div className="h-full bg-green" style={{ width: progW }} />
+            <div className="mono-num text-right text-[11.5px] font-semibold text-ink-3">
+              {String(step).padStart(2, "0")} / {String(total).padStart(2, "0")}
             </div>
           </div>
         </div>
-        <motion.div ref={trackRef} style={{ x }} className="flex w-max items-stretch gap-5 pl-6 will-change-transform md:pl-[max(24px,calc((100vw-1180px)/2+24px))]">
-          {panels.map((pn) => (
-            <article key={pn.over} className="flex w-[clamp(272px,29vw,392px)] shrink-0 flex-col overflow-hidden rounded-[22px] border border-line bg-surface" style={{ boxShadow: "var(--sh-card)" }}>
-              {pn.img ? (
-                <div className="h-[210px] overflow-hidden">
-                  <img src={pn.img} alt="" className="h-full w-full object-cover" loading="lazy" />
-                </div>
-              ) : (
-                <div className="grid h-[210px] place-items-center" style={{ background: pn.tint }}>
-                  {pn.icon ? (
-                    <div className="grid h-[76px] w-[76px] place-items-center rounded-[22px] bg-surface" style={{ boxShadow: "var(--sh-card)" }}>
-                      <Icon name={pn.icon} size={30} className="text-green-deep" />
-                    </div>
-                  ) : (
-                    <BrandMark size={64} radius={20} />
-                  )}
-                </div>
-              )}
-              <div className="flex flex-1 flex-col p-6">
-                <div className="overline">{pn.over}</div>
-                <h3 className="mt-2.5 text-[19px] font-extrabold leading-[1.15] tracking-[-0.025em]">{pn.title}</h3>
-                <p className="mt-2.5 text-[13.5px] leading-relaxed text-ink-2">{pn.body}</p>
-                <div className="mt-auto flex items-center gap-2 pt-5">
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--green)" }} />
-                  <span className="text-[11.5px] font-semibold text-ink-3">PebbleX design language</span>
-                </div>
-              </div>
-            </article>
+        <motion.div ref={trackRef} style={{ x }} className="flex w-max items-stretch gap-4 pl-6 will-change-transform md:pl-[max(24px,calc((100vw-1180px)/2+24px))]">
+          {SLIDES.map((s) => (
+            <SlideCard key={s.id} slide={s} />
           ))}
         </motion.div>
       </div>
     </section>
+  );
+}
+
+/* ---------------- the six slides ---------------- */
+
+type Slide = { id: string; w: string; n: string; over: string; title: string; body: string; kind: "photo" | "well" | "mark" | "themes" | "type" | "density"; img?: string };
+
+const SLIDES: Slide[] = [
+  { id: "desk", w: "clamp(300px,32vw,440px)", n: "01", over: "The desk", title: "Made for the desk you already love.", body: "Desktop density, not landing-page density. 14px body, 38px controls, 40px nav rows. It should feel like a tool you own, not a page you visit.", kind: "photo", img: "/images/desk.jpg" },
+  { id: "well", w: "clamp(272px,26vw,330px)", n: "02", over: "Depth", title: "Cards elevate. Wells recess.", body: "Surface plus a shadow is a card. Surface-2 and surface-3 are wells and tracks. A hairline sits between them — nothing else separates layers.", kind: "well" },
+  { id: "mark", w: "clamp(272px,25vw,320px)", n: "03", over: "The mark", title: "One dark tile. One green contour.", body: "The pebble is a dark tile with a single rim of #7CD56E. It is the only glow in the entire product.", kind: "mark" },
+  { id: "themes", w: "clamp(288px,28vw,360px)", n: "04", over: "The system", title: "13 themes, one skeleton.", body: "A theme swaps token values only. Never layout, never radius, never spacing. Tap a swatch — the whole site changes.", kind: "themes" },
+  { id: "type", w: "clamp(272px,26vw,330px)", n: "05", over: "The scale", title: "Two sizes in a header. Four in a card.", body: "Headings carry negative tracking. Labels carry positive tracking and uppercase. Never two sizes inside one card header.", kind: "type" },
+  { id: "density", w: "clamp(272px,26vw,330px)", n: "06", over: "The density", title: "It should feel like a tool.", body: "38px controls, 40px nav rows, 999px pills. Every metric uses tabular numerals so nothing ever jiggles.", kind: "density" },
+];
+
+/* ---------------- live specimens ---------------- */
+
+function WellSpecimen() {
+  return (
+    <div className="rounded-[14px] p-3" style={{ background: "var(--surface-2)" }}>
+      <div className="rounded-[12px] bg-surface p-3" style={{ boxShadow: "var(--sh-card)" }}>
+        <div className="text-[12.5px] font-bold">A card</div>
+        <div className="mt-0.5 font-mono text-[10.5px] text-ink-3">--surface + --sh-card</div>
+      </div>
+      <div className="my-2 h-px" style={{ background: "var(--line-strong)" }} />
+      <div className="text-[11px] font-semibold text-ink-3">A well — surface-2</div>
+    </div>
+  );
+}
+
+function ThemesSpecimen() {
+  const { setTheme, theme } = useStore();
+  const [hot, setHot] = useState<string | null>(null);
+  return (
+    <div className="rounded-[14px] p-3" style={{ background: "var(--surface-2)" }}>
+      <div className="grid grid-cols-7 gap-1.5">
+        {THEMES.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTheme(t.id)}
+            onMouseEnter={() => {
+              setHot(t.id);
+              sfx.tick();
+            }}
+            onMouseLeave={() => setHot(null)}
+            title={t.name}
+            className="h-6 w-6 cursor-pointer rounded-full transition-transform hover:scale-[1.3]"
+            style={{
+              background: t.pill,
+              boxShadow: theme === t.id ? "0 0 0 2px var(--surface), 0 0 0 4px var(--ink)" : "inset 0 0 0 1px rgba(0,0,0,.12)",
+            }}
+          />
+        ))}
+      </div>
+      <div className="mt-2.5 flex h-4 items-center text-[11px] font-semibold text-ink-3">{hot ? themeById(hot).name : "Hover a swatch"}</div>
+    </div>
+  );
+}
+
+function TypeSpecimen() {
+  const rows: [string, string, string][] = [
+    ["Page title", "21px / 800", "text-[21px] font-extrabold tracking-[-0.02em] leading-none"],
+    ["Card heading", "15px / 700", "text-[15px] font-bold tracking-[-0.01em]"],
+    ["Body", "14px / 400", "text-[14px]"],
+    ["Overline", "10.5px / 800", "overline"],
+  ];
+  return (
+    <div className="space-y-1.5 rounded-[14px] p-3" style={{ background: "var(--surface-2)" }}>
+      {rows.map(([l, spec, cls]) => (
+        <div key={l} className="flex items-baseline gap-2.5">
+          <span className="w-[62px] shrink-0 font-mono text-[10px] text-ink-3">{spec}</span>
+          <span className={cls}>{l}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DensitySpecimen() {
+  return (
+    <div className="space-y-2 rounded-[14px] p-3" style={{ background: "var(--surface-2)" }}>
+      <div className="flex items-center gap-2">
+        <span className="btn btn-dark h-[38px] text-[12px]">Button · 38px</span>
+        <span className="flex h-[38px] w-[38px] items-center justify-center rounded-xl bg-surface text-ink-2" style={{ boxShadow: "var(--sh-card)" }}>
+          <Icon name="plus" size={16} />
+        </span>
+      </div>
+      <div className="flex h-[40px] items-center gap-2 rounded-[13px] px-3 text-[12.5px] font-semibold" style={{ background: "var(--green)", color: "var(--on-green)", boxShadow: "0 4px 14px var(--green-ring)" }}>
+        <Icon name="home" size={16} /> Nav row · 40px
+      </div>
+      <div className="mono-num text-[11.5px] text-ink-3">3h 12m · 18% · tabular-nums</div>
+    </div>
+  );
+}
+
+function SlideCard({ slide }: { slide: Slide }) {
+  const [hov, setHov] = useState(false);
+  const dark = slide.kind === "mark";
+  return (
+    <motion.article
+      data-fall
+      onMouseEnter={() => {
+        setHov(true);
+        sfx.swoosh();
+      }}
+      onMouseLeave={() => setHov(false)}
+      initial={{ opacity: 0, y: 26 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-10%" }}
+      transition={{ duration: 0.7, ease }}
+      className="relative flex shrink-0 flex-col overflow-hidden rounded-[22px] border"
+      style={{
+        width: slide.w,
+        height: "min(62vh, 460px)",
+        background: dark ? "var(--dark-card)" : "var(--surface)",
+        borderColor: hov ? "var(--green)" : dark ? "transparent" : "var(--line)",
+        boxShadow: hov ? "var(--sh-pop)" : "var(--sh-card)",
+        color: dark ? "#F6F5F3" : undefined,
+        transform: hov ? "translateY(-4px)" : "none",
+        transition: "transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .25s",
+      }}
+    >
+      {/* media / specimen */}
+      <div className="relative h-[46%] shrink-0 overflow-hidden">
+        {slide.kind === "photo" && <img src={slide.img} alt="" className="h-full w-full scale-110 object-cover transition-transform duration-[900ms] ease-out" style={{ transform: hov ? "scale(1.18)" : "scale(1.1)" }} loading="lazy" />}
+        {slide.kind === "mark" && (
+          <div className="grid h-full place-items-center" style={{ background: "linear-gradient(160deg, #1c261b, #0d120c)" }}>
+            <div className="grid h-[78px] w-[78px] place-items-center rounded-[24px]" style={{ background: "var(--tile)", color: "var(--tile-ink)", border: "1px solid rgba(124,213,110,.25)", boxShadow: "0 0 34px rgba(124,213,110,.28)" }}>
+              <PebbleGlyph size={44} />
+            </div>
+          </div>
+        )}
+        {slide.kind !== "photo" && slide.kind !== "mark" && (
+          <div className="h-full p-4" style={{ background: dark ? "var(--dark-card)" : "var(--green-soft)" }}>
+            {slide.kind === "well" && <WellSpecimen />}
+            {slide.kind === "themes" && <ThemesSpecimen />}
+            {slide.kind === "type" && <TypeSpecimen />}
+            {slide.kind === "density" && <DensitySpecimen />}
+          </div>
+        )}
+        {/* ghost number */}
+        <span
+          className="mono-num pointer-events-none absolute right-4 top-3 text-[44px] font-extrabold leading-none"
+          style={{ color: dark ? "rgba(255,255,255,.14)" : "rgba(18,18,18,.10)" }}
+        >
+          {slide.n}
+        </span>
+      </div>
+
+      {/* copy */}
+      <div className="flex flex-1 flex-col p-5">
+        <div className="overline" style={{ color: dark ? "#9B9B94" : "var(--ink-3)" }}>
+          {slide.over}
+        </div>
+        <h3 className="mt-2 text-[19px] font-extrabold leading-[1.14] tracking-[-0.03em]">{slide.title}</h3>
+        <p className="mt-2 text-[13px] leading-relaxed" style={{ color: dark ? "#B9B9B2" : "var(--ink-2)" }}>
+          {slide.body}
+        </p>
+        <div className="mt-auto flex items-center gap-2 pt-4">
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--green)" }} />
+          <span className="text-[11px] font-bold uppercase tracking-[.08em]" style={{ color: dark ? "#9B9B94" : "var(--ink-3)" }}>
+            PebbleX tokens
+          </span>
+        </div>
+      </div>
+    </motion.article>
   );
 }
 

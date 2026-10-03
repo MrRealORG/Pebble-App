@@ -14,8 +14,10 @@
 | Worker `pebble-media-api` | **deployed + verified end-to-end** |
 | `src-tauri/src/assets.rs` | **written, compiles, tests pass** |
 | Points / Store / Leaderboard / Media (renderer) | **written, 65/65 tests pass** |
+| **Apps & features / System controls** | **written, 44/44 tests pass** |
 | `npm run build` | **passes** |
-| `cargo check --lib` / `--tests` | **passes** |
+| `npm test` (109 tests) | **passes** |
+| `cargo check --lib --tests` | **passes** |
 | `cargo test` | **BROKEN — pre-existing toolchain bug, not mine** |
 | `cargo build --release` | **BROKEN — pre-existing toolchain bug, not mine** |
 | Committed | **no — nothing committed** |
@@ -40,6 +42,63 @@ gap in my verification.
 
 ---
 
+## 2b. SECOND PASS — Apps, features, system controls
+
+Added on request. Nothing existing was rewritten; all changes are additive.
+
+| File | Lines | Purpose |
+|---|---|---|
+| `renderer/js/52-modules.js` | ~300 | Module registry, enable/disable, route guard, offline mode |
+| `renderer/js/53-apps.js` | ~330 | App tiles, long-press sheet, hide, System panel |
+| `renderer/css/16-apps.css` | ~270 | App grid, sliders, folders, **ultra-smooth sidebar** |
+| `src-tauri/src/sysctl.rs` | ~540 | Brightness, volume, battery, foreground app, data locations |
+| `scripts/apps-test.js` | ~370 | 44 runtime tests |
+
+**What the user asked for, and where it landed:**
+
+| Request | Status |
+|---|---|
+| Folder showing where all notes are saved | Settings → **Folders**; lists vault, workspace, assets, icons, crash logs, trash, league, exports. Click a row to open in Explorer. |
+| Disable features (e.g. no Timeless) | Settings → **Apps & features**, or the **Apps** screen. 23 modules switchable. |
+| Local-only / no internet | **Offline mode** switch. `NX.netFetch` *rejects* while offline, so a module that forgets to check still can't phone home. |
+| Long-press an app like Apple | **Apps** screen, 520 ms press. Opens a sheet: Disable / Hide from sidebar / Close. |
+| Real brightness | WMI first, Dxva2 fallback. |
+| Real volume up/down | `IAudioEndpointVolume` via COM. |
+| Windows notifications | **See the honesty note below.** |
+| Smoother sidebar | `16-apps.css` — animated width, spring pill, staggered name fade. |
+| Tablet mode / phone style | **Deferred as requested. Not started.** |
+
+### ⚠️ Three things to be honest about with the user
+
+**1. Windows notification reading is NOT implemented, and I renamed the command.**
+The request was to see real Windows notifications (e.g. Snipping Tool). That needs WinRT `UserNotificationListener`, which is unreachable from this crate, and no reliable substitute exists. Rather than ship something that looks like it works, the command is **`sys_foreground_app`** — it returns the *foreground window's app id*, which is honest and useful for focus rules. The UI labels it "App in focus", not "Notifications". **Do not rename it back to "notifications".**
+
+**2. Brightness and volume could not be verified on this machine.**
+This agent session has no interactive desktop: `[Screen]::Handle` is null, and `GetDefaultAudioEndpoint` returns `0x80004003` (`E_NOTIMPL`) for every role. The COM vtables and marshalling are correct — I proved the enumerator initialises — but **the actual get/set path is untested**. Both degrade gracefully (`supported:false` + a reason) rather than throwing. **Verify on a real desktop session.**
+
+**3. "Delete app" is not what the long-press does.**
+Nothing deletes user data. The sheet offers Disable / Hide / Close. The only destructive action is "Reset all apps", behind an explicit confirm, and it restores registry defaults. This is deliberate and the copy says so.
+
+### Things the next agent must not undo (second pass)
+
+**10. `52-modules.js` must re-wrap ALREADY-REGISTERED routes.**
+This is the load-order trap. Every module registers its route via `routeInShell` at load time, and `52-modules.js` loads at position `52` — long after. Wrapping only `Router.register` from that point on would guard **nothing**. `wrapExisting()` re-wraps `Router.routes` on install. There's a test for exactly this.
+
+**11. Core modules must stay non-disableable** (`notes`, `today`).
+Disabling the shell or the store would strand the user with no way back. `set(id, false)` refuses and reverts the switch.
+
+**12. Disabling must STOP the engine, not hide it.**
+`timeless`, `reminders` and `extsync` all gained `setEnabled()`. `startScheduler()` in `26-reminders.js` used to **leak its interval handle**, which made "turn reminders off" literally impossible — it kept firing every 15 s. Fixed.
+
+**13. Only OFF modules are persisted.**
+So a module shipped in a future version inherits its registry default instead of a stale `off`.
+
+**14. `99-boot.js` now calls `setEnabled()`, not `start()`.**
+Re-enabling after a Settings toggle requires the idempotent setter.
+
+**15. `NX.netFetch` must reject while offline.**
+Hiding UI is not offline mode. There's a test asserting raw `fetch` is never reached.
+
 ## 2. Files I created
 
 | File | Lines | Purpose |
@@ -60,17 +119,21 @@ gap in my verification.
 
 | File | Change |
 |---|---|
-| `renderer/index.html` | +1 CSS link, +4 script tags |
-| `renderer/js/11-shell.js` | **theme lock + `cycleTheme` skip**, NAV group, points chip, avatar helper |
+| `renderer/index.html` | +2 CSS links, +6 script tags |
+| `renderer/js/11-shell.js` | **theme lock + `cycleTheme` skip**, NAV groups (Rewards, Manage), points chip, avatar helper, **hides disabled/hidden apps from the sidebar** |
 | `renderer/js/29-games.js` | **game entitlement gate in `launchGame`** |
 | `renderer/js/38-arcade.js` | emits `points:*` events |
 | `renderer/js/01-data.js` | emits `points:newbest` |
-| `renderer/js/30-settings.js` | new **Rewards** section, avatar upload, locked theme picker |
-| `renderer/js/03-native.js` | asset + league command wrappers |
-| `src-tauri/src/lib.rs` | `mod assets`, 9 new commands, `safe_name` → `pub(crate)` |
+| `renderer/js/30-settings.js` | **+Apps / Folders / System sections**, avatar upload, locked theme picker, deep-link `settings/apps` |
+| `renderer/js/03-native.js` | asset, league, **system control** and `noteVaultStatus` wrappers |
+| `renderer/js/25-timeless.js` | **`setEnabled()`** — real start/stop for the 2 s poll |
+| `renderer/js/26-reminders.js` | **`setEnabled()`** — fixed the leaked interval handle |
+| `renderer/js/19-extsync.js` | **`setEnabled()`** |
+| `renderer/js/99-boot.js` | engines start via `modules.isOn()` |
+| `src-tauri/src/lib.rs` | `mod assets/sysctl`, 16 new commands, `safe_name` → `pub(crate)`, `data_dir`/`notes_vault_root` → `pub(crate)` |
 | `src-tauri/Cargo.toml` | **added `jpeg` + `gif` to the `image` crate** |
 | `src-tauri/tauri.conf.json` | widened `assetProtocol.scope` to `pebble/assets/**` |
-| `package.json` | `npm test` → `rewards-test.js`, old kept as `test:smoke` |
+| `package.json` | `npm test` runs both suites; old kept as `test:smoke` |
 | `renderer/js/bundle.*` | regenerated by `npm run build` |
 
 ---
@@ -217,23 +280,28 @@ module). New files get unique numeric prefixes.
 | Gap | Where |
 |---|---|
 | **Release build unverified** | See §1. Highest priority. |
+| **Brightness/volume untested** | No interactive desktop in the agent session. See §2b. |
 | **`.pebble-media-token` needs deleting/rotating + gitignore** | repo root |
 | **No domain** — `r2.dev`/workers.dev is fine but rate-limited; a custom domain needs a CF zone | §5 |
-| **`League` mode is untested against a real shared file** — commands exist, no E2E test | `league_read`/`league_merge` |
+| **Windows notification reading not implemented** | renamed to `sys_foreground_app`. See §2b. |
+| **League mode untested against a real shared file** — commands exist, no E2E test | `league_read`/`league_merge` |
 | **Global leaderboard has no Worker endpoint** — `50-leaderboard.js` calls `GET /leaderboard/top`, which the Worker does **not** implement. It degrades to "Offline board". | Worker |
 | **Notes/chat/task image embeds** — spec'd in `FEATURES-UPGRADE.md` §7.5, **not built** | `22-notes.js` etc. |
 | **Notes insert uses `NX.mdRender`** — no `![[image]]` wiki-link resolution yet | `22-notes.js` |
-| **`timeless:hourly` event has no emitter** — the `focus_hour` rule therefore never fires | `45-points.js` / `25-timeless.js` |
 | **Backup doesn't exclude `assets/`** — 500 MB could bloat an export | `37-backup.js` |
 | **MCP tools** (`pebble_get_points`, `pebble_unlock_theme`) not added | `ext_bridge.rs` |
 | **New themes** (`aurora`, `paper`, `sand`, `mono-dark`) not created | `00-tokens.css`, `11-shell.js` |
 | **`46-cloud.js` (other agent) may double up with `51-media-library.js`** | review both |
+| **Tablet mode / phone-style** | **Deferred by the user. Do not start.** |
 
-### The `timeless:hourly` one is a real bug
+### RESOLVED: `timeless:hourly`
 
-`45-points.js` listens for `timeless:hourly`, but nothing emits it. I chose
-not to hook the 2 s Timeless poll directly because that would flood the
-mirror. **Someone must emit it hourly from the dashboard cadence.**
+An earlier revision of this file flagged that nothing emitted
+`timeless:hourly`, so the `focus_hour` points rule never fired. **The other
+agent fixed it** by adding `hourlyBeacon()` to `25-timeless.js` (fires at most
+once per clock hour, tracked in the store). My `setEnabled()` refactor keeps
+that beacon inside the stoppable timer list, so disabling Timeless correctly
+stops the hourly points award too. No action needed.
 
 ---
 
@@ -253,12 +321,14 @@ responsibility between them.
 
 ## 10. Suggested next steps
 
-1. `git add .gitignore` entry for `.pebble-media-token`, rotate the secret.
+1. Add `.pebble-media-token` to `.gitignore` and rotate the secret.
 2. Get `cargo build --release` working on a non-broken toolchain.
-3. Fix the `timeless:hourly` emitter (real bug, §8).
+3. Verify brightness/volume on a real desktop session (§2b).
 4. Decide: keep, merge, or delete `46-cloud.js`.
 5. Commit in logical chunks: `cloud/` → `src-tauri` → renderer → tests.
-6. Update `DESIGN.md` with a "Points & store" section — DESIGN.md §13
+6. Update `DESIGN.md` with "Points & store" and "Apps & modules" sections —
+   DESIGN.md §13 requires new UI to be documented, and §14's file map is
+   already stale.
    requires new UI to be documented, and §14's file map is already stale.
 
 ---
@@ -266,7 +336,7 @@ responsibility between them.
 ## 11. Environment notes
 
 ```
-node v24.14.1    npm 11.11.0    cargo 1.97.1 (windows-gnu)
+node v24.14.1npm 11.11.0cargo 1.97.1 (windows-gnu)
 wrangler 4.114.0 (a newer 4.147.0 exists)
 ```
 

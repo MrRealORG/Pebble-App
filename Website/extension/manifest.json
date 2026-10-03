@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "PebbleX Capture",
+  "short_name": "PebbleX",
+  "version": "0.1.0",
+  "description": "Quick capture for your PebbleX workspace. Shares tasks and notes with the desktop app and the web workspace.",
+  "minimum_chrome_version": "116",
+  "action": {
+    "default_title": "PebbleX Capture",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "background": { "service_worker": "background.js", "type": "module" },
+  "permissions": ["identity", "storage", "alarms", "tabs"],
+  "host_permissions": [
+    "https://*.supabase.co/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*"
+  ],
+  "oauth2": {
+    "client_id": "REPLACE_WITH_YOUR_OAUTH_CLIENT_ID.apps.googleusercontent.com",
+    "scopes": ["openid", "email", "profile"]
+  }
+
+}

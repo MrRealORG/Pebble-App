@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PebbleX Capture</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="top">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="19" height="19"><path d="M16 4c7.5 0 12 4.6 12 11.4C28 23 22.6 28 15.6 28 8.6 28 4 23.4 4 16.6 4 9.4 8.8 4 16 4z" fill="#F6F5F3"/><path d="M9 13.5c1-3.4 3.8-5.6 7.6-5.6" stroke="#7CD56E" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
+      </span>
+      <div>
+        <strong>PebbleX Capture</strong>
+        <small id="status">Signing you in...</small>
+      </div>
+      <button id="options" class="ghost" aria-label="Open options">Settings</button>
+    </header>
+
+    <main id="signed-in" hidden>
+      <section class="card">
+        <div class="field">
+          <label for="title">Quick capture</label>
+          <input id="title" maxlength="180" placeholder="What is on your mind?" />
+        </div>
+        <div class="field">
+          <label for="body">A little detail <span>(optional)</span></label>
+          <textarea id="body" rows="3" maxlength="10000" placeholder="A note for later..."></textarea>
+        </div>
+        <div class="row">
+          <div class="segment" role="group" aria-label="Capture type">
+            <button data-kind="task" class="is-on">Task</button>
+            <button data-kind="note">Note</button>
+          </div>
+          <button id="save" class="primary">Save to workspace</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="row tight">
+          <div>
+            <strong>Share browsing time</strong>
+            <p>Domain totals only. No URLs, titles or history.</p>
+          </div>
+          <button id="consent" class="switch" role="switch" aria-checked="false" aria-label="Share browsing time"><span></span></button>
+        </div>
+        <div class="today" id="today"></div>
+      </section>
+
+      <footer class="foot">
+        <span id="device"></span>
+        <a href="#" id="open">Open workspace</a>
+      </footer>
+    </main>
+
+    <main id="signed-out" hidden>
+      <section class="card empty">
+        <p class="lead">One calm workspace, in your browser.</p>
+        <p>Capture tasks and notes, and keep them with your desktop and web workspace.</p>
+        <button id="signin" class="primary">Continue with Google</button>
+        <a class="quiet" href="#" id="configure">Connect your workspace</a>
+      </section>
+    </main>
+
+    <p id="error" role="alert" class="error" hidden></p>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

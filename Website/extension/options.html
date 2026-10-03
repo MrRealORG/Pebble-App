@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>PebbleX Capture — Connection settings</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body style="width: 520px; padding: 26px;">
+    <header class="top">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="19" height="19"><path d="M16 4c7.5 0 12 4.6 12 11.4C28 23 22.6 28 15.6 28 8.6 28 4 23.4 4 16.6 4 9.4 8.8 4 16 4z" fill="#F6F5F3"/><path d="M9 13.5c1-3.4 3.8-5.6 7.6-5.6" stroke="#7CD56E" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
+      </span>
+      <div><strong>Connect your workspace</strong><small>The same Firebase project and Supabase project as the web and desktop apps.</small></div>
+    </header>
+
+    <section class="card">
+      <div class="field"><label for="url">Supabase project URL</label><input id="url" placeholder="https://your-project.supabase.co" /></div>
+      <div class="field"><label for="key">Supabase publishable key</label><input id="key" placeholder="sb_publishable_..." /></div>
+      <div class="field"><label for="api">Firebase public web API key</label><input id="api" placeholder="AIza..." /></div>
+      <div class="field"><label for="workspace">Workspace URL</label><input id="workspace" placeholder="https://your-domain/app" /></div>
+      <div class="row">
+        <p class="hint">These are public client values. Never place a service-role key or Admin SDK credential in this extension.</p>
+        <button id="save" class="primary">Save connection</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row tight">
+        <div>
+          <strong>Share browsing time</strong>
+          <p>One aggregate row per domain per day. Full URLs, page titles and browsing sequences are never read, sent or stored.</p>
+        </div>
+        <button id="consent" class="switch" role="switch" aria-checked="false" aria-label="Share browsing time"><span></span></button>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row tight">
+        <div><strong>Sign out of this extension</strong><p>Queued captures that have not synced will be kept locally.</p></div>
+        <button id="signout" class="ghost" style="border:1px solid var(--line-strong); margin:0; color:#E25C4A">Sign out</button>
+      </div>
+    </section>
+
+    <p id="error" role="alert" class="error" hidden></p>
+    <p class="hint" id="saved" hidden style="color:var(--green-deep)">Connection saved.</p>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

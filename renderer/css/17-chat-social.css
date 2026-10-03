@@ -1,0 +1,214 @@
+/* ============================================================
+   People chat (Messages): layout, composer, command palette, emoji
+   ============================================================ */
+
+.cs-page { height: 100%; }
+.cs-layout {
+  display: grid;
+  grid-template-columns: 264px minmax(0, 1fr);
+  gap: 12px;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ---------- side ---------- */
+.cs-side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+  padding: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card, 16px);
+}
+.cs-side-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.cs-search {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  color: var(--ink-3);
+}
+.cs-search input {
+  flex: 1; min-width: 0;
+  background: none; border: none; outline: none;
+  color: var(--ink); font-size: 12.5px; font-family: inherit;
+}
+.cs-convos { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+.cs-foot { display: flex; gap: 6px; flex: none; }
+
+.cs-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.cs-item:hover { background: var(--surface-2); }
+.cs-item.on { background: var(--green-soft); }
+.cs-item .cs-ic { display: flex; color: var(--ink-3); flex: none; }
+.cs-item.on .cs-ic { color: var(--green-deep); }
+.cs-item-t {
+  display: block; font-size: 12.5px; font-weight: 650;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cs-item-s {
+  display: block; font-size: 10.5px; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---------- main ---------- */
+.cs-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card, 16px);
+  overflow: hidden;
+}
+.cs-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.cs-title { font-size: 14px; font-weight: 700; }
+.cs-sub { font-size: 11px; color: var(--ink-3); }
+
+.cs-msgs {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scroll-behavior: smooth;
+}
+.cs-msg { display: flex; }
+.cs-msg.mine { justify-content: flex-end; }
+.cs-bub {
+  max-width: min(74%, 520px);
+  padding: 8px 11px;
+  border-radius: 13px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  min-width: 0;
+}
+.cs-msg.mine .cs-bub { background: var(--green-soft); border-color: transparent; }
+.cs-msg.action .cs-bub { background: none; border: none; padding: 2px 4px; }
+.cs-who { font-size: 10.5px; font-weight: 700; color: var(--green-deep); margin-bottom: 2px; }
+.cs-text { font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.cs-text code {
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: rgba(0,0,0,.16); padding: 1px 5px; border-radius: 5px;
+}
+.cs-when { font-size: 9.5px; color: var(--ink-4); margin-top: 3px; text-align: right; }
+
+/* ---------- composer ---------- */
+.cs-composer {
+  flex: none;
+  border-top: 1px solid var(--line);
+  padding: 9px 12px 10px;
+  position: relative;
+}
+.cs-row { display: flex; align-items: flex-end; gap: 7px; }
+.cs-row textarea {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  max-height: 140px;
+  padding: 8px 11px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font: 13.5px/1.5 inherit;
+  font-family: inherit;
+  outline: none;
+}
+.cs-row textarea:focus { border-color: var(--green); }
+.cs-hint { font-size: 10px; color: var(--ink-4); margin-top: 5px; }
+
+.cs-emojibar {
+  display: flex; flex-wrap: wrap; gap: 3px;
+  padding: 7px;
+  margin-bottom: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  max-height: 132px;
+  overflow-y: auto;
+}
+.cs-em {
+  border: none; background: none; cursor: pointer;
+  font-size: 18px; line-height: 1; padding: 3px 4px; border-radius: 7px;
+}
+.cs-em:hover { background: var(--surface-3); }
+
+/* ---------- command palette ---------- */
+.cmdpane-host { position: relative; }
+.cmdpane {
+  position: absolute;
+  left: 0; right: 0; bottom: calc(100% + 6px);
+  max-height: 268px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line-strong, var(--line));
+  border-radius: 13px;
+  box-shadow: 0 18px 44px rgba(0,0,0,.28);
+  padding: 5px;
+  z-index: 40;
+}
+.cmdrow {
+  display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap;
+  width: 100%;
+  padding: 6px 9px;
+  border: none; background: none;
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.cmdrow:hover { background: var(--surface-2); }
+.cmdrow.empty { color: var(--ink-3); cursor: default; }
+.cmd-slash { font-weight: 750; font-size: 12.5px; color: var(--green-deep); flex: none; }
+.cmd-arg { font-size: 11px; color: var(--ink-4); font-family: ui-monospace, Consolas, monospace; }
+.cmd-desc { font-size: 11.5px; color: var(--ink-3); flex: 1 1 100%; }
+
+/* ---------- DM people ---------- */
+.cs-people { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow-y: auto; }
+.cs-person {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px;
+  border: none; background: none; border-radius: 10px;
+  color: var(--ink); cursor: pointer; font: inherit; width: 100%;
+}
+.cs-person:hover { background: var(--surface-2); }
+.cs-avatar {
+  width: 28px; height: 28px; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; color: #0f1c0d; flex: none;
+}
+.cs-person-t { display: block; font-size: 12.5px; font-weight: 650; }
+.cs-person-s {
+  display: block; font-size: 10px; color: var(--ink-4);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---------- narrow ---------- */
+@media (max-width: 900px) {
+  .cs-layout { grid-template-columns: 1fr; }
+  .cs-side { max-height: 210px; }
+  .cs-bub { max-width: 86%; }
+}

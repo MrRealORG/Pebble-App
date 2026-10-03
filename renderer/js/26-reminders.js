@@ -64,7 +64,18 @@ function fire(r){
   NX.pushNotif('Reminder: ' + r.name, U.untilStr(r.when) === 'now' ? 'It\'s time!' : r.note || '', 'bell');
   NX.toastInfo('⏰ ' + r.name, r.note || 'Your reminder went off', { life: 8000 });
 }
-function startScheduler(){ setInterval(tick, 15000); setTimeout(tick, 3000); }
+/* The scheduler used to leak its interval handle, so "turn reminders off"
+   was impossible — a disabled module would still fire alerts every 15s.
+   The handle is kept and the timer is cleared on disable. */
+let schedTimer = null;
+function startScheduler(){
+  if(schedTimer) return;
+  schedTimer = setInterval(tick, 15000);
+  setTimeout(tick, 3000);
+}
+function stopScheduler(){
+  if(schedTimer){ clearInterval(schedTimer); schedTimer = null; }
+}
 
 /* native reminder thread pings this every 20s (lib.rs spawn_reminder_thread) */
 NX.reminders = { pollDue: tick };
@@ -228,5 +239,12 @@ NX.routeInShell('reminders', 'Reminders', 'bell', function(view){
   renderList();
 });
 
-NX.reminderScheduler = { start: startScheduler };
+NX.reminderScheduler = {
+  start: startScheduler,
+  stop: stopScheduler,
+  setEnabled(on){
+    if(on) startScheduler();
+    else stopScheduler();
+  }
+};
 })(window.NX);

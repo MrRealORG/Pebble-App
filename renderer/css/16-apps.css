@@ -1,0 +1,252 @@
+/* ============================================================
+   PebbleX — 16-apps.css
+   App manager tiles, system sliders, folder rows, and the
+   ultra-smooth sidebar.
+
+   Theme rule (DESIGN.md §2): token values only. Nothing here sets a
+   colour literally, so every rule survives all 13+ themes and any
+   unlockable ones without a layout change.
+   ============================================================ */
+
+/* ---------------------------------------------------------
+   ULTRA-SMOOTH SIDEBAR
+   The nav already has a sliding pill; this layers a softer hover
+   response, a spring-loaded press, and a mask-based collapse so
+   the mini-sidebar animates width instead of snapping.
+--------------------------------------------------------- */
+.sidebar{
+  /* width is animated rather than switched, so collapsing glides */
+  transition:width .42s cubic-bezier(.22,1,.36,1);
+  will-change:width;
+}
+.sidebar.mini{ width:var(--sidebar-mini) }
+
+/* Nav items: lift + colour in one smooth transition */
+.nav-item{
+  transition:
+    background .22s cubic-bezier(.22,1,.36,1),
+    color .18s ease-out,
+    transform .22s cubic-bezier(.22,1.5,.4,1),
+    box-shadow .28s ease-out;
+  transform:translateZ(0);
+  backface-visibility:hidden;
+}
+.nav-item:hover{ transform:translateX(1px) }
+.nav-item:active{ transform:translateX(1px) scale(.985) }
+
+/* Name fades rather than disappearing when the sidebar collapses */
+.nav-item .ni-name,
+.nav-item .ni-badge{
+  transition:opacity .24s ease, transform .3s cubic-bezier(.22,1,.36,1);
+}
+.sidebar.mini .nav-item .ni-name{
+  opacity:0; transform:translateX(-6px);
+}
+
+/* The green pill: one spring curve for every property it moves */
+.nav-pill{
+  transition:
+    transform .46s cubic-bezier(.34,1.3,.4,1),
+    height .34s cubic-bezier(.22,1,.36,1),
+    opacity .28s ease,
+    background .2s ease;
+  will-change:transform,height;
+}
+
+/* Collapse button spins smoothly */
+.collapse-btn{
+  transition:transform .34s cubic-bezier(.22,1.36,.4,1), background .18s ease, opacity .2s ease;
+}
+.sidebar.mini .collapse-btn{ transform:rotate(180deg) }
+
+/* Group labels collapse to dots instead of clipping hard */
+.sidebar .nav-label{
+  transition:opacity .26s ease, height .34s cubic-bezier(.22,1,.36,1), letter-spacing .3s ease;
+  overflow:hidden;
+}
+.sidebar.mini .nav-label span{
+  opacity:0;
+  transition:opacity .18s ease;
+}
+
+/* Footer avatar block */
+.side-user{ transition:background .2s ease, transform .24s cubic-bezier(.22,1,.4,1) }
+.side-user:hover{ transform:translateY(-1px) }
+
+/* The whole shell shifts its main column smoothly when the width changes */
+.main-col{ transition:flex-basis .42s cubic-bezier(.22,1,.36,1) }
+
+/* Respect the OS setting and the app's own no-motion switch */
+@media (prefers-reduced-motion: reduce){
+  .sidebar, .nav-item, .nav-pill, .nav-label, .side-user, .main-col, .collapse-btn{
+    transition:none !important;
+  }
+  .nav-item:hover, .nav-item:active{ transform:none }
+}
+body.no-motion .sidebar,
+body.no-motion .nav-item,
+body.no-motion .nav-pill,
+body.no-motion .main-col,
+body.no-motion .side-user,
+body.no-motion .collapse-btn{ transition:none !important }
+
+/* ---------------------------------------------------------
+   APPS MANAGER
+--------------------------------------------------------- */
+.apps-page{ display:flex; flex-direction:column; gap:0 }
+
+.apps-grid{
+  display:grid; gap:10px;
+  grid-template-columns:repeat(auto-fill, minmax(112px, 1fr));
+}
+.app-tile{
+  position:relative;
+  display:flex; flex-direction:column; align-items:center; gap:7px;
+  padding:15px 9px 12px;
+  border-radius:var(--r-md);
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  cursor:pointer; user-select:none;
+  transition:
+    transform .26s cubic-bezier(.22,1,.4,1),
+    background .2s ease,
+    border-color .2s ease,
+    box-shadow .26s ease,
+    opacity .2s ease;
+}
+.app-tile:hover{
+  transform:translateY(-3px);
+  background:var(--surface-3);
+  box-shadow:var(--sh-pop);
+}
+.app-tile:active,
+.app-tile.pressing{
+  transform:translateY(0) scale(.94);
+  transition-duration:.1s;
+}
+.app-tile.off{ opacity:.5 }
+.app-tile.off:hover{ opacity:.8 }
+.app-tile.hid{ opacity:.34; border-style:dashed }
+.app-tile.core{ cursor:default }
+
+.app-ic{
+  width:40px; height:40px; border-radius:13px;
+  display:grid; place-items:center; flex:none;
+  color:var(--ink-2);
+  transition:background .22s ease, color .22s ease;
+}
+.app-tile:hover .app-ic{ color:var(--ink) }
+.app-name{
+  font-size:11.5px; font-weight:700; color:var(--ink);
+  max-width:100%; text-align:center;
+}
+.app-state{
+  font-size:9.5px; font-weight:800; letter-spacing:.04em;
+  text-transform:uppercase; color:var(--ink-3);
+}
+.app-tile:not(.off):not(.core) .app-state{ color:var(--green-deep) }
+.app-net{
+  position:absolute; top:7px; right:7px;
+  color:var(--ink-4); display:grid; place-items:center;
+}
+.app-net svg{ width:10px; height:10px }
+
+/* ---------------------------------------------------------
+   OFFLINE BAR
+--------------------------------------------------------- */
+.offline-bar{ margin:14px 0 4px }
+.ob-row{
+  display:flex; align-items:center; gap:13px;
+  padding:13px 15px;
+  background:var(--yellow-soft);
+  border:1px solid var(--yellow);
+  border-radius:var(--r-md);
+}
+
+/* ---------------------------------------------------------
+   MODULE LIST (Settings → Apps & features)
+--------------------------------------------------------- */
+.mod-list{ display:flex; flex-direction:column }
+.mod-row{
+  display:flex; align-items:center; gap:12px;
+  padding:10px 2px;
+  border-bottom:1px solid var(--line);
+}
+.mod-row:last-child{ border-bottom:0 }
+.mod-ic{
+  width:30px; height:30px; border-radius:10px;
+  display:grid; place-items:center; flex:none;
+  background:var(--surface-2); color:var(--ink-2);
+}
+.mod-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.mod-txt b{ font-size:12.5px; font-weight:700; color:var(--ink) }
+.mod-txt i{ font-style:normal; font-size:11px; color:var(--ink-3) }
+
+/* ---------------------------------------------------------
+   FOLDERS
+--------------------------------------------------------- */
+.fd-row{
+  display:flex; align-items:center; gap:11px;
+  padding:9px 8px; border-radius:var(--r-sm);
+  transition:background .18s ease;
+}
+.fd-row:hover{ background:var(--surface-2) }
+.fd-ic{
+  width:28px; height:28px; border-radius:9px;
+  display:grid; place-items:center; flex:none;
+  background:var(--surface-2); color:var(--ink-3);
+}
+.fd-txt{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px }
+.fd-txt b{ font-size:12.5px; font-weight:700; color:var(--ink) }
+.fd-txt i{
+  font-style:normal; font-size:10.5px; color:var(--ink-3);
+  font-family:var(--font); word-break:break-all;
+  line-height:1.45;
+}
+
+/* ---------------------------------------------------------
+   SYSTEM SLIDERS
+--------------------------------------------------------- */
+.sys-page{ display:flex; flex-direction:column; gap:16px }
+.sys-grid{
+  display:grid; gap:16px;
+  grid-template-columns:repeat(auto-fit, minmax(300px, 1fr));
+  align-items:start;
+}
+.sys-range{
+  width:100%; height:5px; border-radius:var(--r-pill);
+  appearance:none; -webkit-appearance:none;
+  background:var(--surface-3);
+  outline:none; cursor:pointer;
+  transition:opacity .2s ease;
+}
+.sys-range::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none;
+  width:18px; height:18px; border-radius:50%;
+  background:var(--green);
+  border:3px solid var(--surface);
+  box-shadow:0 2px 7px rgba(0,0,0,.2);
+  cursor:grab;
+  transition:transform .18s cubic-bezier(.22,1.5,.4,1), box-shadow .2s ease;
+}
+.sys-range::-webkit-slider-thumb:hover{ transform:scale(1.18) }
+.sys-range::-webkit-slider-thumb:active{ cursor:grabbing; transform:scale(1.06) }
+.sys-range::-moz-range-thumb{
+  width:18px; height:18px; border-radius:50%;
+  background:var(--green); border:3px solid var(--surface);
+  box-shadow:0 2px 7px rgba(0,0,0,.2); cursor:grab;
+}
+.sys-range:disabled{ opacity:.45; cursor:not-allowed }
+.sys-range:disabled::-webkit-slider-thumb{ background:var(--ink-4) }
+
+/* ---------------------------------------------------------
+   REDUCED MOTION
+--------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce){
+  .app-tile,
+  .app-tile:hover,
+  .app-tile:active,
+  .app-tile.pressing{ transition:none; transform:none }
+  .sys-range::-webkit-slider-thumb{ transition:none }
+  .sys-range::-webkit-slider-thumb:hover{ transform:none }
+}

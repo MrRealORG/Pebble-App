@@ -170,6 +170,13 @@ NX.extsync = {
     drainTimer = setInterval(()=>{ drainOnce(); pollStatus(); }, 4000);
     drainOnce(); pollStatus();
   },
+  stop(){
+    if(drainTimer){ clearInterval(drainTimer); drainTimer = null; }
+  },
+  setEnabled(on){
+    if(on) this.start();
+    else this.stop();
+  },
   drainOnce
 };
 })(window.NX);

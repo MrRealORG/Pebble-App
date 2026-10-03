@@ -325,7 +325,7 @@ export function Docs() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="pill bg-green-soft text-green-deep"><span className="dot" /> v0.1.0</span>
-              <span className="pill bg-surface-2 text-ink-2">19 sections</span>
+              <span className="pill bg-surface-2 text-ink-2">{DOC_SECTIONS.length} sections</span>
               <span className="pill bg-surface-2 text-ink-2">~10 min read</span>
             </div>
             <h1 className="mt-5 text-[clamp(32px,4.4vw,52px)] font-extrabold leading-[1] tracking-[-0.05em]">
@@ -353,7 +353,7 @@ export function Docs() {
             <div className="overline">What’s inside</div>
             <div className="mt-3 flex flex-col gap-1">
               {[
-                ["Getting started", "4 sections", "download"],
+                ["Getting started", "5 sections", "download"],
                 ["Workspace", "3 sections", "layers"],
                 ["Intelligence", "4 sections", "spark"],
                 ["Explore", "2 sections", "globe"],
@@ -469,6 +469,20 @@ export function Docs() {
                 [<>Press <C>⌘K</C></>, "The command palette is the fastest way around. Try typing “new note”."],
               ]}
             />
+          </Section>
+
+          <Section id="web-workspace">
+            <H2 id="web-workspace" icon="globe">Web workspace & sync</H2>
+            <P>Your desktop workspace now has a home at <C>/app</C>. Use the same Firebase account for tasks, notes, saved prompts, reminders, and AI conversations. Desktop usage is shown as a read-only summary. Games and Timeless stay on desktop.</P>
+            <Callout kind="info" title="Try it without an account">Until cloud credentials are configured, the workspace is a local preview with sample desktop data. Changes stay in your browser and are never imported into a real account.</Callout>
+            <div className="my-5 flex flex-wrap gap-3">
+              <a href="/app" className="btn btn-green">Open workspace <Icon name="arrow" size={14} /></a>
+              <a href="/login" className="btn btn-outline">Sign in</a>
+              <a href="/setup-guide.md" target="_blank" rel="noreferrer" className="btn btn-soft">Cloud setup guide <Icon name="book" size={14} /></a>
+            </div>
+            <H3>Connect your existing app</H3>
+            <P>Firebase handles sign-in; Supabase stores and streams the workspace. The integration guide covers the database migration, server functions, administrator claims, and the desktop sync adapter. The desktop source must connect that adapter to its local store before changes can travel between devices.</P>
+            <Callout kind="tip" title="Admin access is server-controlled">The <C>/admin</C> panel requires a Firebase admin claim. Administrators can view account metadata, record counts, and activity, but cannot read other users' private notes or AI message bodies.</Callout>
           </Section>
 
           <Section id="chat">

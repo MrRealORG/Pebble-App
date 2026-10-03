@@ -13,6 +13,8 @@ import { Bento, DownloadCTA, HorizontalModules, KeyboardSection, Principles, Sta
 import { Docs } from "./pages/Docs";
 import { Changelog, Download } from "./pages/Download";
 import { themeById } from "./lib/themes";
+import WorkspaceRoot from "./workspace/WorkspaceRoot";
+import { usePath } from "./workspace/navigation";
 
 function Home() {
   return (
@@ -133,10 +135,16 @@ function Shell() {
   );
 }
 
+function ApplicationRouter() {
+  const path = usePath();
+  const workspace = /^\/(app|admin|login|signup)(\/|\?|$)/.test(path);
+  return workspace ? <><WorkspaceRoot /><Toasts /><Confetti /></> : <Shell />;
+}
+
 export default function App() {
   return (
     <StoreProvider>
-      <Shell />
+      <ApplicationRouter />
     </StoreProvider>
   );
 }

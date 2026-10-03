@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+.firebase/
+backend/firebase/node_modules/
+backend/firebase/.env*
+**/service-account*.json
+**/serviceAccount*.json
+*.log

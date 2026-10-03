@@ -114,6 +114,45 @@ const native = {
     return (r && r.ok) ? (r.data || 0) : 0;
   },
 
+  /* ---- notes vault on disk ---- */
+  async noteVaultStatus(){
+    const r = await this.invoke('note_vault_status');
+    return (r && r.ok && r.data) ? r.data : { ok:false, root:'', files:[], folders:[] };
+  },
+
+  /* ---- system controls (see src-tauri/src/sysctl.rs) ----
+     Every one of these returns { ok, supported, error } rather than
+     throwing. Brightness is absent on external monitors and volume
+     returns E_NOTIMPL over RDP, so "unsupported" is a normal answer. */
+  async sysBrightness(){
+    const r = await this.invoke('sys_brightness');
+    return (r && r.ok && r.data) ? r.data : { ok:false, supported:false, value:0, error:'unavailable' };
+  },
+  async sysBrightnessSet(level){
+    const r = await this.invoke('sys_brightness_set', { level: Number(level) || 0 });
+    return (r && r.ok && r.data) ? r.data : { ok:false, supported:false, error:'unavailable' };
+  },
+  async sysVolume(){
+    const r = await this.invoke('sys_volume');
+    return (r && r.ok && r.data) ? r.data : { ok:false, supported:false, value:0, error:'unavailable' };
+  },
+  async sysVolumeSet(level){
+    const r = await this.invoke('sys_volume_set', { level: Number(level) || 0 });
+    return (r && r.ok && r.data) ? r.data : { ok:false, supported:false, error:'unavailable' };
+  },
+  async sysPower(){
+    const r = await this.invoke('sys_power');
+    return (r && r.ok && r.data) ? r.data : { ok:false, error:'unavailable' };
+  },
+  async sysForegroundApp(){
+    const r = await this.invoke('sys_foreground_app');
+    return (r && r.ok && Array.isArray(r.data)) ? r.data : [];
+  },
+  async sysDataLocations(){
+    const r = await this.invoke('sys_data_locations');
+    return (r && r.ok && Array.isArray(r.data)) ? r.data : [];
+  },
+
   /* ---- local league (shared file, no server) ---- */
   async leagueRead(){
     const r = await this.invoke('league_read');

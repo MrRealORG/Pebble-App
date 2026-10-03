@@ -177,14 +177,18 @@ async function start(){
 }
 
 function startEngines(){
-  try{ NX.timeless.start(); }catch(e){ console.error('timeless', e); }
-  try{ NX.reminderScheduler.start(); }catch(e){ console.error('reminders', e); }
+  /* Respect the module switches. A module that is OFF must not start its
+     engine, or "disabled" would only mean hidden while it kept polling in
+     the background. setEnabled() is idempotent, so this is safe to call
+     again after the user flips a switch in Settings. */
+  try{ NX.timeless.setEnabled(NX.modules.isOn('timeless')); }catch(e){ console.error('timeless', e); }
+  try{ NX.reminderScheduler.setEnabled(NX.modules.isOn('reminders')); }catch(e){ console.error('reminders', e); }
   /* The widget is NOT auto-opened at boot. It used to be, because
      settings.widgetEnabled defaulted to true — so a desktop widget popped up
      unbidden on every launch, and creating that window during boot is what
      wedged the UI thread. It is now opened deliberately: the taskbar button,
      Shift+W, the action palette, or Settings. */
-  try{ NX.extsync.start(); }catch(e){ console.error('extsync', e); }
+  try{ NX.extsync.setEnabled(NX.modules.isOn('extension')); }catch(e){ console.error('extsync', e); }
 
   /* listen for profile handoff from login window */
   try {

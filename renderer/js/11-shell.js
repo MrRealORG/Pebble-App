@@ -66,6 +66,7 @@ const NAV = [
     { r:'today',      n:'Today',      ic:'sun' },
     { r:'dashboard',  n:'Dashboard',  ic:'dashboard' },
     { r:'chat',       n:'Chat',       ic:'chat' },
+    { r:'messages',   n:'Messages',   ic:'user' },
     { r:'notes',      n:'Notes',      ic:'notes' },
     { r:'todo',       n:'Tasks',      ic:'todo' }
   ]},
@@ -83,13 +84,17 @@ const NAV = [
   { group:'Rewards', items:[
     { r:'store',      n:'Store',      ic:'star' },
     { r:'leaderboard',n:'Leaderboard',ic:'bar' }
+  ]},
+  { group:'Manage', items:[
+    { r:'apps',       n:'Apps',       ic:'grid' },
+    { r:'system',     n:'System',     ic:'sliders' }
   ]}
 ];
 NX.NAV = NAV;
 
 function routeTitle(){
   for(const g of NAV){ const it = g.items.find(i=>i.r === NX.router.currentName); if(it) return it.n; }
-  const map = { settings:'Settings', store:'Store', leaderboard:'Leaderboard' };
+  const map = { settings:'Settings', store:'Store', leaderboard:'Leaderboard', apps:'Apps & features', system:'System' };
   return map[NX.router.currentName] || 'Pebble';
 }
 
@@ -150,22 +155,32 @@ function renderSidebar(host){
     return el;
   };
 
+  /* A module that is switched off, or explicitly hidden from the sidebar,
+     does not get a nav row. The Apps screen and Settings still reach it,
+     so nothing becomes unreachable. */
+  const isVisible = r => {
+    if(NX.apps && NX.apps.isHidden(r)) return false;
+    if(NX.modules && NX.modules.isOn && !NX.modules.isOn(r)) return false;
+    return true;
+  };
+
   /* pinned group first — order follows the pin list */
   if(pinned.length){
     const grp = h(`<div class="nav-group"><div class="nav-label"><span>Pinned</span></div></div>`);
     pinned.forEach(r=>{
       const it = NAV.flatMap(g=>g.items).find(i=>i.r===r);
-      if(it) grp.appendChild(navBtn(it));
+      if(it && isVisible(r)) grp.appendChild(navBtn(it));
     });
-    sb.appendChild(grp);
+    if(grp.children.length) sb.appendChild(grp);
   }
 
   NAV.forEach(g=>{
+    /* a group whose every app is off/hidden is dropped entirely rather
+       than left as a bare label */
+    const visible = g.items.filter(it => !pinned.includes(it.r) && isVisible(it.r));
+    if(!visible.length) return;
     const grp = h(`<div class="nav-group"><div class="nav-label"><span>${U.esc(g.group)}</span></div></div>`);
-    g.items.forEach(it=>{
-      if(pinned.includes(it.r)) return;
-      grp.appendChild(navBtn(it));
-    });
+    visible.forEach(it=>grp.appendChild(navBtn(it)));
     sb.appendChild(grp);
   });
   const foot = h(`<div class="side-foot">

@@ -4,6 +4,7 @@ import { useStore, type Route } from "../lib/store";
 import { THEMES, themeById } from "../lib/themes";
 import { BrandMark, Icon } from "./Icon";
 import { useSound } from "./Sound";
+import { navigate } from "../workspace/navigation";
 
 export function Nav() {
   const { route, go, setPaletteOpen, theme, setTheme, scrollTo, unlock, confetti } = useStore();
@@ -109,7 +110,7 @@ export function Nav() {
         <div className="ml-auto flex items-center gap-1.5">
           <button
             onClick={() => setPaletteOpen(true)}
-            className="hidden h-9 cursor-pointer items-center gap-2 rounded-full bg-surface-2 pl-3 pr-1.5 text-[13px] text-ink-3 transition-colors hover:bg-surface-3 sm:flex"
+            className="hidden h-9 cursor-pointer items-center gap-2 rounded-full bg-surface-2 pl-3 pr-1.5 text-[13px] text-ink-3 transition-colors hover:bg-surface-3 xl:flex"
           >
             <Icon name="search" size={14} />
             Search
@@ -185,8 +186,11 @@ export function Nav() {
             </AnimatePresence>
           </div>
 
-          <button onClick={() => go("download")} className="btn btn-dark hidden sm:inline-flex">
-            <Icon name="download" size={15} /> Download
+          <button onClick={() => navigate('/login')} className="btn btn-ghost hidden lg:inline-flex">
+            Sign in
+          </button>
+          <button onClick={() => navigate('/app')} className="btn btn-dark hidden sm:inline-flex">
+            Open workspace <Icon name="arrow" size={15} />
           </button>
           <button className="grid h-9 w-9 cursor-pointer place-items-center rounded-full hover:bg-surface-3 md:hidden" onClick={() => setMobile((m) => !m)} aria-label="Menu">
             <Icon name={mobile ? "x" : "menu"} size={18} />
@@ -208,8 +212,11 @@ export function Nav() {
                 {l.label}
               </button>
             ))}
-            <button onClick={() => { setMobile(false); go("download"); }} className="btn btn-green mt-2 w-full">
-              <Icon name="download" size={15} /> Download PebbleX
+            <button onClick={() => { setMobile(false); navigate('/login'); }} className="menu-item h-11 text-[15px] font-semibold">
+              Sign in
+            </button>
+            <button onClick={() => { setMobile(false); navigate('/app'); }} className="btn btn-green mt-2 w-full">
+              Open workspace <Icon name="arrow" size={15} />
             </button>
           </motion.div>
         )}

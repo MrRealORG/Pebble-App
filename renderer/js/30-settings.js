@@ -9,7 +9,10 @@ const { h, q, qa, util:U, icon } = NX;
 
 const SECTIONS = [
   { id:'themes',    n:'Themes',       ic:'palette' },
+  { id:'apps',      n:'Apps & features', ic:'grid' },
+  { id:'folders',   n:'Folders',      ic:'download' },
   { id:'rewards',   n:'Rewards',      ic:'star' },
+  { id:'system',    n:'System',       ic:'sliders' },
   { id:'profile',   n:'Profile',      ic:'user' },
   { id:'mcp',       n:'MCP & AI',     ic:'api' },
   { id:'customize', n:'Customize',    ic:'sliders' },
@@ -32,13 +35,24 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
     </div>
   </div>`;
 
+  /* Deep link from the route guard: #/settings/apps must open Apps &
+     features, otherwise "Turn it back on" lands on Themes. routeInShell
+     does not pass params, so read it off the hash once per render. */
+  try{
+    const seg = (location.hash || '').replace(/^#\/?settings\/?/, '').split('/')[0];
+    if(seg && SECTIONS.some(s => s.id === seg)) curSec = seg;
+  }catch(e){}
+
   function renderNav(){
     q('#set-nav', view).innerHTML = SECTIONS.map(s=>
       `<button class="${s.id===curSec?'on':''}" data-s="${s.id}">${icon(s.ic)} ${U.esc(s.n)}</button>`).join('');
     qa('[data-s]', view).forEach(b=>b.onclick = ()=>{ curSec = b.dataset.s; renderNav(); renderBody(); NX.sfx.play('click'); });
   }
 
-  function renderBody(){
+  /* async because the folders/system panels await native commands. The
+     route wrapper does not await this, so every call site must tolerate a
+     promise — which is why they all end in renderBody() with no chaining. */
+  async function renderBody(){
     const host = q('#set-body', view);
     const s = NX.store.get('settings', {});
     const p = NX.store.get('profile', NX.defaults.profile);
@@ -72,6 +86,150 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
           NX.openStore('theme:' + id);
         }
       });
+    }
+
+    if(curSec === 'apps'){
+      const offline = NX.offline.on();
+      const groups = NX.modules.grouped();
+      host.innerHTML = `
+        <div class="card"><div class="card-h"><div class="tile sm" style="background:var(--${offline?'yellow':'green'}-soft);color:var(--${offline?'yellow':'green'})">${icon('cloud')}</div>
+          <div><div class="c-title">Offline mode</div><div class="c-sub">Nothing leaves this device</div></div>
+          <div class="spacer"></div>
+          <label class="switch"><input type="checkbox" id="st-offline" ${offline?'checked':''}><span></span></label></div>
+          <div class="card-b">
+            <p style="font-size:12.5px;color:var(--ink-2);line-height:1.6;margin:0">
+              When on, AI, weather and cloud sync stop making network requests entirely.
+              Everything else keeps working from local storage.</p>
+            <div style="margin-top:12px"><button class="btn btn-soft btn-sm" id="st-apps-page">${icon('grid')} Open the apps screen</button></div>
+          </div></div>
+
+        ${groups.map(g=>`
+        <div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('layers',15)}</div>
+          <div><div class="c-title">${U.esc(g.n)}</div><div class="c-sub">${g.items.filter(i=>i.on).length} of ${g.items.length} on</div></div></div>
+          <div class="card-b"><div class="mod-list">
+            ${g.items.map(({m,on})=>`
+              <div class="mod-row">
+                <span class="mod-ic">${icon(m.ic,15)}</span>
+                <span class="mod-txt"><b>${U.esc(m.n)}</b><i>${U.esc(m.d)}</i></span>
+                ${m.core ? '<span class="pill gray sm">Core</span>' :
+                  `<label class="switch"><input type="checkbox" data-mod="${m.id}" ${on?'checked':''}><span></span></label>`}
+              </div>`).join('')}
+          </div></div></div>`).join('')}
+
+        <div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('undo')}</div>
+          <div><div class="c-title">Reset</div><div class="c-sub">Back to defaults</div></div></div>
+          <div class="card-b"><div class="row gap-8">
+            <button class="btn btn-soft btn-sm" id="st-unhide">Show all hidden apps</button>
+            <button class="btn btn-danger btn-sm" id="st-modreset">${icon('undo')} Reset all apps</button>
+          </div></div></div>`;
+
+      const ot = q('#st-offline', host);
+      if(ot) ot.onchange = ()=>NX.offline.set(ot.checked);
+      qa('[data-mod]', host).forEach(t=>{
+        t.onchange = ()=>{
+          const id = t.dataset.mod;
+          const on = NX.modules.set(id, t.checked);
+          if(!on) t.checked = true;   /* core refused — put the switch back */
+          else{
+            const m = NX.modules.byId(id);
+            NX.toastOk(on ? m.n + ' enabled' : m.n + ' disabled',
+              on ? '' : 'Its background work has stopped.');
+          }
+        };
+      });
+      const up = q('#st-apps-page', host);
+      if(up) up.onclick = ()=>NX.router.go('apps');
+      const uh = q('#st-unhide', host);
+      if(uh) uh.onclick = ()=>{ NX.store.del('apps:hidden'); NX.events.emit('modules:refresh-nav'); renderBody(); NX.toastOk('Sidebar restored'); };
+      const mr = q('#st-modreset', host);
+      if(mr) mr.onclick = ()=>{
+        NX.confirm('Reset every app?', 'All apps return to their defaults and hidden apps come back. Your notes, tasks and points are untouched.', ()=>{
+          NX.modules.resetAll();
+          NX.store.del('apps:hidden');
+          renderBody();
+          NX.toastOk('Apps reset');
+        }, { icon:'undo', yes:'Reset apps' });
+      };
+    }
+
+    if(curSec === 'folders'){
+      const locs = [];
+      host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm">${icon('download')}</div>
+        <div><div class="c-title">Where Pebble keeps your stuff</div><div class="c-sub">Every file lives on this PC. Click any row to open the folder.</div></div></div>
+        <div class="card-b"><div class="faint small" id="fd-load">Looking…</div>
+          <div id="fd-list" style="margin-top:10px"></div></div></div>`;
+
+      const notes = NX.native && NX.native.available ? await NX.native.noteVaultStatus() : null;
+      const sys = NX.native && NX.native.available ? await NX.native.sysDataLocations() : [];
+      void notes;
+      const rows = sys.length ? sys : [];
+      q('#fd-load', host).textContent = rows.length ? '' : 'Folders are only listed in the desktop app.';
+      q('#fd-list', host).innerHTML = rows.map(r=>`
+        <div class="fd-row" data-path="${U.esc(r.path)}">
+          <span class="fd-ic">${icon(r.kind==='notes'?'notes':(r.kind==='images'?'camera':'layers'),14)}</span>
+          <span class="fd-txt"><b>${U.esc(r.label)}</b><i>${U.esc(r.path)}</i></span>
+          ${r.exists?'':'<span class="pill gray sm">missing</span>'}
+          <button class="icon-btn sm" data-open="${U.esc(r.path)}" data-tip="Open">${icon('chevR',14)}</button>
+        </div>`).join('');
+      qa('[data-open]', host).forEach(b=>b.onclick = async ()=>{
+        const p = b.dataset.open;
+        const ok = await NX.native.openPath(p);
+        if(!ok) NX.toastErr('Could not open', p);
+      });
+
+      const paths = NX.native && NX.native.available ? await NX.native.appPaths() : null;
+      if(paths && paths.downloads){
+        const row = h(`<div class="fd-row" data-open-path="${U.esc(paths.downloads)}">
+          <span class="fd-ic">${icon('download',14)}</span>
+          <span class="fd-txt"><b>Downloads</b><i>${U.esc(paths.downloads)}</i></span>
+          <button class="icon-btn sm" data-op2="${U.esc(paths.downloads)}" data-tip="Open">${icon('chevR',14)}</button></div>`);
+        row.querySelector('[data-op2]').onclick = ()=>NX.native.openPath(row.dataset.openPath);
+        q('#fd-list', host).appendChild(row);
+      }
+    }
+
+    if(curSec === 'system'){
+      host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm">${icon('sliders')}</div>
+        <div><div class="c-title">Screen & sound</div><div class="c-sub">Real Windows brightness and volume</div></div></div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:18px">
+          <div>
+            <div class="row gap-8" style="justify-content:space-between;margin-bottom:6px">
+              <b style="font-size:12.5px">${icon('sun')} Brightness</b><span class="pill" id="st-bri-val">—</span></div>
+            <input type="range" class="sys-range" id="st-bri" min="0" max="100" disabled>
+            <div class="faint tiny" id="st-bri-sub" style="margin-top:6px">Checking this display…</div>
+          </div>
+          <div>
+            <div class="row gap-8" style="justify-content:space-between;margin-bottom:6px">
+              <b style="font-size:12.5px">${icon('volume')} System volume</b><span class="pill" id="st-vol-val">—</span></div>
+            <input type="range" class="sys-range" id="st-vol" min="0" max="100" disabled>
+            <div class="faint tiny" id="st-vol-sub" style="margin-top:6px">Checking audio…</div>
+          </div>
+          <div class="row gap-8">
+            <button class="btn btn-soft btn-sm" id="st-sys-page">${icon('sliders')} Open the system panel</button>
+          </div>
+        </div></div>`;
+
+      const bri = q('#st-bri', host), vol = q('#st-vol', host);
+      const bv = q('#st-bri-val', host), vv = q('#st-vol-val', host);
+      const bs = q('#st-bri-sub', host), vs = q('#st-vol-sub', host);
+      let bt = null, vt = null;
+      if(bri) bri.oninput = ()=>{ bv.textContent = bri.value + '%'; clearTimeout(bt); bt = setTimeout(()=>NX.native.sysBrightnessSet(Number(bri.value)), 140); };
+      if(vol) vol.oninput = ()=>{ vv.textContent = vol.value + '%'; clearTimeout(vt); vt = setTimeout(()=>NX.native.sysVolumeSet(Number(vol.value)), 140); };
+
+      if(NX.native && NX.native.available){
+        NX.native.sysBrightness().then(r=>{
+          if(r && r.ok){ bri.value = Math.round(r.value); bv.textContent = Math.round(r.value) + '%'; bs.textContent = 'Your display'; }
+          else { bv.textContent = 'n/a'; bs.textContent = (r && r.error) || 'Not available on this display'; }
+        });
+        NX.native.sysVolume().then(r=>{
+          if(r && r.ok){ vol.value = Math.round(r.value); vv.textContent = Math.round(r.value) + '%'; vs.textContent = 'Windows output device'; }
+          else { vv.textContent = 'n/a'; vs.textContent = (r && r.error) || 'No audio device'; }
+        });
+      } else {
+        bs.textContent = 'Desktop only'; vs.textContent = 'Desktop only';
+      }
+      const sp = q('#st-sys-page', host);
+      if(sp) sp.onclick = ()=>NX.router.go('system');
     }
 
     if(curSec === 'rewards'){
