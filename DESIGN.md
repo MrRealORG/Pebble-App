@@ -407,6 +407,10 @@ Callout colors: tip/success `--green-soft`, info `--blue-soft`, warning `--yello
 4. Anything clickable without a label gets `data-tip`.
 5. New colors that are categorical must also ship a `*-soft` tint for backgrounds.
 6. If it appears in the shell, it must survive all 13 themes without layout changes.
+7. A disabled feature must show **why** it is off and how to turn it back on — never a blank view.
+8. Never show a number that is not measured. If there is no data source, omit the stat rather than inventing one.
+9. Respect `prefers-reduced-motion` on anything you animate, and keep the `body.no-motion` escape hatch working.
+10. Give every new switchable module a registry entry in `52-modules.js`, or it cannot be disabled.
 
 ---
 
@@ -424,4 +428,276 @@ Callout colors: tip/success `--green-soft`, info `--blue-soft`, warning `--yello
 | `renderer/css/06-widget.css` | Desktop widget + mini mode |
 | `renderer/css/07-upgrade.css` | Onboarding, dashboard live cards, AI chat, crash/bug reports |
 | `renderer/js/00-core.js` | `NX.icon`, `NX.h`, `U.colorFor`, avatar palette, utilities |
-| `renderer/js/11-shell.js` | `NX.THEMES`, theme engine, `NAV` model |
+| `renderer/js/11-shell.js` | `NX.THEMES`, theme engine, `NAV` model, sidebar filtering |
+| `renderer/js/45-points.js` | Rewards ledger: earn rules, daily caps, levels, coalesced writes |
+| `renderer/js/46-cloud.js` | Optional Firebase/Supabase cloud layer (offline no-op) |
+| `renderer/js/49-store.js` | Entitlements, theme + game gates, Store route |
+| `renderer/js/50-leaderboard.js` | Personal / league / global boards |
+| `renderer/js/51-media-library.js` | Image picker, gallery, R2 sync |
+| `renderer/js/52-modules.js` | Module registry, enable/disable, route guard, offline mode |
+| `renderer/js/53-apps.js` | App tiles, long-press sheet, hide, System panel |
+| `renderer/js/54-google-sync.js` | Google Tasks two-way sync + Drive backup |
+| `renderer/css/15-rewards.css` | Points HUD, store, leaderboard, lock states |
+| `renderer/css/16-apps.css` | App grid, sliders, folders, Google panel, smooth sidebar |
+| `src-tauri/src/assets.rs` | Image validation, EXIF strip, derivatives, CRUD |
+| `src-tauri/src/sysctl.rs` | Brightness, volume, battery, data locations |
+| `cloud/pebble-media-api/` | Worker + R2 image service |
+
+---
+
+## 15. Rewards economy
+
+Points are **earned by using the app** and spent on identity. `NX.points`
+in `renderer/js/45-points.js`; entitlements in `renderer/js/49-store.js`.
+
+| Store key | Shape |
+|---|---|
+| `points` | `{ balance, lifetime, spent, earnedToday, earnedTodayKey, capsToday, flags, history }` |
+| `entitlements` | `{ owned, equipped, avatarImg, frame, title, showcase }` |
+
+- `balance` is spendable. `lifetime` **never decreases** — spending cannot
+  demote you, and level + leaderboard rank both read `lifetime`.
+- `history` is a ring capped at 400 entries.
+- **Only disabled modules are persisted** to `modules`, so a module shipped
+  in a later release inherits its registry default instead of a stale `off`.
+
+### Earn rules and daily caps
+
+| Event | Points | Cap/day |
+|---|---|---|
+| Win a game | `10 + floor(score/50)`, max 60 | 200 |
+| New personal best | 25 | 100 |
+| Play any game | 2 | 50 |
+| Complete a focus round | 15 | 120 |
+| Daily challenge solved | 40 + `15 × (streak−1)`, max 140 | once/day |
+| Achievement unlocked | 50 | once ever |
+| Complete a task | 10 | 100 |
+| Write a note | 8 | 60 |
+| Hour of tracked productive time | 20 | 60 |
+| 7-day streak bonus | 100 | once/week |
+| First launch of the day | 15 | once/day |
+
+**Global ceiling: 600 points/day.** Surplus awards are dropped silently.
+This is the anti-grind guard — without it, points measure idle time rather
+than consistency and the leaderboard is meaningless.
+
+Focus rounds under 60 s and game sessions under 15 s earn nothing.
+
+### Price tiers
+
+| Kind | Free | Common | Rare / Mid | Deep | Legendary / Premium |
+|---|---|---|---|---|---|
+| Themes | `elera`, `pebble-dark`, `midnight`, `nord` | 150 | 350 | — | 700 |
+| Games | `gm_2048`, `gm_snake` | 100 | 200 | 350 | 500 |
+
+**Say "unlock", never "buy."** No payment integration exists; a points gate
+is an honour system and the copy must reflect that.
+
+Every purchase goes through `NX.confirm`. Never a single click.
+
+### Copy rules
+
+- Level titles are earned automatically (`Rookie` → `Pebble Legend`).
+- A locked item stays **visible** with its price. A padlock nobody sees is
+  a feature nobody discovers.
+- Cosmetic frames are CSS-only (~30 lines for all 8).
+
+---
+
+## 16. Apps, modules and offline mode
+
+`renderer/js/52-modules.js` holds one registry of every switchable module;
+Settings, the Apps screen and the route guard all read from it.
+
+```js
+{ id, n, ic, group, on, core, d, net }
+```
+
+- `core: true` modules **cannot be disabled** — disabling the shell or the
+  store would strand the user with no way back.
+- `net: true` marks a module that needs the internet (AI, weather, sync).
+
+### Disable means stopped, not hidden
+
+Disabling calls the module's `setEnabled()`, which clears its timers:
+
+| Module | Effect |
+|---|---|
+| Timeless | stops the 2 s foreground-window poll |
+| Reminders | clears the 15 s scheduler interval |
+| Extension | stops the 4 s bridge drain |
+| Widget | closes the widget window |
+| Weather | clears the dashboard card |
+
+A "disabled" module that keeps polling in the background is not disabled.
+
+### Route guard
+
+Every route is wrapped so a disabled module shows an explanation with a
+"Turn it back on" button, rather than a blank view.
+
+**Load-order trap:** modules register their routes via `routeInShell` at
+load time, and `52-modules.js` loads at position 52 — long after. Wrapping
+only `Router.register` from that point on would guard **nothing**. The guard
+therefore re-wraps `Router.routes` on install. There is a test for this.
+
+### Offline mode
+
+A hard local switch, not a UI preference. `NX.netFetch()` **rejects** while
+offline, so a module that forgets to check still cannot reach the network.
+Switching it on also force-disables cloud sync.
+
+---
+
+## 17. Images
+
+Local-first. An import always lands on local disk first and is usable with
+the network unplugged; sync is opt-in.
+
+```
+<AppData>/pebble/assets/<id>/{full,512,128,64,32}.png
+<AppData>/pebble/assets/index.json      metadata only — never image bytes
+```
+
+Security model (`src-tauri/src/assets.rs`) — uploaded bytes are untrusted:
+
+1. Sniff the real format from **magic bytes**, never the extension or the
+   declared MIME type.
+2. Cap at 12 MB and 40 megapixels.
+3. **Decode and re-encode** through the `image` crate. This strips
+   EXIF/GPS/ICC and any appended payload, so a polyglot never reaches disk
+   verbatim.
+4. Store under a generated id — only `[a-f0-9]{8,64}` reaches the
+   filesystem, so there is no traversal surface at all.
+5. Delete moves to `.trash` (recoverable), never a hard delete.
+
+**Never base64 an image into `NX.store`** — it would be serialised into the
+workspace mirror on every write and blow past the localStorage quota.
+
+Cloud copies reuse the same four fixed sizes. Cloudflare Images Free allows
+only 5,000 unique transformations/month before failing with `9422`, which an
+avatar-heavy app would hit at ~1,600 users. Pre-generated immutable objects
+mean zero transformation requests.
+
+Avatar rendering goes through **one** helper, `NX.avatarHtml(profile, size)`,
+so a half-landed image feature cannot produce mismatched avatars.
+
+---
+
+## 18. System controls
+
+`src-tauri/src/sysctl.rs` shells out to PowerShell, matching the existing
+pattern in `pick_text_files()` and `asr_record()`. Nothing here is
+reachable from the current dependency set.
+
+| Control | API | Failure mode |
+|---|---|---|
+| Brightness | WMI, then Dxva2 `SetMonitorBrightness` | unsupported on external monitors / VMs |
+| Volume | `IAudioEndpointVolume` (Core Audio COM) | `E_NOTIMPL` over RDP / headless |
+| Battery | `Win32_Battery` | reports 100% on desktops |
+| Data locations | filesystem | always works |
+
+**Every control returns `{ ok, supported, error }` and never throws.** A
+slider that throws is worse than one that reports "unsupported". Sliders
+debounce at 140 ms — never spawn a process per pixel.
+
+Honest labelling matters more than feature count here: the foreground-window
+reader is called **"App in focus"**, not "Windows notifications", because
+WinRT `UserNotificationListener` is unreachable and it does not read
+notification text.
+
+---
+
+## 19. Third-party sync
+
+`renderer/js/54-google-sync.js`. Google Tasks (two-way) and Google Drive
+(daily backup). All of it runs in the renderer because `src-tauri` has no HTTP
+client — adding `reqwest` for one feature would mean new dependency risk on a
+toolchain that is already crashing.
+
+### Conflict rule
+
+Both sides are timestamped, so "edit on either side, it shows up on the other"
+works without a merge UI:
+
+| Condition | Winner |
+|---|---|
+| Remote newer | remote |
+| Local newer | local |
+| Identical timestamps | **local** |
+| Missing local timestamp | remote |
+| Missing remote timestamp | **local** |
+| Neither side changed since last sync | local |
+
+Two rules matter most:
+
+1. **A missing timestamp always favours local.** An unprovable remote edit
+   must never erase work.
+2. **The losing version is never discarded.** It goes to the conflict log with
+   both timestamps and shows in Settings as "Kept local".
+
+A conflict is never silent. That is the difference between sync and data loss.
+
+### Credential handling
+
+- Tokens are never rendered into the DOM.
+- `disconnect()` **deletes** them rather than flipping a flag, so the
+  credential cannot survive in the workspace file or a later backup.
+- `backupPayload()` strips `googleSync`, `mediaSync`, `session` and `auth`
+  before anything is uploaded. There is a test asserting the refresh token,
+  access token, PIN hash and account email are all absent.
+- Both sync paths refuse to run while offline mode is on.
+
+⚠️ The refresh token still sits in `workspace.json` unencrypted. Windows
+Credential Manager would fix it and needs new Rust — not done.
+
+### Google Keep
+
+Not integrated, deliberately. Keep's REST API is enterprise-only: it needs
+domain-wide delegation from a Workspace Super Admin, and consumer accounts
+get `invalid_scope`. Google Tasks is the checkbox API that works everywhere.
+Say this plainly in the UI rather than shipping something that 403s.
+
+---
+
+## 20. Website & admin
+
+Separate Vite + React app in `Website/`. Shares tokens and product voice,
+not code.
+
+```
+/            marketing          /app      workspace
+/download    downloads          /login    /signup
+/docs        documentation      /admin    administration
+/changelog   releases
+```
+
+### Design rules on the site
+
+- Same token vocabulary (`--surface`, `--green-soft`, `--r-md`) so the site
+  and the app read as one product.
+- **Marketing pages never fabricate metrics.** Show a number only if it is
+  measured. If a counter has no data source yet, say so rather than
+  inventing one.
+- Download buttons must trigger a real download. A simulated progress bar
+  that resolves to nothing is a lie the user can feel.
+
+### Supabase model
+
+Migrations in `Website/backend/supabase/`, applied in order.
+
+| Table | Purpose |
+|---|---|
+| `profiles` | one row per account. `account_enabled` + `protected_account` gate access |
+| `workspace_items` | notes/tasks/messages. `origin` records which surface wrote it |
+| `devices` | web / desktop / extension, heartbeated |
+| `app_usage` | aggregate minutes. `usage_consent` is per-user and required |
+| `activity_events` | metadata-only audit log |
+
+Identity is **Firebase** (`px_valid_identity()` validates the Google
+issuer); Supabase is the database. `px_admin()` reads the server-issued
+`admin` claim — it is never read from client storage.
+
+Privacy rule, already enforced by RLS: **admins see counts, never private
+note or message bodies.** `admin_usage_summary()` returns aggregates only.
+Preserve that if you add admin tooling.

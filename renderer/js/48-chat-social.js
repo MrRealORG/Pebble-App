@@ -83,7 +83,7 @@ function emptyState(host){
   host.innerHTML = `<div class="empty" style="padding:34px">
     <div class="e-title">${st.signedIn ? 'Cloud chat is not configured' : 'Sign in to chat'}</div>
     <div class="e-sub">${st.signedIn
-      ? 'Add your Firebase config in Settings → Cloud. Everything else in Pebble works without it.'
+      ? 'Add your Supabase config in Settings → Cloud. Everything else in Pebble works without it.'
       : 'Chat needs a cloud account. Your PIN login and the rest of the app are unaffected.'}</div>
     <div style="margin-top:14px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
       <button class="btn btn-soft btn-sm" id="cs-settings">Open Cloud settings</button>
@@ -96,7 +96,7 @@ function emptyState(host){
   if(h2) h2.onclick = ()=> NX.modal({
     title:'Cloud chat', icon:'chat',
     body:`<div class="small" style="line-height:1.6">
-      Messages sync across your devices when cloud is on. Channels are joined with a 6-character code and
+      Messages sync across your devices when cloud is on. Sign in with the same email or Google account on the website and the desktop app and you see the same thing. Channels are joined with a 6-character code and
       DMs are private to you and one other person.<br><br>
       Nothing here is required: Pebble is fully usable offline, and your PIN login never changes.</div>`
   });
@@ -432,7 +432,7 @@ function dmFlow(host){
           </span>
         </button>`).join('')}</div>` : '<div class="faint tiny" style="padding:10px 0">No one yet.</div>'}
       <label class="nx-field" style="margin-top:12px"><span class="nx-field-label">Or paste a user id</span>
-        <input id="nd-uid" placeholder="firebase uid"></label>`,
+        <input id="nd-uid" placeholder="user id"></label>`,
     footer:`<button class="btn btn-soft" id="nd-cancel">Cancel</button>`
   });
   const cancel = q('#nd-cancel'); if(cancel) cancel.onclick = ()=> NX.closeModal && NX.closeModal();

@@ -99,6 +99,147 @@ Re-enabling after a Settings toggle requires the idempotent setter.
 **15. `NX.netFetch` must reject while offline.**
 Hiding UI is not offline mode. There's a test asserting raw `fetch` is never reached.
 
+## 2c. THIRD PASS — Docs, real downloads, reviews, admin controls
+
+Assigned scope: real (non-fabricated) download tracking on the Website, plus
+the admin-panel controls. Everything below builds and type-checks clean.
+
+| File | Purpose |
+|---|---|
+| `README.md` | **new** — quick start, architecture, storage map, testing, the two rules that are easy to break |
+| `DESIGN.md` §15–19 | **new** — rewards economy, apps/modules/offline, images, system controls, website & admin. §13 gained rules 7–10 |
+| `Website/src/lib/releases.ts` | **new** — real release + download data |
+| `Website/backend/supabase/004_downloads_reviews_admin.sql` | **new** — reviews, bug reports, site settings, role requests, public stats |
+| `Website/src/workspace/Reviews.tsx` | **new** — public reviews wall + composer + bug report form |
+| `Website/src/pages/Download.tsx` | **rewritten** — real downloads |
+| `Website/src/sections/HomeB.tsx` | `Testimonials` no longer fabricated |
+| `Website/src/workspace/Admin.tsx` | Reviews + Reports tabs, role promotion |
+| `Website/src/workspace/types.ts` | Review / BugReport / SiteStats types |
+
+### How downloads are made REAL (the important part)
+
+The old download buttons animated a fake progress bar with `setInterval`
+and resolved to **nothing** — the `file` prop was never even used.
+
+The fix does **not** add a self-hosted counter. It reads **GitHub's own
+release asset counters** (`download_count`), which CI already publishes to
+via `tauri-apps/tauri-action`. GitHub computes those at its CDN, so the
+number cannot drift from reality, and it is free for public repos — which
+matters because you are on the free plan.
+
+Verified live against the real repo: `v0.1.0` exists with one real asset,
+`PebbleX_0.1.0_x64-setup.exe`, 1.7 MB, `download_count = 3`.
+
+Also included: per-platform asset detection, real release history with
+per-release counts, and `Changelog` now renders **actual GitHub release
+notes** instead of invented entries.
+
+### 🔴 I deleted six fabricated testimonials
+
+`HomeB.tsx` had six hardcoded quotes with invented names and job titles —
+"Ana R., Designer", "The first productivity app that lowered my heart
+rate" — **all five stars**. That is fabricated social proof, so it is gone.
+`Testimonials` now renders approved database reviews, or **nothing at all**
+if there are none.
+
+`Stats` had `9 modules` (stale — there are 17 games and far more modules
+now) and is now properties of the software, which cannot go stale.
+
+### Admin panel additions
+
+- **Reviews tab** — approve/reject a moderation queue.
+- **Reports tab** — bug reports from the desktop reporter and the website
+  form, with status workflow (open → triaged → fixed → closed / spam).
+- **Role promotion** — "Grant admin" / "Revoke admin" on a member.
+- Export-this-page works on every tab.
+
+**Role promotion is deliberately a queue, not a switch.** The admin claim
+lives in the Firebase token, which only a server holding the service
+account can set. The client writes to `admin_requests`; a trusted script
+applies it. A browser must never be able to mint itself admin. There is a
+`set-admin.cjs` in `backend/firebase/` for that side — **it needs the
+service-role key, which belongs in a server secret, never in the repo.**
+
+---
+
+## 2d. FOURTH PASS — Google Tasks + Drive
+
+Two-way Google Tasks sync and daily Drive backup. **Google Keep was dropped**
+— see below for why.
+
+| File | Purpose |
+|---|---|
+| `renderer/js/54-google-sync.js` | OAuth, two-way task sync, Drive backup |
+| `renderer/js/30-settings.js` | new **Google** section (kept section near the top) |
+| `renderer/css/16-apps.css` | `.gd-log` activity list |
+| `renderer/js/52-modules.js` | `google` registry entry so it can be disabled |
+| `scripts/google-test.js` | **49 tests** |
+
+### 🔴 Google Keep — dropped, and it is a Google restriction
+
+Google's own words: *"The Google Keep API **is now available for enterprise
+administrators**"* / *"used in an enterprise environment to manage Google Keep
+content and resolve issues identified by cloud security software."*
+
+It requires **domain-wide delegation** from a Workspace Super Admin. A normal
+`@gmail.com` account gets `invalid_scope`. It is a CASB/DLP tool, not a notes
+API. **Google Tasks is the checkbox-list API and it works everywhere** — which
+is what sync uses instead.
+
+The Settings → Google page states this in plain language rather than leaving a
+user wondering. **Do not "fix" this by adding Keep later.**
+
+### How two-way sync avoids losing data
+
+The user asked for auto-update in both directions. Each task keeps a
+`_gTaskId` link back to Google (so no duplicates) and **both sides are
+timestamped**:
+
+| Condition | Winner |
+|---|---|
+| Remote newer | remote |
+| Local newer | local |
+| Identical timestamps | **local** |
+| Missing local timestamp | remote |
+| Missing remote timestamp | **local** |
+| Neither changed since last sync | local |
+
+The two rules that matter:
+1. **A missing timestamp always favours local.** An unprovable remote edit
+   can never erase your work.
+2. **The loser is never discarded** — it goes to a conflict log with both
+   timestamps and surfaces in Settings as "Kept local". A conflict is never
+   silent.
+
+Remote *deletions* are respected (a task removed in Google is completed
+locally), because that is the promise the user asked for.
+
+### Token safety (tested)
+
+- `backupPayload()` strips `googleSync`, `mediaSync`, `session` and `auth`
+  before anything is uploaded to Drive. Tests assert the refresh token,
+  access token, PIN hash and account email are **all absent** from the
+  payload.
+- `disconnect()` **deletes** the tokens rather than flipping a flag, so they
+  cannot survive in the workspace or a later backup. Tested.
+- Both paths refuse to run while offline mode is on. Tested.
+- ⚠️ **The refresh token is still stored in `workspace.json` unencrypted.**
+  The real fix is Windows Credential Manager via `windows-sys` CredWrite,
+  which needs new Rust. Not done.
+
+### Setup the user still has to do
+
+1. [Google Cloud Console](https://console.cloud.google.com) → create a project
+2. Enable **Google Tasks API** and **Google Drive API**
+3. Credentials → OAuth client ID → **Desktop app** (not Web, not TV)
+4. Paste the client ID into Settings → Google
+
+`auth/tasks` is not a sensitive scope, so no Google verification needed.
+`drive.file` is sensitive → an "unverified app" warning appears until you
+publish and verify. That is expected.
+
+---
+
 ## 2. Files I created
 
 | File | Lines | Purpose |
@@ -293,6 +434,26 @@ module). New files get unique numeric prefixes.
 | **New themes** (`aurora`, `paper`, `sand`, `mono-dark`) not created | `00-tokens.css`, `11-shell.js` |
 | **`46-cloud.js` (other agent) may double up with `51-media-library.js`** | review both |
 | **Tablet mode / phone-style** | **Deferred by the user. Do not start.** |
+| **Android app** | Not started. The `devices.kind` check is `web/desktop/extension` — add `'android'` if a client appears. |
+| **Admin role promotion is not live** | The queue works; applying the claim needs `backend/firebase/set-admin.cjs` run with a service-role key on a trusted machine. |
+| **Migration 004 not applied** | Run it in the Supabase SQL editor. Until then reviews/reports tabs load empty by design. |
+| **Site overrides table is unused** | `site_settings` + `admin_set_site_setting` exist but no UI reads them. Deliberate — see below. |
+
+### About the "add numbers from the admin panel" request
+
+You asked to be able to type numbers in from the admin panel. I built the
+storage (`site_settings` + `admin_set_site_setting`) but **no UI that
+overrides measured download counts**, and I'd push back on doing so.
+
+Download counts come from GitHub's CDN. Any override would sit next to a
+number we can verify, and the natural next question from a user — "is that
+real?" — would become unanswerable. It also breaks the rule I just added
+to `DESIGN.md` §13 ("never show a number that is not measured").
+
+Where a manual override *is* legitimate is press mentions, launch counts,
+or a written milestone ("shipped 1,000 notes on 4 Oct"). Those belong in
+their own labelled field, separate from telemetry. If you want that,
+say so and I'll add it with a visible "manual" badge.
 
 ### RESOLVED: `timeless:hourly`
 

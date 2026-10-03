@@ -72,7 +72,9 @@ const REGISTRY = [
   { id:'extension',   n:'Browser extension', ic:'api', group:'Background', on:false,
     d:'Chrome extension bridge', net:true },
   { id:'backup',      n:'Backup',       ic:'download', group:'Background', on:true,
-    d:'Export, snapshots and encrypted vault backup' }
+    d:'Export, snapshots and encrypted vault backup' },
+  { id:'google',      n:'Google sync',  ic:'cloud',  group:'Background', on:false, net:true,
+    d:'Two-way Google Tasks sync and Drive backup' }
 ];
 
 const BY_ID = {};
@@ -186,6 +188,13 @@ function applySideEffects(id, on){
       NX.weather = NX.weather || {};
       NX.weather.disabled = !on;
       if(!on){ try{ NX.events.emit('weather:clear'); }catch(e){} }
+    }
+    if(id === 'google'){
+      /* stopping sync must actually stop it, not just hide the toggle */
+      if(!on && NX.google && NX.google.disconnect){
+        try{ NX.google.setEnabled && NX.google.setEnabled('tasks', false); }catch(e){}
+        try{ NX.events.emit('google:changed', { connected:false }); }catch(e){}
+      }
     }
   }catch(e){ console.error('module side effect ' + id, e); }
   NX.events.emit('modules:refresh-nav');

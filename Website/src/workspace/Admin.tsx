@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Activity, ArrowDownToLine, ArrowLeft, ArrowRight, BarChart3, ChevronRight, Globe, Laptop, Puzzle, RefreshCw, Search, Shield, ShieldCheck, UserRound, Users } from 'lucide-react';
+import { Activity, ArrowDownToLine, ArrowLeft, ArrowRight, BarChart3, Bug, ChevronRight, MessageSquareQuote, Star, Globe, Laptop, Puzzle, RefreshCw, Search, Shield, ShieldCheck, UserRound, Users } from 'lucide-react';
 import { useAccount } from './AuthContext';
 import { useWorkspace } from './DataContext';
 import { friendlyError, supabase } from './cloud';
 import { AppButton, Avatar, Empty, Loading, Modal, PageHeading, SectionHeading, Tag, Time, downloadText } from './ui';
 import { navigate } from './navigation';
-import type { Activity as ActivityRecord, AdminMetrics, AdminUser, Device } from './types';
+import type { Activity as ActivityRecord, AdminMetrics, AdminUser, Device, Review, BugReport } from './types';
 import { useStore } from '../lib/store';
 
 type UsageSummary = {
@@ -14,7 +14,7 @@ type UsageSummary = {
   sources: { kind: string; devices: number }[];
 };
 type AdminDevice = Device & { owner_name: string; total_count: number };
-type Tab = 'users' | 'devices' | 'usage' | 'activity';
+type Tab = 'users' | 'devices' | 'usage' | 'activity' | 'reviews' | 'bugs';
 
 const minutes = (value: number) => (value >= 60 ? `${Math.floor(value / 60)}h ${Math.round(value % 60)}m` : `${Math.round(value)}m`);
 
@@ -28,6 +28,8 @@ export function AdminPage() {
   const [usage, setUsage] = useState<UsageSummary>({ days: [], apps: [], sources: [] });
   const [events, setEvents] = useState<ActivityRecord[]>([]);
   const [metrics, setMetrics] = useState<AdminMetrics>({ users: 0, active_users: 0, devices: 0, changes: 0 });
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [bugs, setBugs] = useState<BugReport[]>([]);
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [selected, setSelected] = useState<AdminUser | null>(null);
@@ -81,6 +83,18 @@ export function AdminPage() {
             setUsage(usageList.data as unknown as UsageSummary);
             setEvents(audit.data as ActivityRecord[]);
           }
+          /* Moderation queues load independently so a missing 004 migration
+             shows an empty tab rather than breaking the whole page. */
+          if (tab === 'reviews') {
+            const r = await supabase!.rpc('admin_reviews', { p_status: 'pending', p_limit: 50 });
+            if (!cancelled && !r.error) setReviews((r.data ?? []) as Review[]);
+            else if (!cancelled) setReviews([]);
+          }
+          if (tab === 'bugs') {
+            const r = await supabase!.rpc('admin_bug_reports', { p_status: 'all', p_limit: 50 });
+            if (!cancelled && !r.error) setBugs((r.data ?? []) as BugReport[]);
+            else if (!cancelled) setBugs([]);
+          }
         }
       } catch (err) { if (!cancelled) setError(friendlyError(err)); }
       finally { if (!cancelled) setLoading(false); }
@@ -118,6 +132,48 @@ export function AdminPage() {
     finally { setBusy(false); }
   };
 
+  const moderateReview = async (target: Review, approve: boolean) => {
+    setBusy(true);
+    try {
+      if (preview) throw new Error('This preview cannot moderate reviews.');
+      const { error } = await supabase!.rpc('admin_moderate_review', { p_id: target.id, p_approve: approve });
+      if (error) throw error;
+      toast({ title: approve ? 'Review published' : 'Review rejected', msg: `${target.author_name} — ${target.rating}★` });
+      setRevision((n) => n + 1);
+    } catch (err) { toast({ kind: 'err', title: 'Not moderated', msg: friendlyError(err) }); }
+    finally { setBusy(false); }
+  };
+
+  const setBugStatus = async (target: BugReport, status: BugReport['status']) => {
+    setBusy(true);
+    try {
+      if (preview) throw new Error('This preview cannot change report status.');
+      const { error } = await supabase!.rpc('admin_set_bug_status', { p_id: target.id, p_status: status, p_note: target.admin_note });
+      if (error) throw error;
+      toast({ title: 'Report updated', msg: `${target.summary.slice(0, 60)} → ${status}` });
+      setRevision((n) => n + 1);
+    } catch (err) { toast({ kind: 'err', title: 'Not updated', msg: friendlyError(err) }); }
+    finally { setBusy(false); }
+  };
+
+  /* Roles are granted by a trusted server that owns the service account —
+     a browser client must never be able to mint itself an admin claim. */
+  const requestRole = async (target: AdminUser, action: 'grant' | 'revoke') => {
+    setBusy(true);
+    try {
+      if (preview) throw new Error('This preview cannot change roles.');
+      const { error } = await supabase!.rpc('admin_request_role', {
+        p_target: target.id, p_action: action, p_reason: 'requested from admin panel',
+      });
+      if (error) throw error;
+      toast({
+        title: action === 'grant' ? 'Role change queued' : 'Revocation queued',
+        msg: 'A trusted server applies it on the next run.',
+      });
+    } catch (err) { toast({ kind: 'err', title: 'Not queued', msg: friendlyError(err) }); }
+    finally { setBusy(false); }
+  };
+
   if (!preview && !admin) return <div className="ws-page"><Empty icon={ShieldCheck} title="This space is for administrators." body="Your account does not have the server-issued admin claim. You can still access your personal workspace."><AppButton onClick={() => navigate('/app')}>Back to my workspace</AppButton></Empty></div>;
 
   const stats = [
@@ -137,7 +193,7 @@ export function AdminPage() {
       {preview && <div className="ws-info-strip"><Shield size={18} /><div>Admin preview / sample accounts only.<small>This is not administrative access to a live service. Production access requires a Firebase admin claim set on a trusted server.</small></div></div>}
       <div className="ws-stats">{stats.map(({ label, value, icon: Icon, hint }) => <div className="ws-stat" key={label}><div className="ws-stat-label"><Icon size={13} />{label}</div><div className="ws-stat-value"><strong>{value.toLocaleString()}</strong></div><div className="ws-stat-hint">{hint}</div></div>)}</div>
       <div className="ws-toolbar">
-        <div className="ws-segment">{([['users', 'Users', Users], ['devices', 'Devices', Laptop], ['usage', 'Usage', BarChart3], ['activity', 'Activity', Activity]] as const).map(([id, label, Icon]) => <button key={id} className={tab === id ? 'is-on' : ''} onClick={() => { setTab(id); setPage(0); }}><Icon size={13} />{label}</button>)}</div>
+        <div className="ws-segment">{([['users', 'Users', Users], ['devices', 'Devices', Laptop], ['usage', 'Usage', BarChart3], ['activity', 'Activity', Activity], ['reviews', 'Reviews', Star], ['bugs', 'Reports', Bug]] as const).map(([id, label, Icon]) => <button key={id} className={tab === id ? 'is-on' : ''} onClick={() => { setTab(id); setPage(0); }}><Icon size={13} />{label}</button>)}</div>
         {tab !== 'usage' && <label className="ws-search-input"><Search size={14} /><input value={query} onChange={(e) => { setQuery(e.target.value); setPage(0); }} placeholder={`Search ${tab}...`} aria-label={`Search ${tab}`} /></label>}
         <AppButton variant="outline" icon={ArrowDownToLine} style={{ marginLeft: 'auto' }} onClick={() => downloadText(`pebblex-admin-${tab}-page-${page + 1}.json`, JSON.stringify({ preview, exported_at: new Date().toISOString(), rows: tab === 'users' ? users : tab === 'devices' ? devices : tab === 'usage' ? usage : events }, null, 2), 'application/json')}>Export this page</AppButton>
       </div>
@@ -151,6 +207,50 @@ export function AdminPage() {
           <section className="ws-panel ws-panel-padding"><SectionHeading title="Most shared tools" sub="No per-user history is stored here" />{usage.apps.map((a) => <div className="ws-usage-row" key={a.app_name}><span className="ws-app-icon" style={{ background: 'var(--green-soft)', color: 'var(--green-deep)' }}>{a.category === 'Browsing' ? <Globe size={14} /> : a.app_name[0]}</span><div className="ws-usage-detail"><div className="ws-usage-label"><span>{a.app_name}</span><span>{minutes(a.minutes)} / {a.members} members</span></div><div className="ws-meter"><i style={{ width: `${Math.max(3, a.minutes / (usage.apps[0]?.minutes || 1) * 100)}%`, background: 'var(--green)' }} /></div></div></div>)}</section>
           <section className="ws-panel ws-panel-padding"><SectionHeading title="Where work happens" sub="Devices by source" />{usage.sources.map((s) => <div className="ws-setting-row" key={s.kind}><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>{s.kind === 'extension' ? <Puzzle size={17} /> : <Laptop size={17} />}<strong>{s.kind === 'extension' ? 'Browser extension' : s.kind}</strong></div><strong>{s.devices}</strong></div>)}</section>
         </div>
+      ) : tab === 'reviews' ? (
+        <div className="ws-panel ws-panel-padding"><SectionHeading title="Review moderation" sub="Nothing appears on the public site until you approve it" />
+          {reviews.map((r) => (
+            <div key={r.id} className="ws-panel" style={{ marginTop: 12, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{ display: 'flex', gap: 2 }}>{[1,2,3,4,5].map((i) => <Star key={i} size={13} style={{ color: i <= r.rating ? 'var(--green-deep)' : 'var(--ink-4)', fill: i <= r.rating ? 'var(--green-deep)' : 'none' }} />)}</span>
+                <strong style={{ fontSize: 13 }}>{r.author_name}</strong>
+                <Tag color={r.status === 'approved' ? 'green' : r.status === 'rejected' ? 'orange' : 'neutral'}>{r.status}</Tag>
+                <Time value={r.created_at} />
+              </div>
+              <p style={{ marginTop: 10, fontSize: 13.5, lineHeight: 1.7, color: 'var(--ink-2)' }}>{r.body}</p>
+              {r.status === 'pending' && (
+                <div className="ws-modal-actions" style={{ justifyContent: 'flex-start', marginTop: 12 }}>
+                  <AppButton disabled={busy || preview} onClick={() => { void moderateReview(r, true); }}>Publish</AppButton>
+                  <AppButton variant="outline" disabled={busy || preview} onClick={() => { void moderateReview(r, false); }}>Reject</AppButton>
+                </div>
+              )}
+            </div>
+          ))}
+          {!reviews.length && <Empty icon={MessageSquareQuote} title="No reviews waiting." body="New submissions land here for approval before they go public." />}
+        </div>
+      ) : tab === 'bugs' ? (
+        <div className="ws-panel ws-panel-padding"><SectionHeading title="Bug reports" sub="From the desktop reporter and the website" />
+          {bugs.map((b) => (
+            <div key={b.id} className="ws-panel" style={{ marginTop: 12, padding: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <Tag color="purple">{b.area}</Tag>
+                <strong style={{ fontSize: 13 }}>{b.summary}</strong>
+                <Tag color={b.status === 'fixed' ? 'green' : b.status === 'spam' ? 'orange' : b.status === 'open' ? 'blue' : 'neutral'}>{b.status}</Tag>
+                {b.app_version && <span className="mono-num" style={{ fontSize: 11, color: 'var(--ink-3)' }}>v{b.app_version}</span>}
+                {b.platform && <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{b.platform}</span>}
+                <Time value={b.created_at} />
+              </div>
+              {b.details && <p style={{ marginTop: 10, fontSize: 13, lineHeight: 1.65, color: 'var(--ink-2)', whiteSpace: 'pre-wrap' }}>{b.details}</p>}
+              {b.reporter_email && <p style={{ marginTop: 6, fontSize: 11.5, color: 'var(--ink-3)' }}>reporter: {b.reporter_email}</p>}
+              <div className="ws-segment" style={{ marginTop: 12, display: 'inline-flex' }}>
+                {(['open', 'triaged', 'fixed', 'closed', 'spam'] as const).map((s) => (
+                  <button key={s} className={b.status === s ? 'is-on' : ''} disabled={busy || preview} onClick={() => { void setBugStatus(b, s); }}>{s}</button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {!bugs.length && <Empty icon={Bug} title="No reports yet." body="Submissions from the desktop bug reporter and the website form arrive here." />}
+        </div>
       ) : (
         <div className="ws-panel ws-panel-padding"><SectionHeading title="Workspace event log" sub="Metadata only. Private content is not included." />{events.map((e) => <div className="ws-activity-row" key={e.id}><span className="ws-activity-symbol"><Activity size={15} /></span><div><strong>{e.action}</strong><p>{e.origin} / {users.find((u) => u.id === e.owner_id)?.name || e.owner_id}</p></div><Time value={e.created_at} /></div>)}{!events.length && <Empty icon={Activity} title="No events on this page." body="Workspace changes will be recorded here." />}</div>
       )}
@@ -161,6 +261,16 @@ export function AdminPage() {
         {[['Account ID', selected.id], ['Created', new Date(selected.created_at).toLocaleDateString()], ['Tasks', selected.task_count], ['Notes', selected.note_count], ['Connected devices', selected.device_count]].map(([label, value]) => <div className="ws-setting-row" key={String(label)} style={{ padding: '11px 0', gap: 25 }}><span style={{ color: 'var(--ink-3)', fontSize: 12 }}>{label}</span><span style={{ fontSize: 12, overflowWrap: 'anywhere', textAlign: 'right' }}>{value}</span></div>)}
         <div className="ws-info-strip" style={{ marginTop: 18 }}><UserRound size={16} /><div>Suspension blocks workspace access without deleting data.<small>It cannot target protected accounts, and it is written to the audit log.</small></div></div>
         <div className="ws-modal-actions"><AppButton variant="danger" disabled={busy || preview || selected.id === user?.uid} onClick={() => { void changeAccountState(selected, false); }}>{busy ? 'Working...' : 'Suspend access'}</AppButton><AppButton disabled={busy || preview || selected.id === user?.uid} onClick={() => { void changeAccountState(selected, true); }}>Restore access</AppButton><AppButton variant="ghost" disabled={busy} onClick={() => setSelected(null)}>Close</AppButton></div>
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+          <div className="ws-info-strip">
+            <Shield size={16} />
+            <div>Make {selected.name} an administrator<small>Queues the change. A trusted server holding the service account applies it — a browser cannot mint an admin claim.</small></div>
+          </div>
+          <div className="ws-modal-actions" style={{ justifyContent: 'flex-start' }}>
+            <AppButton variant="outline" icon={ShieldCheck} disabled={busy || preview || selected.id === user?.uid} onClick={() => { void requestRole(selected, 'grant'); }}>Grant admin</AppButton>
+            <AppButton variant="ghost" disabled={busy || preview} onClick={() => { void requestRole(selected, 'revoke'); }}>Revoke admin</AppButton>
+          </div>
+        </div>
       </Modal>}
     </div>
   );

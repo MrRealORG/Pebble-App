@@ -8,9 +8,10 @@
   "license": "MIT",
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "node scripts/rewards-test.js && node scripts/apps-test.js",
+    "test": "node scripts/rewards-test.js && node scripts/apps-test.js && node scripts/google-test.js",
     "test:rewards": "node scripts/rewards-test.js",
     "test:apps": "node scripts/apps-test.js",
+    "test:google": "node scripts/google-test.js",
     "test:rust": "cd src-tauri && cargo test --lib",
     "test:smoke": "node scripts/smoke-test.js",
     "icons": "python3 scripts/make_icons.py",

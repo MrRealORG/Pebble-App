@@ -9,6 +9,7 @@ const { h, q, qa, util:U, icon } = NX;
 
 const SECTIONS = [
   { id:'themes',    n:'Themes',       ic:'palette' },
+  { id:'google',    n:'Google',       ic:'cloud' },
   { id:'apps',      n:'Apps & features', ic:'grid' },
   { id:'folders',   n:'Folders',      ic:'download' },
   { id:'rewards',   n:'Rewards',      ic:'star' },
@@ -25,6 +26,7 @@ const SECTIONS = [
 ];
 
 let curSec = 'themes';
+let busyG = false;   /* a Google consent popup is open */
 
 NX.routeInShell('settings', 'Settings', 'settings', function(view){
   view.innerHTML = `
@@ -86,6 +88,102 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
           NX.openStore('theme:' + id);
         }
       });
+    }
+
+    if(curSec === 'google'){
+      const g = NX.google.cfg();
+      const lastSync = g.lastTasksSync ? U.relTime(g.lastTasksSync) : 'never';
+      const lastBack = g.lastDriveBackup ? U.relTime(g.lastDriveBackup) : 'never';
+      host.innerHTML = `
+        <div class="card"><div class="card-h"><div class="tile sm">${icon('cloud')}</div>
+          <div><div class="c-title">Google Tasks & Drive</div><div class="c-sub">Sync your tasks both ways, and back up your workspace</div></div>
+          <div class="spacer"></div>
+          ${g.connected ? `<span class="pill green">${icon('check',11)} Connected</span>` : '<span class="pill gray">Not connected</span>'}
+        </div>
+        <div class="card-b" style="display:flex;flex-direction:column;gap:16px">
+
+          <div class="field"><label>OAuth client ID</label>
+            <input class="input" id="gd-client" placeholder="1234567890-abc.apps.googleusercontent.com" value="${U.esc(g.clientId||'')}">
+            <span class="faint tiny">From console.cloud.google.com → APIs &amp; Services → Credentials → OAuth client ID → Desktop app.</span>
+          </div>
+
+          <div class="rw-row">
+            <div class="rw-txt"><b>Google Tasks</b><span>Create a task here and it appears in Google Tasks. Edit it in either place and the other catches up.</span></div>
+            <label class="switch"><input type="checkbox" id="gd-tasks" ${g.tasksEnabled?'checked':''}><span></span></label>
+          </div>
+          <div class="rw-row">
+            <div class="rw-txt"><b>Google Drive backup</b><span>Writes one encrypted-by-nothing JSON backup per day into a PebbleX folder in your Drive.</span></div>
+            <label class="switch"><input type="checkbox" id="gd-drive" ${g.driveEnabled?'checked':''}><span></span></label>
+          </div>
+
+          <div class="row gap-8">
+            ${g.connected
+              ? `<button class="btn btn-soft btn-sm" id="gd-sync" ${busyG?'disabled':''}>${icon('refresh')} Sync now</button>
+                 <button class="btn btn-ghost btn-sm" id="gd-disc">${icon('logout')} Disconnect</button>`
+              : `<button class="btn btn-green btn-sm" id="gd-conn" ${busyG?'disabled':''}>${busyG?'Waiting for Google…':'Connect Google'}</button>`}
+          </div>
+
+          ${g.connected ? `<div class="ws-info-strip">
+            <div>Signed in as <b>${U.esc(g.email||'your Google account')}</b>
+            <small>Tasks last synced ${U.esc(lastSync)} · Drive backup ${U.esc(lastBack)}</small></div>
+          </div>` : ''}
+
+          <div class="faint tiny">
+            Scopes requested: <code>${U.esc(g.connected ? (g.scopes||[]).join('  ') : (g.tasksEnabled||g.driveEnabled ? NX.google.scopeHelp() : 'none yet'))}</code>
+          </div>
+        </div></div>
+
+        ${g.conflicts.length ? `<div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('alert')}</div>
+          <div><div class="c-title">Kept local</div><div class="c-sub">${g.conflicts.length} change(s) PebbleX's newer version overwrote</div></div></div>
+          <div class="card-b"><div class="gd-log">${g.conflicts.slice(0,8).map(c=>`
+            <div class="gd-log-row"><span class="gl-k warn">local</span>
+              <span class="gl-m">${U.esc(String(c.task||''))}</span>
+              <span class="gl-t">Google edited ${U.esc(U.relTime(c.remoteAt))}</span></div>`).join('')}</div></div></div>` : ''}
+
+        ${g.log.length ? `<div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('activity')}</div>
+          <div><div class="c-title">Activity</div><div class="c-sub">Most recent first</div></div></div>
+          <div class="card-b"><div class="gd-log">${g.log.slice(0,12).map(l=>`
+            <div class="gd-log-row"><span class="gl-k ${l.kind}">${U.esc(l.kind)}</span>
+              <span class="gl-m">${U.esc(l.msg)}</span>
+              <span class="gl-t">${U.esc(U.relTime(l.t))}</span></div>`).join('')}</div></div></div>` : ''}
+
+        <div class="card" style="margin-top:16px"><div class="card-h"><div class="tile sm">${icon('book')}</div>
+          <div><div class="c-title">Google Keep is not available</div>
+          <div class="c-sub">And it is not a PebbleX limitation</div></div></div>
+          <div class="card-b"><p style="font-size:12.5px;color:var(--ink-2);line-height:1.65;margin:0">
+            Google restricts the Keep API to enterprise administrators — it needs a Workspace Super
+            Admin to allowlist the app, and personal <code>@gmail.com</code> accounts receive
+            <code>invalid_scope</code>. It is built for corporate data-loss-prevention, not for
+            note apps. Google Tasks is the proper checkbox API and it works on any account, which is
+            why that is what sync uses.</p></div></div>`;
+
+      const clientIn = q('#gd-client', host);
+      if(clientIn) clientIn.onchange = ()=>{ NX.google.setClientId(clientIn.value); NX.toastOk('Client ID saved'); };
+      const tk = q('#gd-tasks', host);
+      if(tk) tk.onchange = ()=>{ NX.google.setEnabled('tasks', tk.checked); renderBody(); };
+      const dr = q('#gd-drive', host);
+      if(dr) dr.onchange = ()=>{ NX.google.setEnabled('drive', dr.checked); renderBody(); };
+
+      const cn = q('#gd-conn', host);
+      if(cn) cn.onclick = async ()=>{
+        busyG = true; renderBody();
+        const okDone = await NX.google.connect();
+        busyG = false; renderBody();
+        if(!okDone) NX.toastInfo('Not connected', 'Nothing was saved.');
+      };
+      const dc = q('#gd-disc', host);
+      if(dc) dc.onclick = ()=>{
+        NX.confirm('Disconnect Google?', 'Your Google tokens are deleted from this device. Tasks already synced stay in PebbleX.', ()=>{
+          NX.google.disconnect();
+          renderBody();
+        }, { icon:'logout', yes:'Disconnect' });
+      };
+      const sy = q('#gd-sync', host);
+      if(sy) sy.onclick = async ()=>{
+        busyG = true; renderBody();
+        await NX.google.syncNow();
+        busyG = false; renderBody();
+      };
     }
 
     if(curSec === 'apps'){
@@ -1051,12 +1149,15 @@ NX.exportWorkspace = function(){
 };
 
 /* ============================================================
-   CLOUD (optional Firebase)
+   CLOUD (optional — Supabase + Cloudflare)
 
-   Deliberately honest about what this is: cloud stays OFF until a config is
-   pasted, the local PIN keeps working regardless, and nothing in here is
-   required for Pebble to function. The SDK is fetched lazily so a failure
-   cannot affect boot.
+   Supabase for auth, data and realtime. Cloudflare for images (R2)
+   and live chat. Firebase is gone.
+
+   Deliberately honest about what this is: cloud stays OFF until a
+   config is pasted, the local PIN keeps working regardless, and
+   nothing here is required for Pebble to function. The SDK is fetched
+   lazily so a failure cannot affect boot.
    ============================================================ */
 function renderCloud(host){
   const cfg = NX.cloud ? NX.cloud.readConfig() : {};
@@ -1073,16 +1174,18 @@ function renderCloud(host){
     <div class="card">
       <div class="card-h"><div class="tile sm" style="background:var(--green-soft);color:var(--green)">${icon('cloud')}</div>
         <div><div class="c-title">Cloud (optional)</div>
-        <div class="c-sub">Optional Firebase sync for cloud chat. Pebble is fully functional offline without it.</div></div></div>
+        <div class="c-sub">Supabase for sign-in, sync and realtime. Cloudflare for images and live chat.</div></div></div>
       <div class="card-b" style="display:flex;flex-direction:column;gap:14px">
         <div style="border-left:3px solid var(--green);padding:10px 12px;background:var(--green-soft);border-radius:0 10px 10px 0">
-          <div class="small"><b>Your PIN login is unaffected.</b> Cloud sign-in is a separate, optional identity used only for
-          cloud chat. It is never required.</div>
+          <div class="small"><b>Your PIN login is unaffected.</b> Cloud sign-in is a separate, optional identity that unlocks
+          sync across your devices. Sign in once and the website and the desktop app see the same notes.</div>
         </div>
 
         <div class="row gap-8" style="flex-wrap:wrap">
           <span class="pill ${st.configured?'green':'yellow'}">${st.configured?'Configured':'Not configured'}</span>
           <span class="pill ${st.signedIn?'green':''}">${st.signedIn?'Signed in':'Not signed in'}</span>
+          <span class="pill ${st.r2?'green':''}">Images ${st.r2?'ready':'not set'}</span>
+          <span class="pill ${st.chat?'green':''}">Chat ${st.chat?'ready':'not set'}</span>
           ${st.offline ? '<span class="pill yellow">Offline</span>' : ''}
           ${user ? `<span class="pill">${U.esc(user.name||user.email||'user')}</span>` : ''}
         </div>
@@ -1093,25 +1196,38 @@ function renderCloud(host){
           <button class="btn btn-soft" id="cl-clear">Clear</button>
         </div>
 
+        <div class="tiny bold" style="margin-top:2px">Supabase</div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
-          ${field('cl-apiKey','API key',cfg.apiKey,'AIza…','Firebase console → Project settings → Your apps → SDK setup')}
-          ${field('cl-projectId','Project ID',cfg.projectId,'my-project')}
-          ${field('cl-databaseURL','Realtime Database URL',cfg.databaseURL,'https://my-project-default-rtdb.firebaseio.com')}
-          ${field('cl-authDomain','Auth domain (optional)',cfg.authDomain,'my-project.firebaseapp.com')}
-          ${field('cl-appId','App ID (optional)',cfg.appId,'1:123…:web:abc')}
+          ${field('cl-supabaseUrl','Project URL',cfg.supabaseUrl,'https://xxxx.supabase.co','Supabase → Settings → API')}
+          ${field('cl-supabaseKey','Publishable key',cfg.supabaseKey,'sb_publishable_…','Safe in client code. Never the secret key.')}
         </div>
 
-        <div class="faint tiny">The Firebase SDK is not bundled with Pebble. It is fetched from Google's CDN the first time a cloud
-        feature is actually used, so the offline app stays small and a failed fetch only disables cloud features.</div>
+        <div class="tiny bold" style="margin-top:8px">Cloudflare</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+          ${field('cl-r2Endpoint','R2 media Worker',cfg.r2Endpoint,'https://…workers.dev','cloud/pebble-media-api — user images')}
+          ${field('cl-chatEndpoint','Chat Worker',cfg.chatEndpoint,'https://…workers.dev','Durable Object endpoint for live chat')}
+        </div>
+        <label class="nx-field">
+          <span class="nx-field-label">R2 token</span>
+          <input id="cl-r2Token" type="password" value="${U.esc(NX.store.get('cloud:r2Token',''))}" placeholder="PEBBLE_TOKEN" autocomplete="off">
+          <span class="faint tiny">Stored on this machine only. Keep it out of source control.</span>
+        </label>
+
+        <div class="faint tiny">The Supabase SDK is not bundled with Pebble. It is fetched on first use, so the offline app stays
+        small and a failed fetch only disables cloud features.</div>
 
         <div style="border-top:1px solid var(--line);padding-top:14px;display:flex;flex-direction:column;gap:12px">
           <div><div class="c-title" style="font-size:13px">Account</div>
-            <div class="c-sub">Optional — only needed for cloud chat.</div></div>
+            <div class="c-sub">Optional — only needed for sync and cloud chat.</div></div>
           <div class="row gap-8">
             <button class="btn btn-soft" id="cl-signin">Sign in</button>
             <button class="btn btn-soft" id="cl-register">Create account</button>
             <button class="btn btn-soft" id="cl-google">${icon('user')} Continue with Google</button>
             <button class="btn btn-soft" id="cl-signout">Sign out</button>
+          </div>
+          <div class="row gap-8">
+            <button class="btn btn-soft" id="cl-sync-now">${icon('refresh')} Sync now</button>
+            <span class="faint tiny" id="cl-sync-state"></span>
           </div>
         </div>
       </div>
@@ -1119,18 +1235,21 @@ function renderCloud(host){
 
   const val = id => { const el = q('#'+id, host); return el ? String(el.value || '').trim() : ''; };
   const collect = ()=>({
-    apiKey: val('cl-apiKey'),
-    projectId: val('cl-projectId'),
-    databaseURL: val('cl-databaseURL').replace(/\/+$/,''),
-    authDomain: val('cl-authDomain'),
-    appId: val('cl-appId')
+    supabaseUrl: val('cl-supabaseUrl'),
+    supabaseKey: val('cl-supabaseKey'),
+    r2Endpoint: val('cl-r2Endpoint'),
+    chatEndpoint: val('cl-chatEndpoint')
   });
 
   const save = q('#cl-save', host);
   if(save) save.onclick = ()=>{
     const c = collect();
-    if(!c.apiKey || !c.projectId || !c.databaseURL){
-      NX.toastErr('Cloud', 'API key, Project ID and Database URL are all required.');
+    const tok = val('cl-r2Token');
+    if(tok) NX.store.set('cloud:r2Token', tok);
+    /* Only Supabase is required; the two Cloudflare endpoints are optional
+       because images and chat are separate features. */
+    if(!c.supabaseUrl || !c.supabaseKey){
+      NX.toastErr('Cloud', 'Supabase URL and publishable key are required. The Cloudflare endpoints are optional.');
       return;
     }
     NX.cloud.saveConfig(c);
@@ -1140,15 +1259,30 @@ function renderCloud(host){
 
   const test = q('#cl-test', host);
   if(test) test.onclick = async ()=>{
-    NX.cloud.saveConfig(collect());
+    const c = collect();
+    const tok = val('cl-r2Token');
+    if(tok) NX.store.set('cloud:r2Token', tok);
+    NX.cloud.saveConfig(c);
     test.disabled = true;
     const label = test.textContent;
     test.textContent = 'Testing…';
-    const r = await NX.cloud.chat.history('__probe__');
+    const r = await NX.cloud.sync.pull({});
     test.disabled = false;
     test.textContent = label;
-    if(r.ok) NX.toastOk('Cloud', 'Connected to Realtime Database.');
-    else NX.toastErr('Cloud', r.error || 'Could not reach the database.');
+    if(r.ok) NX.toastOk('Cloud', 'Connected to Supabase' + (r.items && r.items.length ? ' — ' + r.items.length + ' items waiting' : '') + '.');
+    else NX.toastErr('Cloud', r.error || 'Could not reach Supabase.');
+  };
+
+  const syncNow = q('#cl-sync-now', host);
+  if(syncNow) syncNow.onclick = async ()=>{
+    const state = q('#cl-sync-state', host);
+    if(state) state.textContent = 'Syncing…';
+    syncNow.disabled = true;
+    const r = await NX.cloud.sync.pull({});
+    syncNow.disabled = false;
+    if(state) state.textContent = r.ok ? (r.items.length + ' item(s) up to date') : (r.error || 'failed');
+    if(r.ok) NX.toastOk('Sync', r.items.length + ' item(s) in the cloud.');
+    else NX.toastErr('Sync', r.error || 'Sync failed.');
   };
 
   const clr = q('#cl-clear', host);

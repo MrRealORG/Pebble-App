@@ -71,6 +71,51 @@ export type WorkspaceData = {
 export type AdminUser = Profile & { task_count: number; note_count: number; device_count: number; total_count: number };
 export type AdminMetrics = { users: number; active_users: number; devices: number; changes: number };
 
+/* ---- moderation + support (migration 004) ---- */
+
+export type ReviewStatus = 'pending' | 'approved' | 'rejected';
+export type Review = {
+  id: string;
+  author_name: string;
+  body: string;
+  rating: number;
+  status: ReviewStatus;
+  created_at: string;
+  approved_at: string | null;
+};
+
+export type PublicReview = {
+  id: string;
+  author_name: string;
+  body: string;
+  rating: number;
+  created_at: string;
+};
+
+export type BugStatus = 'open' | 'triaged' | 'fixed' | 'closed' | 'spam';
+export type BugReport = {
+  id: string;
+  area: string;
+  summary: string;
+  details: string;
+  app_version: string;
+  platform: string;
+  status: BugStatus;
+  admin_note: string;
+  created_at: string;
+  reporter_email: string | null;
+};
+
+export type SiteStats = {
+  accounts: number;
+  devices: number;
+  notes: number;
+  tasks: number;
+  focus_minutes: number;
+  reviews: number;
+  avg_rating: number;
+};
+
 export const dateKey = (date = new Date()) => {
   const offset = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 10);

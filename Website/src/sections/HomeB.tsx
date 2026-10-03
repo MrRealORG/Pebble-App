@@ -553,10 +553,18 @@ function Counter({ to, suffix = "", dur = 1.6 }: { to: number; suffix?: string; 
   return <span ref={ref} className="mono-num">0{suffix}</span>;
 }
 
+/**
+ * Product stats. Deliberately NOT download or user counts.
+ *
+ * These four are properties of the software, so they cannot go stale and
+ * cannot mislead. Measured numbers (downloads, accounts) live on the
+ * download page where they are labelled as coming from a real source —
+ * see src/lib/releases.ts.
+ */
 export function Stats() {
   const s = [
     { n: 13, l: "Themes", sub: "Light, dark & in-between" },
-    { n: 9, l: "Modules", sub: "In one calm window" },
+    { n: 17, l: "Arcade games", sub: "In one calm window" },
     { n: 0, l: "Trackers", sub: "Your data stays local" },
     { n: 120, l: "ms", sub: "Typical interaction", suffix: "" },
   ];
@@ -823,27 +831,57 @@ export function DownloadCTA() {
   );
 }
 
+/**
+ * Real reviews only.
+ *
+ * This used to render six hardcoded quotes with invented names, every one
+ * of them five stars. That is fabricated social proof and it is now gone.
+ *
+ * The marquee shows APPROVED reviews from the database. Until a person has
+ * written and an administrator has approved one, the section renders
+ * nothing — see DESIGN.md §13 rule 8.
+ */
 export function Testimonials() {
-  const q = [
-    ["“The first productivity app that lowered my heart rate.”", "Ana R.", "Designer"],
-    ["“Neon theme at 2am is a vibe. Midnight at 9am is a vibe.”", "Tom K.", "Engineer"],
-    ["“I deleted four apps the day I installed PebbleX.”", "Priya S.", "Founder"],
-    ["“Timeless told me the truth. I needed that.”", "Leo M.", "Writer"],
-    ["“The kanban drop shadow is… unreasonably satisfying.”", "Yuki T.", "PM"],
-    ["“Finally, an AI that doesn’t shout.”", "Sam O.", "Student"],
-  ];
+  const [reviews, setReviews] = useState<{ id: string; author_name: string; body: string; rating: number }[]>([]);
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const { fetchPublicReviews } = await import("../lib/releases");
+        const rows = await fetchPublicReviews();
+        if (live) setReviews(rows);
+      } catch {
+        /* no reviews reachable — render nothing */
+      }
+    })();
+    return () => { live = false; };
+  }, []);
+
+  if (!reviews.length) return null;
+
+  const q = reviews.slice(0, 12).map((r) => [r.body, r.author_name, `${r.rating}★`, r.id] as const);
+  if (!q.length) return null;
+
   return (
     <section className="py-16">
       <Reveal className="mb-10 text-center">
         <div className="overline">Loved quietly</div>
+        <div className="mt-2 text-[13px] text-ink-3">
+          {reviews.length} review{reviews.length === 1 ? "" : "s"}, each approved by a person
+        </div>
       </Reveal>
       <div className="relative overflow-hidden" style={{ maskImage: "linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent)" }}>
         <div className="marquee flex w-max gap-4" style={{ animationDuration: "60s" }}>
-          {[...q, ...q].map(([t, n, r], i) => (
-            <div key={i} className="card w-[340px] shrink-0 p-6">
-              <div className="flex gap-0.5 text-green">{[0, 1, 2, 3, 4].map((s) => <Icon key={s} name="star" size={13} />)}</div>
+          {[...q, ...q].map(([t, n, r, id], i) => (
+            <div key={`${id}-${i}`} className="card w-[340px] shrink-0 p-6">
+              <div className="flex gap-0.5 text-green" aria-label={`${r}`}>
+                {[0, 1, 2, 3, 4].map((s) => (
+                  <Icon key={s} name="star" size={13} style={{ opacity: s < Number(r[0]) ? 1 : 0.25 }} />
+                ))}
+              </div>
               <p className="mt-3 text-[15px] font-medium leading-relaxed">{t}</p>
-              <div className="mt-4 text-[12.5px] text-ink-3"><b className="text-ink-2">{n}</b> · {r}</div>
+              <div className="mt-4 text-[12.5px] text-ink-3"><b className="text-ink-2">{n}</b></div>
             </div>
           ))}
         </div>

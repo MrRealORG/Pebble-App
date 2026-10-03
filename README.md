@@ -37,6 +37,7 @@ build (the app is Windows-first; the renderer and website are not).
 | **Rewards** | Points earned by using the app, spent on themes, games and cosmetics. |
 | **Apps & features** | Every module can be switched off individually. Offline mode blocks all network calls. |
 | **System** | Real display brightness and system volume on Windows. |
+| **Google sync** | Two-way Google Tasks sync + daily Drive backup. Opt-in. |
 
 ---
 
@@ -99,9 +100,10 @@ Everything is local-first, in `<AppData>/pebble/`:
 ## Testing
 
 ```bash
-npm test              # 109 renderer tests (rewards + apps)
+npm test              # 158 renderer tests (rewards + apps + google)
 npm run test:rewards  # 65 — points caps, unlocks, game/theme gates
 npm run test:apps     # 44 — module registry, route guard, offline mode
+npm run test:google   # 49 — task mapping, conflicts, token safety
 npm run test:rust     # Rust unit tests (see caveat below)
 ```
 
@@ -134,6 +136,33 @@ mean zero transformation requests.
 **Never commit secrets.** `.pebble-media-token`, `.env*` and
 `service-account*.json` are gitignored. The Supabase publishable key is
 safe in client code; the secret key and JWT signing keys are not.
+
+### Google Tasks + Drive
+
+Settings → Google. Paste an OAuth **client ID** (a *Desktop app* credential
+from Google Cloud Console), tick Tasks and/or Drive, then Connect.
+
+- **Two-way task sync.** Make a task in PebbleX and it appears in Google
+  Tasks; edit it in either place and the other catches up. Each task keeps a
+  link back to its Google id so duplicates are never created.
+- **Conflict rule.** Both sides are timestamped. The newer edit wins. The
+  loser is **not discarded** — it is written to a "Kept local" list so you can
+  see what was overwritten. Missing timestamps always favour the local copy,
+  so an unprovable remote edit can never erase your work.
+- **Drive backup.** One JSON backup per day in a `PebbleX` folder; re-running
+  replaces that day's file rather than piling up duplicates. Google tokens,
+  the PIN hash and the session are **stripped before upload** (there is a test
+  for this).
+
+**Google Keep is not integrated, and that is a Google limitation.** Keep's
+REST API is restricted to enterprise administrators — it requires domain-wide
+delegation from a Workspace Super Admin, and personal `@gmail.com` accounts
+receive `invalid_scope`. It is a corporate DLP/CASB tool, not a notes API.
+Google Tasks is the proper checkbox-list API and works on any account.
+
+⚠️ The OAuth refresh token grants standing access and is stored in
+`workspace.json` unencrypted. "Disconnect" deletes it. The proper fix is
+Windows Credential Manager, which needs new Rust — not done yet.
 
 ---
 

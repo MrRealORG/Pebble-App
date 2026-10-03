@@ -149,7 +149,7 @@
 <script src="js/41-ux.js"></script>
 <script src="js/42-chat.js"></script>
 <script src="js/44-weather-icons.js"></script>
-<script src="js/46-cloud.js"></script>
+<script src="js/46-supabase.js"></script>
 <script src="js/47-chat-commands.js"></script>
 <script src="js/48-chat-social.js"></script>
   <!-- Rewards layer. Numbers are deliberately unique and ordered:
@@ -169,6 +169,9 @@
        sorts by filename and an ambiguous tie breaks a module. -->
   <script src="js/52-modules.js"></script>
   <script src="js/53-apps.js"></script>
+  <!-- 54 must load before 99-boot so google sync exists when engines
+       start. Unique numeric prefix: scripts/build.js sorts by filename. -->
+  <script src="js/54-google-sync.js"></script>
   <script src="js/99-boot.js"></script>
 </body>
 </html>
