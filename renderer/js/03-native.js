@@ -251,6 +251,10 @@ const native = {
   async showMain(route){ await this.invoke('show_main', { hash: route || '#/dashboard' }); },
   async startDragging(){
     try {
+      if (findTauri()) {
+        const r = await this.invoke('start_dragging');
+        if (r && r.ok) return;
+      }
       if (window.__TAURI__ && window.__TAURI__.window) {
         const cur = window.__TAURI__.window.getCurrentWindow();
         if (cur && typeof cur.startDragging === 'function') {

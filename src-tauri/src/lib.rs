@@ -1497,6 +1497,11 @@ async fn widget_size(app: AppHandle, mini: bool) -> bool {
 }
 
 #[tauri::command(rename_all = "snake_case")]
+async fn start_dragging(window: tauri::WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+#[tauri::command(rename_all = "snake_case")]
 async fn login_done(app: AppHandle, name: String) -> bool {
     // mark authed FIRST so the login window's close event doesn't quit the app
     AUTHED.store(true, Ordering::Relaxed);
@@ -1720,7 +1725,7 @@ pub fn run() {
             sysctl::sys_volume, sysctl::sys_volume_set,
             sysctl::sys_power, sysctl::sys_foreground_app, sysctl::sys_data_locations,
             app_paths, win_min, win_max, win_close, set_login_item, taskbar_progress, asr_record,
-            widget_toggle, widget_size, login_done, quit_app, show_main,
+            widget_toggle, widget_size, start_dragging, login_done, quit_app, show_main,
             note_vault_status, note_write_file, note_read_file, note_delete_file, pick_text_files,
             drain_ext_queue, ext_status, usage_today,
             read_crash_logs, clear_crash_logs

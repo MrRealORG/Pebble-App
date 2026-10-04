@@ -622,6 +622,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       <!-- Left sidebar: Search, Folders, Notes list -->
       <div class="notes-list-col">
         <div class="row gap-8">
+          <button class="btn btn-soft btn-sm" id="nt-back-to-apps" data-tip="Back to Main Apps (Dashboard)" style="display:inline-flex;align-items:center;gap:4px;flex:none;font-weight:600;padding:6px 10px;border-radius:var(--r-sm);color:var(--ink-2);background:var(--bg-card);border:1px solid var(--line);cursor:pointer">${icon('chevL',14)} <span>Apps</span></button>
           <div class="search-box" style="flex:1 1 auto;min-width:0;width:auto">${icon('search')}<input id="nt-search" placeholder="Search notes…"></div>
           <button class="btn btn-dark nt-new-btn" id="nt-new" data-tip="New note">${icon('plus')} New</button>
           <button class="icon-btn sm" id="nt-collapse-sidebar" data-tip="Hide notes list" style="flex:none">${icon('chevL',14)}</button>
@@ -644,6 +645,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           <button class="icon-btn sm" id="nt-expand-sidebar" data-tip="Show notes list" style="margin-right:4px;display:${isCollapsed ? 'inline-flex' : 'none'}">${icon('chevR',14)}</button>
           <button class="ne-icon-btn" id="ne-icon" data-tip="Change note icon">📝</button>
           <input class="ne-title" id="ne-title" placeholder="Note title">
+          <button class="btn btn-soft btn-sm" id="ne-folder-badge" data-tip="Move note to folder" style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:3px 9px;border-radius:99px;color:var(--ink-3);background:var(--bg-card);border:1px solid var(--line);cursor:pointer;flex:none;margin-right:6px">${icon('layers',12)} <span id="ne-folder-badge-txt">No folder</span></button>
           <div class="nt-tools">
             <div class="seg sm" id="ne-view-modes" role="tablist" style="margin-right:6px">
               <button role="tab" class="${viewMode==='split'?'on':''}" data-m="split" data-tip="Split view">Split</button>
@@ -799,6 +801,18 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     const counts = {};
     activeNotes.forEach(n => { const f = n.folder || ''; counts[f] = (counts[f]||0) + 1; });
 
+    let startersHtml = '';
+    if(!allFolders.length){
+      const suggestions = ['Work', 'Projects', 'Personal', 'Ideas'];
+      startersHtml = `
+        <div class="nt-starters-box" style="padding:6px 6px 8px;margin:5px 0;background:rgba(255,255,255,0.02);border-radius:8px;border:1px dashed var(--line)">
+          <div class="faint tiny bold" style="margin-bottom:5px;display:flex;align-items:center;gap:4px">${icon('layers',11)} Starter folders:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px">
+            ${suggestions.map(s => `<button type="button" class="chip sm nt-starter-chip" data-name="${s}" style="font-size:10.5px;padding:2px 7px;cursor:pointer;border-radius:99px">+ ${s}</button>`).join('')}
+          </div>
+        </div>`;
+    }
+
     host.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 4px 6px">
         <span class="faint tiny bold" style="text-transform:uppercase;letter-spacing:.05em">Folders</span>
@@ -808,6 +822,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       <button class="nt-folder ${curFolder==='__fav'?'on':''}" data-f="__fav">
         <span style="font-size:13px">⭐</span> Favorites <span class="n" style="${favCount>0?'font-weight:700;color:var(--orange)':''}">${favCount}</span>
       </button>
+      ${startersHtml}
       ${allFolders.map(f=>`
         <button class="nt-folder ${curFolder===f?'on':''}" data-f="${U.esc(f)}" data-folder-name="${U.esc(f)}">
           <span class="fld-ic">${icon('layers',14)}</span> <span class="ellipsis" style="flex:1">${U.esc(f)}</span>
@@ -820,6 +835,20 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         ${icon('trash',14)} Trash <span class="n" style="${trashCount>0?'color:var(--red);font-weight:700':''}">${trashCount}</span>
       </button>
     `;
+
+    qa('.nt-starter-chip', host).forEach(b => {
+      b.onclick = () => {
+        const name = b.dataset.name;
+        if(!name) return;
+        vault.folders = vault.folders || [];
+        if(!vault.folders.includes(name)) vault.folders.push(name);
+        NX.store.set('vault_folders', vault.folders);
+        curFolder = name;
+        renderFolders(); renderList();
+        NX.toastOk('Folder created', name);
+        NX.sfx.play('pop');
+      };
+    });
 
     const addFldBtn = q('#nt-add-folder', host);
     if(addFldBtn) addFldBtn.onclick = () => promptNewFolder();
@@ -1060,6 +1089,13 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     if(starBtn) starBtn.style.color = n.starred ? 'var(--orange)' : '';
     ta.value = n.body || '';
     q('#ne-pin', view).style.color = n.pinned ? 'var(--orange)' : '';
+    const fBadge = q('#ne-folder-badge', view);
+    const fBadgeTxt = q('#ne-folder-badge-txt', view);
+    if(fBadge && fBadgeTxt){
+      fBadgeTxt.textContent = n.folder ? n.folder : 'No folder';
+      fBadge.style.color = n.folder ? 'var(--green-deep, #7cd56e)' : 'var(--ink-3)';
+      fBadge.title = n.folder ? 'Folder: ' + n.folder + ' (click to change)' : 'Click to move to a folder';
+    }
     q('#ne-tags', view).innerHTML = (n.tags||[]).map(t=>`<span class="tagchip">#${U.esc(t)}</span>`).join(' ');
     q('#ne-saved', view).textContent = 'Saved ' + U.relTime(n.updated);
     q('#ne-stats', view).textContent = calculateStats(n.body);
@@ -2259,6 +2295,12 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
   });
 
+  const backAppsBtn = q('#nt-back-to-apps', view);
+  if(backAppsBtn) backAppsBtn.onclick = () => {
+    try { NX.sfx.play('nav'); } catch(e){}
+    NX.router.go('dashboard');
+  };
+
   q('#nt-search', view).addEventListener('input', e => { listQuery = e.target.value; renderList(); });
   q('#nt-new', view).onclick = () => NX.newNote();
   q('#nt-template', view).onclick = () => openTemplateModal(ta);
@@ -2443,6 +2485,8 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
   };
 
+  const fBadgeEl = q('#ne-folder-badge', view);
+  if(fBadgeEl) fBadgeEl.onclick = () => moveNoteModal(current());
   q('#ne-folder', view).onclick = () => moveNoteModal(current());
 
   const iconBtn = q('#ne-icon', view);

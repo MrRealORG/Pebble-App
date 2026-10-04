@@ -513,17 +513,19 @@ function wireTaskDragReorder(root){
   list.querySelectorAll('.widget-task-item').forEach(item => {
     item.addEventListener('dragstart', (e) => {
       draggedId = item.dataset.id;
+      window.__draggedWidgetTaskId = draggedId;
       item.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', draggedId);
+      try { e.dataTransfer.setData('text/plain', draggedId); } catch(err){}
     });
     item.addEventListener('dragend', () => {
       item.classList.remove('dragging');
+      window.__draggedWidgetTaskId = null;
       list.querySelectorAll('.widget-task-item').forEach(i => i.classList.remove('drag-over'));
     });
     item.addEventListener('dragover', (e) => {
       e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
+      try { e.dataTransfer.dropEffect = 'move'; } catch(err){}
       item.classList.add('drag-over');
     });
     item.addEventListener('dragleave', () => {
@@ -533,9 +535,10 @@ function wireTaskDragReorder(root){
       e.preventDefault();
       item.classList.remove('drag-over');
       const targetId = item.dataset.id;
-      if(!draggedId || draggedId === targetId) return;
+      const actualId = draggedId || window.__draggedWidgetTaskId || e.dataTransfer.getData('text/plain');
+      if(!actualId || actualId === targetId) return;
       const tasks = NX.store ? NX.store.get('tasks', []) : [];
-      const fromIdx = tasks.findIndex(x => x.id === draggedId);
+      const fromIdx = tasks.findIndex(x => x.id === actualId);
       const toIdx = tasks.findIndex(x => x.id === targetId);
       if(fromIdx !== -1 && toIdx !== -1){
         const [moved] = tasks.splice(fromIdx, 1);

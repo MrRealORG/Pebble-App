@@ -170,7 +170,11 @@ NX.router.register('login', {
 
     const err = q('#lg-err', app);
     const showErr = (m)=>{
-      err.textContent = m;
+      if(typeof m === 'string' && m.includes('<')){
+        err.innerHTML = m;
+      } else {
+        err.textContent = m;
+      }
       err.classList.remove('show');
       void err.offsetWidth;
       err.classList.add('show');
@@ -324,6 +328,14 @@ NX.router.register('login', {
           let res;
           if(cloudMode === 'signup'){
             res = await NX.cloud.auth.register(email, pass, name);
+            // If signup hits rate limit or already registered, automatically attempt sign-in
+            if(!res || !res.ok){
+              const errStr = String(res && res.error || '');
+              if(/rate limit|already.*(registered|account)|exists/i.test(errStr)){
+                cloudBtn.innerHTML = `${icon('refresh')} Account exists / rate-limited — trying Sign-In…`;
+                res = await NX.cloud.auth.signIn(email, pass);
+              }
+            }
           } else {
             res = await NX.cloud.auth.signIn(email, pass);
           }
@@ -346,7 +358,28 @@ NX.router.register('login', {
           await finish(p.name);
         } catch(err) {
           console.error('Supabase auth error:', err);
-          showErr(err.message || 'Could not authenticate. Check network and credentials.');
+          const errText = String(err && (err.message || err.error) || '');
+          if(/rate limit/i.test(errText)){
+            showErr(`
+              <div style="margin-bottom:6px">Supabase email rate limit reached.</div>
+              <div style="display:flex;gap:6px;justify-content:center;margin-top:6px">
+                <button type="button" class="btn btn-sm btn-green" id="btn-err-switch-signin" style="font-size:11px;padding:3px 9px">Sign In with Password</button>
+                <button type="button" class="btn btn-sm btn-soft" id="btn-err-switch-local" style="font-size:11px;padding:3px 9px">Use Quick PIN</button>
+              </div>
+            `);
+            const bSignin = q('#btn-err-switch-signin', err);
+            if(bSignin) bSignin.onclick = ()=>{
+              setCloudMode('signin');
+              q('#lg-cloud-password', app)?.focus();
+            };
+            const bLocal = q('#btn-err-switch-local', err);
+            if(bLocal) bLocal.onclick = ()=>{
+              setTab('local');
+              q('#lg-pin', app)?.focus();
+            };
+          } else {
+            showErr(err.message || 'Could not authenticate. Check network and credentials.');
+          }
           cloudBtn.disabled = false;
           cloudBtn.innerHTML = `${icon('cloud')} <span>${cloudMode==='signin'?'Sign In &amp; Sync':'Create Cloud Account'}</span>`;
         }

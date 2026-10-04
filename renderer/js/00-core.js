@@ -517,3 +517,29 @@ window.NX = window.NX || {};
 
   NX.ICON_PATHS = P;
 })(window.NX);
+
+// Desktop / WebView2 popup hook: prevents GSI popup crashes and opens URLs externally
+(function hookDesktopPopups(){
+  try{
+    const origOpen = window.open;
+    window.open = function(url, target, features){
+      const uStr = String(url || '');
+      if(uStr && (uStr.startsWith('http://') || uStr.startsWith('https://'))){
+        try{
+          if(window.NX && window.NX.native && typeof window.NX.native.openExternal === 'function'){
+            window.NX.native.openExternal(uStr);
+          }
+        }catch(e){}
+        return {
+          closed: false,
+          focus: function(){},
+          blur: function(){},
+          close: function(){ this.closed = true; },
+          postMessage: function(){}
+        };
+      }
+      if(origOpen) return origOpen.apply(window, arguments);
+      return null;
+    };
+  }catch(e){}
+})();

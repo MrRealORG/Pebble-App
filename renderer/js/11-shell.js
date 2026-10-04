@@ -326,7 +326,7 @@ NX.renderShell = function(routeName){
   app.appendChild(host);
   // sidebar lives left of main col — rebuild layout properly
   app.innerHTML = '';
-  const layout = h('<div style="display:flex;width:100%;height:100%"></div>');
+  const layout = h('<div class="app-layout" style="display:flex;width:100%;height:100%"></div>');
   app.appendChild(layout);
   /* Go through NX.renderSidebar, not the local function: 56-sidebar.js
      replaces it with the version that scrolls, folds and drags. Calling the
@@ -354,6 +354,11 @@ NX.routeInShell = function(name, title, ic, renderFn, onMount){
          below, so nothing needs rebuilding per navigation. */
       const view = q('#shell-view') || NX.renderShell(name);
       view.dataset.route = name;
+      const layout = q('.app-layout');
+      if(layout){
+        layout.classList.toggle('notes-mode', name === 'notes');
+      }
+      try{ document.body.classList.toggle('in-notes-route', name === 'notes'); }catch(e){}
       // update topbar title without rebuilding search/bell
       const t = q('.topbar .page-title > span');
       if(t) t.textContent = title;

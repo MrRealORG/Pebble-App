@@ -257,6 +257,53 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
       </button>
     `).join('');
 
+    function wireSidebarDrop(item){
+      item.addEventListener('dragover', e => {
+        e.preventDefault();
+        try { e.dataTransfer.dropEffect = 'move'; } catch(err){}
+        item.classList.add('dragover');
+      });
+      item.addEventListener('dragleave', e => {
+        if(e.relatedTarget && item.contains(e.relatedTarget)) return;
+        item.classList.remove('dragover');
+      });
+      item.addEventListener('drop', e => {
+        e.preventDefault();
+        item.classList.remove('dragover');
+        const id = window.__draggedTaskId || e.dataTransfer.getData('text/plain');
+        if(!id) return;
+        const list = tasks();
+        const t = list.find(x => x.id === id);
+        if(!t) return;
+        const targetList = item.dataset.list;
+        if(targetList === 'my-day'){
+          t.myDay = true; t.myDayDate = U.todayKey();
+          NX.toastOk('Added to My Day', t.name);
+        } else if(targetList === 'important'){
+          t.important = true;
+          NX.toastOk('Marked Important', t.name);
+        } else if(targetList === 'planned'){
+          if(!t.due) t.due = U.todayKey();
+          NX.toastOk('Scheduled in Planned', t.name);
+        } else if(targetList === 'completed'){
+          t.done = true; t.col = 'done';
+          NX.toastOk('Marked Complete', t.name);
+        } else if(targetList === 'all'){
+          t.done = false;
+          NX.toastOk('Moved to Tasks', t.name);
+        } else {
+          t.cat = targetList;
+          t.listId = targetList;
+          const foundCl = customLists().find(x => x.id === targetList);
+          NX.toastOk('Moved to ' + (foundCl ? foundCl.name : 'List'), t.name);
+        }
+        saveTasks(list);
+        renderSidebar();
+        renderMain();
+        NX.sfx.play('pop');
+      });
+    }
+
     qa('.mstodo-nav-item', smartHost).forEach(b => {
       b.onclick = () => {
         curList = b.dataset.list;
@@ -264,6 +311,7 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
         renderHeader();
         renderMain();
       };
+      wireSidebarDrop(b);
     });
 
     const cLists = customLists();
@@ -286,6 +334,7 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
         renderHeader();
         renderMain();
       };
+      wireSidebarDrop(b);
       b.oncontextmenu = (e) => {
         e.preventDefault();
         const cl = cLists.find(x => x.id === b.dataset.list);
@@ -555,7 +604,7 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
       const isSelected = t.id === activeTaskId;
 
       return `
-        <div class="mstodo-task-item ${isSelected?'selected':''}" data-id="${t.id}">
+        <div class="mstodo-task-item ${isSelected?'selected':''}" draggable="true" data-id="${t.id}">
           <button class="mstodo-check-btn ${t.done?'checked':''}" data-check="${t.id}" data-tip="${t.done?'Mark incomplete':'Mark complete'}">
             ${icon('check',12)}
           </button>
@@ -576,11 +625,55 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
         </div>`;
     }).join('');
 
+    let listDragging = false;
     qa('.mstodo-task-item', container).forEach(item => {
       item.onclick = (e) => {
+        if(listDragging) return;
         if(e.target.closest('[data-check]') || e.target.closest('[data-star]') || e.target.closest('[data-open-note]')) return;
         openDetailPanel(item.dataset.id);
       };
+      item.addEventListener('dragstart', (e) => {
+        listDragging = true;
+        item.classList.add('dragging');
+        window.__draggedTaskId = item.dataset.id;
+        try {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', item.dataset.id);
+        } catch(err){}
+      });
+      item.addEventListener('dragend', () => {
+        item.classList.remove('dragging');
+        setTimeout(() => { listDragging = false; }, 80);
+        window.__draggedTaskId = null;
+        qa('.mstodo-nav-item', view).forEach(n => n.classList.remove('dragover'));
+        qa('.mstodo-task-item', container).forEach(i => i.classList.remove('drag-target'));
+      });
+      item.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        try { e.dataTransfer.dropEffect = 'move'; } catch(err){}
+        item.classList.add('drag-target');
+      });
+      item.addEventListener('dragleave', () => {
+        item.classList.remove('drag-target');
+      });
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        item.classList.remove('drag-target');
+        const targetId = item.dataset.id;
+        const sourceId = window.__draggedTaskId || e.dataTransfer.getData('text/plain');
+        if(!sourceId || sourceId === targetId) return;
+        const list = tasks();
+        const fromIdx = list.findIndex(x => x.id === sourceId);
+        const toIdx = list.findIndex(x => x.id === targetId);
+        if(fromIdx !== -1 && toIdx !== -1){
+          const [moved] = list.splice(fromIdx, 1);
+          list.splice(toIdx, 0, moved);
+          saveTasks(list);
+          renderSidebar();
+          renderMain();
+          NX.sfx.play('tick');
+        }
+      });
     });
 
     qa('[data-check]', container).forEach(btn => {
@@ -645,24 +738,46 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
         </div>`;
     }).join('')}</div>`;
 
+    let justDragged = false;
     qa('.task-card', container).forEach(card => {
       card.onclick = (e) => {
+        if(justDragged) return;
         if(e.target.closest('[data-check]') || e.target.closest('[data-star]') || e.target.closest('[data-open-note]')) return;
         openDetailPanel(card.dataset.id);
       };
       card.addEventListener('dragstart', e => {
+        justDragged = true;
         card.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', card.dataset.id);
+        window.__draggedTaskId = card.dataset.id;
+        try {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', card.dataset.id);
+        } catch(err){}
       });
-      card.addEventListener('dragend', () => card.classList.remove('dragging'));
+      card.addEventListener('dragend', () => {
+        card.classList.remove('dragging');
+        setTimeout(() => { justDragged = false; }, 80);
+        window.__draggedTaskId = null;
+        qa('.kcol', container).forEach(c => c.classList.remove('dragover'));
+        qa('.mstodo-nav-item', view).forEach(n => n.classList.remove('dragover'));
+      });
     });
 
     qa('.kcol', container).forEach(col => {
-      col.addEventListener('dragover', e => { e.preventDefault(); col.classList.add('dragover'); });
-      col.addEventListener('dragleave', () => col.classList.remove('dragover'));
+      col.addEventListener('dragover', e => {
+        e.preventDefault();
+        try { e.dataTransfer.dropEffect = 'move'; } catch(err){}
+        col.classList.add('dragover');
+      });
+      col.addEventListener('dragleave', e => {
+        if(e.relatedTarget && col.contains(e.relatedTarget)) return;
+        col.classList.remove('dragover');
+      });
       col.addEventListener('drop', e => {
-        e.preventDefault(); col.classList.remove('dragover');
-        const id = e.dataTransfer.getData('text/plain');
+        e.preventDefault();
+        col.classList.remove('dragover');
+        const id = window.__draggedTaskId || e.dataTransfer.getData('text/plain');
+        if(!id) return;
         const list = tasks(); const t = list.find(x => x.id === id); if(!t) return;
         if(col.dataset.col === 'done'){
           t.done = true; t.col = 'done'; NX.confetti(e.clientX, e.clientY); NX.sfx.play('ok');

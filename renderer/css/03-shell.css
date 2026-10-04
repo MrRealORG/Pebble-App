@@ -425,3 +425,13 @@ body.login-mode{
   white-space: nowrap;
   margin-top: 1px;
 }
+
+/* ================= Notes Zen Focus Layout ================= */
+.app-layout.notes-mode .sidebar {
+  display: none !important;
+}
+.app-layout.notes-mode .main-col {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  flex: 1 1 100% !important;
+}
