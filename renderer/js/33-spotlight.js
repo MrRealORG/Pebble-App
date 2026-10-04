@@ -228,7 +228,53 @@ function openSpotlight(){
       } else {
         const qLower = query.toLowerCase();
 
-        // 0. App Navigation
+        // 0. Website Domain / URL detection with live favicon
+        const isUrlPattern = /^https?:\/\//i.test(query.trim()) || (/^([a-z0-9-]+\.)+[a-z]{2,}(\/.*)?$/i.test(query.trim()) && !query.includes(' '));
+        if(isUrlPattern){
+          const cleanHost = NX.cleanHost ? NX.cleanHost(query) : query.trim();
+          const targetUrl = /^https?:\/\//i.test(query.trim()) ? query.trim() : ('https://' + query.trim());
+          currentResults.push({
+            type: 'website',
+            icon: 'star',
+            isFavicon: true,
+            url: targetUrl,
+            title: `Open ${cleanHost}`,
+            subtitle: `Launch ${targetUrl} in Web Tab or browser`,
+            badge: 'Website',
+            badgeCls: 'green',
+            action: () => {
+              close();
+              if(NX.tabs && NX.tabs.open){
+                NX.tabs.open({ route: 'web', title: cleanHost, icon: 'star', url: targetUrl, isWeb: true });
+              } else {
+                window.open(targetUrl, '_blank');
+              }
+            }
+          });
+        }
+
+        // 1. Open Workspace Tabs
+        if(NX.tabs && NX.tabs.list){
+          const openTabs = NX.tabs.list().filter(t => (t.title||'').toLowerCase().includes(qLower));
+          openTabs.slice(0, 3).forEach(t => {
+            currentResults.push({
+              type: 'tab',
+              icon: t.icon || 'notes',
+              isFavicon: !!(t.isWeb && t.url),
+              url: t.url,
+              title: `Switch to Tab: ${t.title}`,
+              subtitle: t.url || 'Active Workspace Tab',
+              badge: 'Open Tab',
+              badgeCls: 'blue',
+              action: () => {
+                close();
+                NX.tabs.switch(t.id);
+              }
+            });
+          });
+        }
+
+        // 2. App Navigation
         (NX.NAV || []).flatMap(g => g.items || []).filter(item => item.n.toLowerCase().includes(qLower) || item.r.toLowerCase().includes(qLower)).slice(0, 3).forEach(item => {
           currentResults.push({
             type: 'nav',
@@ -320,8 +366,8 @@ function openSpotlight(){
     resultsHost.innerHTML = currentResults.map((r, i) => `
       <div class="spotlight-item ${i === selectedIndex ? 'selected' : ''}" data-idx="${i}" 
            style="display:flex;align-items:center;gap:12px;padding:9px 12px;border-radius:10px;cursor:pointer;transition:background .12s ease;margin-bottom:2px">
-        <div class="si-icon" style="width:30px;height:30px;border-radius:8px;background:var(--surface-3);color:var(--ink-2);display:flex;align-items:center;justify-content:center;flex:none">
-          ${icon(r.icon, 15)}
+        <div class="si-icon" style="width:30px;height:30px;border-radius:8px;background:var(--surface-3);color:var(--ink-2);display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden">
+          ${r.isFavicon && r.url && NX.getWebsiteFaviconHtml ? NX.getWebsiteFaviconHtml(r.url, { size: 18 }) : icon(r.icon, 15)}
         </div>
         <div style="flex:1;min-width:0">
           <div class="si-title" style="font-size:13.5px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${U.esc(r.title)}</div>

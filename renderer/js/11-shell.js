@@ -221,14 +221,374 @@ function renderSidebar(host){
   return sb;
 }
 
+/* ---------------- workspace tabs engine ---------------- */
+const DEFAULT_WORKSPACE_TABS = [
+  { id: 'tab-notes', route: 'notes', title: 'Notes', icon: 'notes' },
+  { id: 'tab-canvas', route: 'canvas', title: 'Canvas', icon: 'brush' },
+  { id: 'tab-todo', route: 'todo', title: 'Tasks', icon: 'todo' },
+  { id: 'tab-timeless', route: 'timeless', title: 'Timeless', icon: 'clock' }
+];
+
+const TABS_STORE_KEY = 'workspace:tabs';
+const ACTIVE_TAB_STORE_KEY = 'workspace:activeTabId';
+
+function getStoredTabs(){
+  try {
+    const list = NX.store.get(TABS_STORE_KEY, null);
+    if(Array.isArray(list) && list.length) return list;
+  }catch(e){}
+  return JSON.parse(JSON.stringify(DEFAULT_WORKSPACE_TABS));
+}
+
+function persistStoredTabs(tabs){
+  try { NX.store.set(TABS_STORE_KEY, tabs); }catch(e){}
+}
+
+function getStoredActiveTabId(){
+  try {
+    const id = NX.store.get(ACTIVE_TAB_STORE_KEY, null);
+    if(id) return id;
+  }catch(e){}
+  const list = getStoredTabs();
+  return list[0] ? list[0].id : 'tab-notes';
+}
+
+function persistActiveTabId(id){
+  try { NX.store.set(ACTIVE_TAB_STORE_KEY, id); }catch(e){}
+}
+
+function routeInfoFor(r){
+  for(const g of NAV){
+    const it = g.items.find(i=>i.r === r);
+    if(it) return { title: it.n, icon: it.ic };
+  }
+  const map = {
+    settings: { title: 'Settings', icon: 'settings' },
+    store: { title: 'Store', icon: 'star' },
+    leaderboard: { title: 'Leaderboard', icon: 'bar' },
+    apps: { title: 'Apps & features', icon: 'grid' }
+  };
+  return map[r] || { title: (r.charAt(0).toUpperCase() + r.slice(1)), icon: 'notes' };
+}
+
+function renderWebTabView(tab){
+  const view = q('#shell-view');
+  if(!view) return;
+  const clean = NX.cleanHost ? NX.cleanHost(tab.url) : tab.title;
+  const fav = NX.getWebsiteFaviconHtml ? NX.getWebsiteFaviconHtml(tab.url, { size: 34 }) : '';
+  view.innerHTML = `
+    <div class="web-tab-viewer card anim-in" style="margin:20px auto;max-width:920px;padding:22px;border-radius:18px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--sh-card)">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)">
+        ${fav}
+        <div style="flex:1;min-width:0">
+          <h2 style="font-size:18px;font-weight:700;margin:0 0 4px;color:var(--ink)">${U.esc(tab.title || clean)}</h2>
+          <div style="font-size:12px;color:var(--ink-3);display:flex;align-items:center;gap:8px">
+            <span style="font-family:monospace">${U.esc(tab.url)}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <a href="${U.esc(tab.url)}" target="_blank" rel="noopener" class="btn btn-dark btn-sm" style="display:inline-flex;align-items:center;gap:6px">
+            ${icon('external', 13)} <span>Open in Browser</span>
+          </a>
+          <button class="btn btn-soft btn-sm" id="wt-copy-btn" style="display:inline-flex;align-items:center;gap:5px">${icon('copy', 12)} <span>Copy</span></button>
+        </div>
+      </div>
+      <div style="height:calc(100vh - 200px);border-radius:12px;overflow:hidden;border:1px solid var(--line);background:var(--bg)">
+        <iframe src="${U.esc(tab.url)}" style="width:100%;height:100%;border:none" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+      </div>
+    </div>
+  `;
+  const cp = q('#wt-copy-btn', view);
+  if(cp) cp.onclick = () => {
+    if(NX.native && NX.native.clipboardWrite) NX.native.clipboardWrite(tab.url).then(()=>NX.toastOk('URL copied', tab.url));
+  };
+}
+
+function openWebTabModal(){
+  const popular = [
+    { name: 'GitHub', url: 'https://github.com' },
+    { name: 'Notion', url: 'https://notion.so' },
+    { name: 'YouTube', url: 'https://youtube.com' },
+    { name: 'ChatGPT', url: 'https://chatgpt.com' },
+    { name: 'Google Docs', url: 'https://docs.google.com' },
+    { name: 'Figma', url: 'https://figma.com' },
+    { name: 'Twitter / X', url: 'https://x.com' },
+    { name: 'Reddit', url: 'https://reddit.com' }
+  ];
+
+  const dlg = NX.modal({
+    title: 'Open Website Tab',
+    icon: 'star',
+    size: 'sm',
+    body: `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <p style="font-size:12.5px;color:var(--ink-2);margin:0">Enter any website domain or link to open as a dedicated tab with live favicon:</p>
+        <div class="row gap-8" style="display:flex;align-items:center;gap:8px">
+          <input class="input" id="wt-input-url" placeholder="e.g. github.com, notion.so, apple.com…" style="flex:1;height:38px;padding:0 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);color:var(--ink)">
+          <button class="btn btn-green" id="wt-confirm-open" style="height:38px;padding:0 14px">Open</button>
+        </div>
+        <div>
+          <div class="faint tiny bold" style="margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em">Quick Launch</div>
+          <div class="row gap-6" style="display:flex;flex-wrap:wrap;gap:6px">
+            ${popular.map(p => `
+              <button class="btn btn-soft btn-sm wt-quick-chip" data-url="${p.url}" data-name="${p.name}" style="display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:8px">
+                ${NX.getWebsiteFaviconHtml ? NX.getWebsiteFaviconHtml(p.url, { size: 14 }) : ''}
+                <span>${p.name}</span>
+              </button>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    `
+  });
+
+  const inp = q('#wt-input-url', dlg);
+  const btn = q('#wt-confirm-open', dlg);
+  const trigger = (url, name) => {
+    let clean = (url || '').trim();
+    if(!clean) return;
+    if(!/^https?:\/\//i.test(clean)) clean = 'https://' + clean;
+    const title = name || (NX.cleanHost ? NX.cleanHost(clean) : clean);
+    NX.closeModal(dlg);
+    NX.tabs.open({
+      id: 'tab-web-' + U.uid(4),
+      route: 'web',
+      title,
+      url: clean,
+      isWeb: true
+    });
+  };
+
+  if(btn && inp){
+    btn.onclick = () => trigger(inp.value);
+    inp.onkeydown = (e) => { if(e.key === 'Enter') trigger(inp.value); };
+    setTimeout(() => inp.focus(), 80);
+  }
+
+  qa('.wt-quick-chip', dlg).forEach(b => {
+    b.onclick = () => trigger(b.dataset.url, b.dataset.name);
+  });
+}
+
+NX.tabs = {
+  list(){ return getStoredTabs(); },
+  activeId(){ return getStoredActiveTabId(); },
+  active(){
+    const list = getStoredTabs();
+    const id = getStoredActiveTabId();
+    return list.find(t=>t.id===id) || list[0] || null;
+  },
+  open(opts = {}){
+    let list = getStoredTabs();
+    const route = opts.route || 'notes';
+    const isWeb = !!opts.isWeb;
+    const url = opts.url || null;
+    const info = routeInfoFor(route);
+    const title = opts.title || info.title;
+    const icon = opts.icon || info.icon;
+    const params = opts.params || null;
+    const id = opts.id || ('tab-' + (isWeb ? 'web-' : '') + route + '-' + U.uid(3));
+
+    let existing = list.find(t => {
+      if(isWeb && t.isWeb && t.url === url) return true;
+      if(!isWeb && !t.isWeb && t.route === route){
+        if(params && t.params) return JSON.stringify(params) === JSON.stringify(t.params);
+        if(!params && !t.params) return true;
+      }
+      return false;
+    });
+
+    if(existing){
+      persistActiveTabId(existing.id);
+      NX.tabs.render();
+      if(!opts.noNavigate){
+        if(existing.isWeb) renderWebTabView(existing);
+        else NX.router.go(existing.route, existing.params);
+      }
+      return existing;
+    }
+
+    const tab = { id, route, title, icon, url, isWeb, params };
+    list.push(tab);
+    persistStoredTabs(list);
+    persistActiveTabId(id);
+    NX.tabs.render();
+    if(!opts.noNavigate){
+      if(isWeb) renderWebTabView(tab);
+      else NX.router.go(route, params);
+    }
+    try{ if(NX.sfx) NX.sfx.play('pop'); }catch(e){}
+    return tab;
+  },
+  switch(id){
+    const list = getStoredTabs();
+    const tab = list.find(t=>t.id===id);
+    if(!tab) return;
+    persistActiveTabId(id);
+    NX.tabs.render();
+    if(tab.isWeb && tab.url){
+      renderWebTabView(tab);
+    } else {
+      NX.router.go(tab.route, tab.params);
+    }
+    try{ if(NX.sfx) NX.sfx.play('tick'); }catch(e){}
+  },
+  close(id, e){
+    if(e){ e.stopPropagation(); e.preventDefault(); }
+    let list = getStoredTabs();
+    if(list.length <= 1){
+      NX.toastInfo('Workspace', 'At least one tab remains open');
+      return;
+    }
+    const idx = list.findIndex(t=>t.id===id);
+    if(idx < 0) return;
+    const curId = getStoredActiveTabId();
+    list.splice(idx, 1);
+    persistStoredTabs(list);
+    if(curId === id){
+      const next = list[Math.min(idx, list.length - 1)];
+      persistActiveTabId(next.id);
+      NX.tabs.switch(next.id);
+    } else {
+      NX.tabs.render();
+    }
+    try{ if(NX.sfx) NX.sfx.play('tick'); }catch(e){}
+  },
+  updateActiveTitle(title, ic){
+    let list = getStoredTabs();
+    const id = getStoredActiveTabId();
+    const t = list.find(x=>x.id===id);
+    if(t){
+      if(title) t.title = title;
+      if(ic) t.icon = ic;
+      persistStoredTabs(list);
+      NX.tabs.render();
+    }
+  },
+  syncFromRoute(name, params){
+    let list = getStoredTabs();
+    const id = getStoredActiveTabId();
+    let cur = list.find(t=>t.id===id);
+    if(cur && cur.route === name){
+      if(params) cur.params = params;
+      persistStoredTabs(list);
+      NX.tabs.render();
+      return;
+    }
+    let other = list.find(t=>t.route === name && !t.isWeb);
+    if(other){
+      persistActiveTabId(other.id);
+      NX.tabs.render();
+      return;
+    }
+    const info = routeInfoFor(name);
+    if(cur && !cur.isWeb){
+      cur.route = name;
+      cur.title = info.title;
+      cur.icon = info.icon;
+      cur.params = params || null;
+      persistStoredTabs(list);
+      NX.tabs.render();
+    } else {
+      NX.tabs.open({ route: name, title: info.title, icon: info.icon, params, noNavigate: true });
+    }
+  },
+  newTabPrompt(anchor){
+    NX.menu(anchor || q('#ws-tab-add-btn'), [
+      { label:'Open Notes Tab', icon:'notes', onClick:()=>NX.tabs.open({ route:'notes', title:'Notes', icon:'notes' }) },
+      { label:'Open Canvas Board', icon:'brush', onClick:()=>NX.tabs.open({ route:'canvas', title:'Canvas', icon:'brush' }) },
+      { label:'Open Tasks Tab', icon:'todo', onClick:()=>NX.tabs.open({ route:'todo', title:'Tasks', icon:'todo' }) },
+      { label:'Open Timeless Activity', icon:'clock', onClick:()=>NX.tabs.open({ route:'timeless', title:'Timeless', icon:'clock' }) },
+      { label:'Open Pel AI Copilot', icon:'ai', onClick:()=>NX.tabs.open({ route:'ai', title:'Pel AI', icon:'ai' }) },
+      '-',
+      { label:'Open Real Website Tab…', icon:'star', onClick:()=>openWebTabModal() }
+    ], { align:'left' });
+  },
+  render(){
+    const host = typeof q === 'function' ? q('#ws-tabs-strip') : (document.querySelector ? document.querySelector('#ws-tabs-strip') : null);
+    if(!host) return;
+    const tabs = getStoredTabs();
+    const activeId = getStoredActiveTabId();
+
+    host.innerHTML = '';
+    tabs.forEach(tab => {
+      const isActive = tab.id === activeId;
+      const el = document.createElement('div');
+      el.className = 'ws-tab ' + (isActive ? 'active' : '');
+      el.dataset.tabId = tab.id;
+      el.setAttribute('role', 'tab');
+      el.setAttribute('aria-selected', String(isActive));
+      el.title = tab.title + (tab.url ? ' (' + tab.url + ')' : '');
+
+      let iconHtml = '';
+      if(tab.isWeb && tab.url && NX.getWebsiteFaviconHtml){
+        iconHtml = NX.getWebsiteFaviconHtml(tab.url, { size: 14, cls: 'tab-web-fav' });
+      } else {
+        iconHtml = icon(tab.icon || 'notes', 13);
+      }
+
+      el.innerHTML = '<span class="ws-tab-ic">' + iconHtml + '</span>' +
+        '<span class="ws-tab-txt">' + U.esc(tab.title) + '</span>' +
+        '<button class="ws-tab-close" title="Close Tab (Ctrl+W)">&times;</button>';
+
+      el.onclick = (e) => {
+        if(e.target.closest('.ws-tab-close')) return;
+        NX.tabs.switch(tab.id);
+      };
+
+      el.onauxclick = (e) => {
+        if(e.button === 1){
+          e.preventDefault();
+          NX.tabs.close(tab.id);
+        }
+      };
+
+      const closeBtn = el.querySelector('.ws-tab-close');
+      if(closeBtn){
+        closeBtn.onclick = (e) => NX.tabs.close(tab.id, e);
+      }
+
+      el.oncontextmenu = (e) => {
+        e.preventDefault();
+        NX.menu(e, [
+          { label: 'Close Tab', icon: 'x', onClick: () => NX.tabs.close(tab.id) },
+          { label: 'Close Other Tabs', icon: 'trash', onClick: () => {
+              persistStoredTabs([tab]);
+              persistActiveTabId(tab.id);
+              NX.tabs.render();
+            }
+          },
+          { label: 'Duplicate Tab', icon: 'plus', onClick: () => {
+              NX.tabs.open({ route: tab.route, title: tab.title + ' (Copy)', icon: tab.icon, params: tab.params, url: tab.url, isWeb: tab.isWeb });
+            }
+          }
+        ]);
+      };
+
+      host.appendChild(el);
+    });
+
+    const addBtn = document.createElement('button');
+    addBtn.className = 'ws-tab-add';
+    addBtn.id = 'ws-tab-add-btn';
+    addBtn.title = 'New Tab (Ctrl+T)';
+    addBtn.innerHTML = icon('plus', 12);
+    addBtn.onclick = (e) => NX.tabs.newTabPrompt(e.currentTarget);
+    host.appendChild(addBtn);
+  }
+};
+
 function renderTopbar(host){
   const title = routeTitle();
   const unread = NX.unreadNotifs();
   const bar = h(`<header class="topbar ultra-minimal custom-glass-bar">
-    <div class="page-title"><span>${U.esc(title)}</span></div>
-    <div class="topbar-crumbs" id="topbar-crumbs" aria-label="Breadcrumb"></div>
-    <div class="search-box sm" id="tp-search" role="button" tabindex="0" data-tip="Quick search & commands (Ctrl+K)">
-      ${icon('search',13)}<input placeholder="Search notes, tasks, commands…" readonly>
+    <div class="topbar-tabs-container">
+      <div class="page-title" style="display:none"><span>${U.esc(title)}</span></div>
+      <div class="topbar-crumbs" id="topbar-crumbs" style="display:none" aria-label="Breadcrumb"></div>
+      <div class="workspace-tabs-strip" id="ws-tabs-strip" role="tablist"></div>
+    </div>
+    <div class="search-box sm omni-search-box" id="tp-search" role="button" tabindex="0" data-tip="Quick search, commands, or enter URL (Ctrl+K)">
+      ${icon('search',13)}<input placeholder="Search notes, tasks, or enter URL…" readonly>
       <span class="kbd">Ctrl K</span>
     </div>
     <div class="topbar-actions" style="display:flex;align-items:center;gap:5px">
@@ -260,6 +620,7 @@ function renderTopbar(host){
     { label:'Save a prompt', icon:'star', onClick:()=>{ NX.router.go('prompts'); setTimeout(()=>NX.newPrompt && NX.newPrompt(), 60); } },
   ], { align:'right' });
   host.appendChild(bar);
+  NX.tabs.render();
 }
 
 NX.refreshBadges = function(){
@@ -366,6 +727,7 @@ NX.routeInShell = function(name, title, ic, renderFn, onMount){
       if(t) t.textContent = title;
       qa('.sidebar .nav-item').forEach(el=>el.classList.toggle('on', el.dataset.route === name));
       NX.refreshBadges();
+      if(NX.tabs && NX.tabs.syncFromRoute) NX.tabs.syncFromRoute(name);
       view.classList.remove('full');
       view.innerHTML = '';
       view.scrollTop = 0;
@@ -389,6 +751,13 @@ Object.defineProperty(NX.router, 'currentName', { get(){ return (location.hash||
 document.addEventListener('keydown', (e)=>{
   const mod = e.ctrlKey || e.metaKey;
   if(mod && e.key.toLowerCase() === 'k'){ e.preventDefault(); NX.openCommandPalette(); }
+  else if(mod && e.key.toLowerCase() === 't'){ e.preventDefault(); NX.tabs && NX.tabs.newTabPrompt && NX.tabs.newTabPrompt(); }
+  else if(mod && e.key.toLowerCase() === 'w' && !e.shiftKey){
+    e.preventDefault();
+    if(NX.tabs && NX.tabs.close && NX.tabs.activeId){
+      NX.tabs.close(NX.tabs.activeId());
+    }
+  }
   else if((e.altKey && (e.code === 'Space' || e.key === ' ')) || (mod && e.shiftKey && (e.code === 'Space' || e.key === ' '))){
     e.preventDefault();
     NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette();

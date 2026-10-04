@@ -386,4 +386,41 @@ NX.compressImageToWebP = function(input, opts = {}){
     }
   });
 };
+
+/* ---------------- Real Website Favicon & Logo Engine ---------------- */
+NX.cleanHost = function(urlOrDomain){
+  if(!urlOrDomain) return '';
+  let str = String(urlOrDomain).trim().toLowerCase();
+  str = str.replace(/^[a-z]+:\/\//i, '').replace(/^www\./i, '');
+  str = str.split('/')[0].split('?')[0].split('#')[0].replace(/:\d+$/, '');
+  return str;
+};
+
+NX.getWebsiteFaviconUrl = function(urlOrDomain, sz = 64){
+  const host = NX.cleanHost(urlOrDomain);
+  if(!host || host.indexOf('.') < 0) return '';
+  return 'https://www.google.com/s2/favicons?domain=' + encodeURIComponent(host) + '&sz=' + sz;
+};
+
+NX.getWebsiteFaviconHtml = function(urlOrDomain, opts = {}){
+  const host = NX.cleanHost(urlOrDomain);
+  const size = opts.size || 18;
+  const cls = opts.cls || '';
+  if(!host || host.indexOf('.') < 0){
+    const letter = (host ? host.charAt(0) : '?').toUpperCase();
+    const bg = U.colorFor ? U.colorFor(host || 'web') : '#3b82f6';
+    return '<span class="site-favicon-fallback ' + U.esc(cls) + '" style="width:' + size + 'px;height:' + size + 'px;min-width:' + size + 'px;background:' + bg + ';border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:' + Math.round(size*0.6) + 'px;font-weight:700;color:#fff;line-height:1">' + letter + '</span>';
+  }
+  const googleUrl = NX.getWebsiteFaviconUrl(host, Math.max(32, size * 2));
+  const ddgUrl = 'https://icons.duckduckgo.com/ip3/' + encodeURIComponent(host) + '.png';
+  const letter = host.charAt(0).toUpperCase();
+  const bg = U.colorFor ? U.colorFor(host) : '#3b82f6';
+  
+  return '<span class="site-favicon-wrap ' + U.esc(cls) + '" style="width:' + size + 'px;height:' + size + 'px;min-width:' + size + 'px;display:inline-flex;align-items:center;justify-content:center;position:relative;border-radius:4px;overflow:hidden;flex:none" title="' + U.esc(host) + '">' +
+    '<img class="site-favicon-img" src="' + googleUrl + '" alt="' + U.esc(host) + '" width="' + size + '" height="' + size + '" loading="lazy" referrerpolicy="no-referrer" ' +
+    'style="width:' + size + 'px;height:' + size + 'px;object-fit:contain;border-radius:4px;display:block" ' +
+    'onerror="if(this.src!=\'' + ddgUrl + '\'){this.src=\'' + ddgUrl + '\';}else{this.style.display=\'none\';this.nextElementSibling.style.display=\'inline-flex\';}">' +
+    '<span class="site-favicon-fallback" style="display:none;width:' + size + 'px;height:' + size + 'px;background:' + bg + ';border-radius:4px;align-items:center;justify-content:center;font-size:' + Math.round(size*0.6) + 'px;font-weight:700;color:#fff;line-height:1">' + letter + '</span>' +
+  '</span>';
+};
 })(window.NX);

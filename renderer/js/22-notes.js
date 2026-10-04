@@ -126,14 +126,19 @@ function mdRender(src){
         </div>
       </div>`;
     });
-    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">🔗 $1</a>');
+    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m0, text, rawUrl) => {
+      const isWeb = /^https?:\/\//i.test(rawUrl);
+      const fav = isWeb && NX.getWebsiteFaviconHtml ? NX.getWebsiteFaviconHtml(rawUrl, { size: 14, cls: 'link-fav' }) : '🔗 ';
+      return `<a href="${rawUrl}" target="_blank" rel="noopener" class="md-link"><span class="md-link-icon">${fav}</span><span>${text}</span></a>`;
+    });
     out = out.replace(/(^|[^"'>])(https?:\/\/[^\s<)]+)/g, (m, prefix, url) => {
       let display = url;
       try {
         const u = new URL(url);
         display = u.hostname.replace(/^www\./, '') + (u.pathname !== '/' ? u.pathname.slice(0, 18) + (u.pathname.length > 18 ? '…' : '') : '');
       } catch(e) {}
-      return `${prefix}<a href="${url}" target="_blank" rel="noopener" class="md-link" title="${url}">🔗 ${U.esc(display)}</a>`;
+      const fav = NX.getWebsiteFaviconHtml ? NX.getWebsiteFaviconHtml(url, { size: 14, cls: 'link-fav' }) : '🔗 ';
+      return `${prefix}<a href="${url}" target="_blank" rel="noopener" class="md-link" title="${url}"><span class="md-link-icon">${fav}</span><span>${U.esc(display)}</span></a>`;
     });
     out = out.replace(/#([a-zA-Z0-9_-]{2,24})/g, '<span class="tagchip" style="cursor:pointer" data-tag="$1">#$1</span>');
     out = out.replace(/\$([^\$\n]+)\$/g, '<code class="md-math">$1</code>');
@@ -1118,6 +1123,19 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       return;
     }
     NX.menu(e, [
+      { label: 'Open in New Tab', icon: 'notes', onClick: () => {
+        if(NX.tabs && NX.tabs.open){
+          NX.tabs.open({
+            id: 'tab-note-' + n.id,
+            route: 'notes',
+            title: n.title || 'Untitled',
+            icon: 'notes',
+            params: { noteId: n.id }
+          });
+        }
+        selectNote(n.id);
+      }},
+      '-',
       { label: n.starred ? 'Remove from Favorites' : 'Add to Favorites ⭐', icon: 'star', onClick: () => {
         n.starred = !n.starred; saveNotes(notes()); renderFolders(); renderList(); loadEditor(); NX.sfx.play('pop');
       }},
