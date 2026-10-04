@@ -1086,7 +1086,7 @@ const clientIn = q('#gd-client', host);
       };
     }
 
-    if(curSec === 'cloud'){ renderCloud(host); }
+    if(curSec === 'cloud'){ renderCloud(host, renderBody); }
 
     if(curSec === 'storage'){
       const dump = NX.store.dump();
@@ -1331,7 +1331,8 @@ NX.exportWorkspace = function(){
    nothing here is required for Pebble to function. The SDK is fetched
    lazily so a failure cannot affect boot.
    ============================================================ */
-function renderCloud(host){
+function renderCloud(host, rerender){
+  const renderBody = typeof rerender === 'function' ? rerender : ()=>{ renderCloud(host, rerender); };
   const cfg = NX.cloud ? NX.cloud.readConfig() : {};
   const st = NX.cloud ? NX.cloud.status() : { configured:false, signedIn:false, offline:false };
   const user = NX.cloud ? NX.cloud.auth.user : null;

@@ -96,9 +96,35 @@ function fmtText(t){
     .replace(/@Pel\b/g, '<span class="mention">@Pel</span>')
     .replace(/@([A-Za-z0-9_]{2,16})/g, (mm,n)=> profileName().toLowerCase()===n.toLowerCase() ? `<span class="mention">@${mm.slice(1)}</span>` : mm)
     .replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="chat-img-thumb" onclick="if(window.__nx_openLightbox) window.__nx_openLightbox(this.src, this.alt)">');
+  s = s.replace(/\[(?:📎|file:)?\s*([^\]]+?\.(pdf|docx?|xlsx?|pptx?|csv|txt|zip|tar|gz|7z|rar|mp3|wav|mp4))\s*(?:\(([^)]+)\))?\]\(([^)]+)\)/gi, (m0, fName, ext, fSize, url) => {
+    return `<div class="chat-file-card">
+      <span style="font-size:18px">📄</span>
+      <div style="flex:1;min-width:0">
+        <div class="cf-name" title="${U.esc(fName)}">${U.esc(fName)}</div>
+        <div class="cf-meta">${fSize ? U.esc(fSize) + ' · ' : ''}${U.esc(ext.toUpperCase())}</div>
+      </div>
+      <a href="${url}" download="${U.esc(fName)}" class="btn btn-sm btn-soft" style="height:26px;font-size:11px;padding:0 8px;gap:4px" onclick="event.stopPropagation()">${icon('download', 11)} Save</a>
+    </div>`;
+  });
   return s;
 }
 function profileName(){ return NX.store.get('profile', NX.defaults.profile).name; }
+
+window.__nx_openLightbox = function(src, title){
+  const body = h(`<div style="display:flex;justify-content:center;align-items:center;padding:8px;max-height:80vh;overflow:auto"><img src="${src}" style="max-width:100%;max-height:75vh;border-radius:8px;box-shadow:var(--sh-card)"></div>`);
+  NX.modal({
+    title: title || 'Image',
+    icon: 'image',
+    body,
+    footer: [
+      { label:'Download', cls:'btn-green', onClick:()=>{
+        const a = document.createElement('a'); a.href = src; a.download = title || 'image.png'; a.click();
+      }},
+      { label:'Close', cls:'btn-soft' }
+    ]
+  });
+};
 
 /* Pel AI inline in chat — REAL streaming LLM */
 async function streamPelReply(key, prompt, view){
@@ -189,8 +215,9 @@ NX.routeInShell('chat', 'Chat', 'chat', function(view){
         <div class="chat-typing" id="chat-typing"></div>
         <div class="chat-inputbar">
           <div class="chat-input">
+            <button class="ci-tool" id="ci-attach" data-tip="Attach file or image (/upload)">${icon('upload', 14)}</button>
             <button class="ci-tool" id="ci-emoji" data-tip="Emoji">😀</button>
-            <textarea id="ci-input" rows="1" placeholder="Message… (@Pel to ask AI, Enter to send)"></textarea>
+            <textarea id="ci-input" rows="1" placeholder="Message… (@Pel to ask AI, /upload to attach, Enter to send)"></textarea>
             <button class="ci-send" id="ci-send" data-tip="Send">${icon('send')}</button>
           </div>
         </div>
@@ -274,9 +301,61 @@ NX.routeInShell('chat', 'Chat', 'chat', function(view){
     renderMembers(view);
   }
 
+  function sendFiles(fileList){
+    const files = Array.from(fileList || []);
+    if(!files.length) return;
+    const key = curServer + ':' + curChan;
+    const all = NX.store.get('messages', {});
+    all[key] = all[key] || [];
+    const profile = NX.store.get('profile', NX.defaults.profile);
+    let done = 0;
+    files.forEach(f => {
+      const rd = new FileReader();
+      rd.onload = () => {
+        const dataUrl = rd.result;
+        const isImg = f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f.name);
+        const formatSize = (bytes) => {
+          if(!bytes || bytes <= 0) return '0 B';
+          if(bytes < 1024) return bytes + ' B';
+          if(bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+          return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        };
+        const text = isImg ? `![${f.name}](${dataUrl})` : `[📎 ${f.name} (${formatSize(f.size)})](${dataUrl})`;
+        all[key].push({ who: profile.name, avatar: profile.avatar, text, ts: Date.now(), me:true });
+        done++;
+        if(done === files.length){
+          NX.store.set('messages', all);
+          NX.sfx.play('send');
+          renderMsgs(view);
+          NX.toastOk('Sent ' + files.length + ' file(s)');
+        }
+      };
+      rd.readAsDataURL(f);
+    });
+  }
+
+  function pickAndSendFiles(){
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.multiple = true;
+    inp.accept = '*/*';
+    inp.style.display = 'none';
+    inp.onchange = () => {
+      if(inp.files && inp.files.length) sendFiles(inp.files);
+      inp.remove();
+    };
+    document.body.appendChild(inp);
+    inp.click();
+  }
+
   function send(){
     const inp = q('#ci-input', view);
     const text = inp.value.trim(); if(!text) return;
+    if(text.toLowerCase() === '/upload' || text.toLowerCase() === '/file'){
+      inp.value = '';
+      pickAndSendFiles();
+      return;
+    }
     const key = curServer + ':' + curChan;
     const all = NX.store.get('messages', {});
     all[key] = all[key] || [];
@@ -291,6 +370,28 @@ NX.routeInShell('chat', 'Chat', 'chat', function(view){
     }
   }
   q('#ci-send', view).onclick = send;
+  const attachBtn = q('#ci-attach', view);
+  if(attachBtn) attachBtn.onclick = pickAndSendFiles;
+
+  // Drag & drop files onto chat
+  const msgsWrap = q('.chat-msgs', view);
+  const inputBar = q('.chat-inputbar', view);
+  [msgsWrap, inputBar].forEach(zone => {
+    if(!zone) return;
+    zone.addEventListener('dragover', (e) => {
+      if(e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')){
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+      }
+    });
+    zone.addEventListener('drop', (e) => {
+      if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){
+        e.preventDefault();
+        sendFiles(e.dataTransfer.files);
+      }
+    });
+  });
+
   const inp = q('#ci-input', view);
   inp.addEventListener('keydown', e=>{
     if(e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); send(); }

@@ -62,6 +62,37 @@ function mdRender(src){
       const dueStr = t && t.due ? `<span class="md-todo-due">📅 ${U.esc(t.due)}</span>` : '';
       return `<span class="md-todo-chip ${isDone?'done':''}" data-task-id="${U.esc(taskId)}"><input type="checkbox" class="md-todo-cb" data-task-id="${U.esc(taskId)}" ${isDone?'checked':''}><span class="md-todo-text">${U.esc(taskTitle)}</span>${dueStr}</span>`;
     });
+    // File Attachment Cards: [📎 filename (size)](url) or [file: filename (size)](url) or files ending in common formats
+    out = out.replace(/\[(?:📎|file:)?\s*([^\]]+?\.(pdf|docx?|xlsx?|pptx?|csv|txt|zip|tar|gz|7z|rar|mp3|wav|mp4))\s*(?:\(([^)]+)\))?\]\(([^)]+)\)/gi, (m0, fileName, ext, sizeStr, url) => {
+      const fName = (fileName || 'file.' + ext).trim();
+      const fExt = (ext || 'file').toLowerCase();
+      const fSize = (sizeStr || '').trim();
+      let badgeColor = '#5EB8FF';
+      let badgeIcon = '📄';
+      if(fExt === 'pdf'){ badgeColor = '#ef4444'; badgeIcon = '📕'; }
+      else if(/docx?/.test(fExt)){ badgeColor = '#2563eb'; badgeIcon = '📘'; }
+      else if(/xlsx?|csv/.test(fExt)){ badgeColor = '#10b981'; badgeIcon = '📊'; }
+      else if(/pptx?/.test(fExt)){ badgeColor = '#f59e0b'; badgeIcon = '📙'; }
+      else if(/zip|tar|gz|7z/.test(fExt)){ badgeColor = '#8b5cf6'; badgeIcon = '🗜️'; }
+      else if(/mp3|wav|ogg/.test(fExt)){ badgeColor = '#ec4899'; badgeIcon = '🎵'; }
+      else if(/mp4|webm/.test(fExt)){ badgeColor = '#06b6d4'; badgeIcon = '🎬'; }
+
+      const isPdf = fExt === 'pdf';
+      return `<div class="md-file-card" data-filename="${U.esc(fName)}" data-ext="${U.esc(fExt)}">
+        <div class="md-file-badge" style="background:${badgeColor}22;color:${badgeColor};border:1px solid ${badgeColor}44">
+          <span class="md-file-badge-icon">${badgeIcon}</span>
+          <span class="md-file-badge-ext">${U.esc(fExt.toUpperCase())}</span>
+        </div>
+        <div class="md-file-body">
+          <div class="md-file-name" title="${U.esc(fName)}">${U.esc(fName)}</div>
+          <div class="md-file-meta">${fSize ? U.esc(fSize) + ' · ' : ''}${U.esc(fExt.toUpperCase())} Document</div>
+        </div>
+        <div class="md-file-actions">
+          <a href="${url}" download="${U.esc(fName)}" class="btn btn-sm btn-soft md-file-btn md-file-dl" title="Download ${U.esc(fName)}" onclick="event.stopPropagation()">${icon('download', 12)} <span>Download</span></a>
+          ${isPdf ? `<button type="button" class="btn btn-sm btn-soft md-file-btn md-file-view" data-pdf-url="${url}" data-pdf-name="${U.esc(fName)}" title="Preview PDF">${icon('eye', 12)} <span>Preview</span></button>` : ''}
+        </div>
+      </div>`;
+    });
     out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">🔗 $1</a>');
     out = out.replace(/(^|[^"'>])(https?:\/\/[^\s<)]+)/g, (m, prefix, url) => {
       let display = url;
@@ -395,11 +426,82 @@ What is the primary friction point we are trying to eliminate?
   }
 ];
 
+/* ---------------- File Attachment & Upload Helpers ---------------- */
+function formatFileSize(bytes){
+  if(!bytes || bytes <= 0) return '0 B';
+  if(bytes < 1024) return bytes + ' B';
+  if(bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function insertTextAtCursor(textarea, text){
+  if(!textarea || !text) return;
+  const start = textarea.selectionStart || textarea.value.length;
+  const end = textarea.selectionEnd || textarea.value.length;
+  const before = textarea.value.slice(0, start);
+  const after = textarea.value.slice(end);
+  const prefix = (start > 0 && !/\s$/.test(before) && !text.startsWith('\n')) ? ' ' : '';
+  const insertion = prefix + text;
+  textarea.value = before + insertion + after;
+  textarea.selectionStart = textarea.selectionEnd = start + insertion.length;
+  textarea.focus();
+  textarea.dispatchEvent(new Event('input'));
+}
+
+function handleFilesAttachment(fileList, textarea, onDone){
+  const files = Array.from(fileList || []);
+  if(!files.length) return;
+  NX.toastInfo(`Attaching ${files.length} file(s)…`, 'Reading files');
+  let done = 0;
+  files.forEach(f => {
+    const rd = new FileReader();
+    rd.onload = () => {
+      const dataUrl = rd.result;
+      const isImg = f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f.name);
+      let ins = '';
+      if(isImg){
+        ins = `\n![${f.name}](${dataUrl})\n`;
+      } else {
+        ins = `\n[📎 ${f.name} (${formatFileSize(f.size)})](${dataUrl})\n`;
+      }
+      insertTextAtCursor(textarea, ins);
+      done++;
+      if(done === files.length){
+        if(typeof onDone === 'function') onDone();
+        try{ NX.sfx.play('pop'); }catch(e){}
+        NX.toastOk('Files attached', `${files.length} item(s) added to note`);
+      }
+    };
+    rd.onerror = () => {
+      NX.toastErr('Failed to read file', f.name);
+    };
+    rd.readAsDataURL(f);
+  });
+}
+
+function pickAndAttachFiles(textarea, accept, onDone){
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.multiple = true;
+  inp.accept = accept || '*/*';
+  inp.style.display = 'none';
+  inp.onchange = () => {
+    if(inp.files && inp.files.length){
+      handleFilesAttachment(inp.files, textarea, onDone);
+    }
+    inp.remove();
+  };
+  document.body.appendChild(inp);
+  inp.click();
+}
+
 /* ---------------- Notion Slash Menu ---------------- */
 const SLASH_ITEMS = [
   { l:'Heading 1',        k:'H1', ic:'hash',   ins:'# ',                   tip:'Big section title' },
   { l:'Heading 2',        k:'H2', ic:'hash',   ins:'## ',                  tip:'Medium heading' },
   { l:'Heading 3',        k:'H3', ic:'hash',   ins:'### ',                 tip:'Sub-heading' },
+  { l:'Attach File (Upload)', k:'ATT', ic:'upload', attachFile:true,        tip:'Attach PDF, Word, Excel, or file' },
+  { l:'Insert Image',         k:'IMG', ic:'image',  attachImage:true,       tip:'Upload and embed image' },
   { l:'To-do checklist',  k:'TD', ic:'check',  ins:'- [ ] ',               tip:'Interactive checklist' },
   { l:'Bullet list',      k:'UL', ic:'list',   ins:'- ',                   tip:'Standard bullet point' },
   { l:'Numbered list',    k:'OL', ic:'list',   ins:'1. ',                  tip:'Step-by-step list' },
@@ -459,6 +561,14 @@ function applySlash(textarea, it){
     pos = slashPos;
   }
 
+  if(it.attachFile){
+    pickAndAttachFiles(textarea, '*/*', typeof globalPersistFn === 'function' ? globalPersistFn : null);
+    return;
+  }
+  if(it.attachImage){
+    pickAndAttachFiles(textarea, 'image/*', typeof globalPersistFn === 'function' ? globalPersistFn : null);
+    return;
+  }
   if(it.template){
     openTemplateModal(textarea);
     return;
@@ -689,6 +799,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           <button class="nt-fmt" data-fmt="code" data-tip="Inline code">&lt;/&gt;</button>
           <button class="nt-fmt" data-fmt="mark" data-tip="Highlight text">🖍️</button>
           <div style="height:14px;width:1px;background:var(--line);margin:0 4px"></div>
+          <button class="btn btn-soft btn-sm" id="ne-attach-btn" data-tip="Attach file or image (PDF, Word, Excel, Image)" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:6px;cursor:pointer">${icon('upload',12)} <span>Attach</span></button>
           <button class="nt-tb-dictate" id="ne-dictate" data-tip="Voice Dictation (Ctrl+Shift+D)" style="display:inline-flex;align-items:center;gap:4px;color:var(--red,#ef4444);font-weight:700;font-size:11.5px;padding:2px 7px;border-radius:6px;border:none;background:var(--red-soft,#fee2e2);cursor:pointer">${icon('mic',13)} Dictate</button>
           <span id="ne-dictate-indicator" style="display:none"></span>
           <span style="flex:1"></span>
@@ -1303,6 +1414,47 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
             NX.sfx.play('pop');
           });
         }
+      };
+    });
+    // Wire up PDF preview modal for attached file cards
+    qa('.md-file-view', previewBox).forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const pdfUrl = btn.dataset.pdfUrl;
+        const pdfName = btn.dataset.pdfName || 'Document Preview';
+        if(pdfUrl){
+          const body = h(`<div><iframe src="${pdfUrl}" style="width:100%;height:75vh;border:none;border-radius:8px;background:#ffffff"></iframe></div>`);
+          NX.modal({
+            title: pdfName,
+            icon: 'eye',
+            body,
+            footer: [
+              { label:'Download', cls:'btn-green', onClick:()=>{
+                const a = document.createElement('a'); a.href = pdfUrl; a.download = pdfName; a.click();
+              }},
+              { label:'Close', cls:'btn-soft' }
+            ]
+          });
+        }
+      };
+    });
+
+    // Wire up image zoom / lightbox in preview
+    qa('.md-img', previewBox).forEach(img => {
+      img.style.cursor = 'zoom-in';
+      img.onclick = () => {
+        const body = h(`<div style="display:flex;justify-content:center;align-items:center;padding:8px;max-height:80vh;overflow:auto"><img src="${img.src}" style="max-width:100%;max-height:75vh;border-radius:8px;box-shadow:var(--sh-card)"></div>`);
+        NX.modal({
+          title: img.alt || 'Image Preview',
+          icon: 'image',
+          body,
+          footer: [
+            { label:'Download', cls:'btn-green', onClick:()=>{
+              const a = document.createElement('a'); a.href = img.src; a.download = img.alt || 'image.png'; a.click();
+            }},
+            { label:'Close', cls:'btn-soft' }
+          ]
+        });
       };
     });
   }
@@ -2376,12 +2528,43 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       e.preventDefault(); wrapSelection('**', '**');
     } else if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i'){
       e.preventDefault(); wrapSelection('*', '*');
+    } else if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u'){
+      e.preventDefault(); pickAndAttachFiles(ta, '*/*', persist);
     } else if(e.key === 'Tab'){
       e.preventDefault();
       const s = ta.selectionStart;
       ta.value = ta.value.slice(0,s) + '  ' + ta.value.slice(ta.selectionEnd);
       ta.selectionStart = ta.selectionEnd = s + 2;
       autosave();
+    }
+  });
+
+  // Attach button wiring
+  const attachBtn = q('#ne-attach-btn', view);
+  if(attachBtn) attachBtn.onclick = () => pickAndAttachFiles(ta, '*/*', persist);
+
+  // Drag and drop files onto note editor
+  ta.addEventListener('dragover', (e) => {
+    if(e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')){
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      ta.classList.add('drag-over');
+    }
+  });
+  ta.addEventListener('dragleave', () => ta.classList.remove('drag-over'));
+  ta.addEventListener('drop', (e) => {
+    ta.classList.remove('drag-over');
+    if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){
+      e.preventDefault();
+      handleFilesAttachment(e.dataTransfer.files, ta, persist);
+    }
+  });
+
+  // Paste files or images from clipboard directly into note
+  ta.addEventListener('paste', (e) => {
+    if(e.clipboardData && e.clipboardData.files && e.clipboardData.files.length){
+      e.preventDefault();
+      handleFilesAttachment(e.clipboardData.files, ta, persist);
     }
   });
 
@@ -2539,8 +2722,9 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         };
 
         speechRec.onerror = (e) => {
-          console.warn('[Dictation WebSpeech]', e);
-          if(e.error !== 'no-speech'){
+          const errCode = (e && e.error) ? e.error : 'speech-error';
+          console.warn('[Dictation WebSpeech]', errCode);
+          if(errCode !== 'no-speech'){
             stopDictation();
             fallbackNativeASR();
           }

@@ -8,7 +8,8 @@
   "license": "MIT",
   "scripts": {
     "build": "node scripts/build.js",
-    "test": "node scripts/rewards-test.js && node scripts/apps-test.js && node scripts/google-test.js && node scripts/brand-test.js && node scripts/markup-test.js && node scripts/icon-test.js && node scripts/usage-sync-test.js && node scripts/sidebar-test.js && node scripts/sidebar-dom-test.js && node scripts/login-test.js && node cloud/pebble-media-api/test/usage-test.js && node scripts/cloud-test.js",
+    "test": "node scripts/rewards-test.js && node scripts/apps-test.js && node scripts/google-test.js && node scripts/brand-test.js && node scripts/markup-test.js && node scripts/icon-test.js && node scripts/usage-sync-test.js && node scripts/sidebar-test.js && node scripts/sidebar-dom-test.js && node scripts/login-test.js && node cloud/pebble-media-api/test/usage-test.js && node scripts/cloud-test.js && node scripts/attachment-test.js",
+    "test:attachment": "node scripts/attachment-test.js",
     "test:cloud": "node scripts/cloud-test.js",
     "test:rewards": "node scripts/rewards-test.js",
     "test:apps": "node scripts/apps-test.js",

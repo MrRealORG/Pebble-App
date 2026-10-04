@@ -20,7 +20,18 @@ NX.menu = function(anchor, items, opts={}){
     m.appendChild(btn);
   });
   document.body.appendChild(m);
-  const r = anchor.getBoundingClientRect();
+  let r = null;
+  if(anchor && typeof anchor.getBoundingClientRect === 'function'){
+    r = anchor.getBoundingClientRect();
+  } else if(anchor && (typeof anchor.clientX === 'number' || typeof anchor.pageX === 'number')){
+    const cx = anchor.clientX || anchor.pageX || 0;
+    const cy = anchor.clientY || anchor.pageY || 0;
+    r = { left: cx, right: cx, top: cy, bottom: cy, width: 0, height: 0 };
+  } else if(anchor && anchor.target && typeof anchor.target.getBoundingClientRect === 'function'){
+    r = anchor.target.getBoundingClientRect();
+  } else {
+    r = { left: innerWidth / 2, right: innerWidth / 2, top: innerHeight / 2, bottom: innerHeight / 2, width: 0, height: 0 };
+  }
   const mw = m.offsetWidth, mh = m.offsetHeight;
   let x = opts.align === 'right' ? r.right - mw : r.left;
   let y = r.bottom + 8;
