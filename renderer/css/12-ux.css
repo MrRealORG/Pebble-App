@@ -176,3 +176,57 @@ body.no-motion .am-bubble .skel{animation:none!important;background:var(--surfac
 body.no-motion .nx-field-error,
 body.no-motion .nx-invalid{animation:none!important}
 body.no-motion .store-txt .meter > i{transition:none!important}
+
+/* ============================================================
+   10. WINDOWS 11 & APPLE GLASSMORPHISM ELEVATION
+   Acrylic blur, soft translucent borders, floating glass cards
+   ============================================================ */
+.modal-backdrop{
+  background:rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter:blur(16px) saturate(180%) !important;
+  -webkit-backdrop-filter:blur(16px) saturate(180%) !important;
+}
+.modal-card{
+  background:rgba(20, 24, 33, 0.92) !important;
+  backdrop-filter:blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter:blur(24px) saturate(180%) !important;
+  border:1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow:0 20px 60px rgba(0, 0, 0, 0.5), 0 4px 16px rgba(0, 0, 0, 0.3) !important;
+  border-radius:18px !important;
+}
+.light .modal-card{
+  background:rgba(255, 255, 255, 0.94) !important;
+  border:1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:0 20px 50px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+}
+.menu-popover, .nx-menu{
+  background:rgba(22, 26, 36, 0.92) !important;
+  backdrop-filter:blur(20px) saturate(180%) !important;
+  -webkit-backdrop-filter:blur(20px) saturate(180%) !important;
+  border:1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow:0 14px 40px rgba(0, 0, 0, 0.4) !important;
+  border-radius:14px !important;
+}
+.light .menu-popover, .light .nx-menu{
+  background:rgba(255, 255, 255, 0.95) !important;
+  border:1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:0 12px 32px rgba(0, 0, 0, 0.12) !important;
+}
+.card{
+  transition:transform 0.16s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.16s cubic-bezier(0.2, 0, 0, 1), border-color 0.16s ease;
+}
+.card:hover{
+  border-color:rgba(255, 255, 255, 0.14);
+}
+.btn{
+  transition:all 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+.btn:active{
+  transform:scale(0.97);
+}
+.icon-btn{
+  transition:all 0.15s cubic-bezier(0.2, 0, 0, 1);
+}
+.icon-btn:active{
+  transform:scale(0.93);
+}
