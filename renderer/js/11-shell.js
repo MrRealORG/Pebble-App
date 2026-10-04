@@ -65,6 +65,7 @@ const NAV = [
 { group:'Workspace', items:[
     { r:'today',      n:'Today',      ic:'sun' },
     { r:'dashboard',  n:'Dashboard',  ic:'dashboard' },
+    { r:'canvas',     n:'Canvas',     ic:'brush' },
     { r:'chat',       n:'Chat',       ic:'chat' },
     { r:'messages',   n:'Messages',   ic:'user' },
     { r:'notes',      n:'Notes',      ic:'notes' },
@@ -223,35 +224,33 @@ function renderSidebar(host){
 function renderTopbar(host){
   const title = routeTitle();
   const unread = NX.unreadNotifs();
-  const bar = h(`<header class="topbar">
-    <div class="page-title"><span>${U.esc(title)}</span><span class="sub" id="tp-sub">${U.esc(U.dayName(0))}</span></div>
+  const bar = h(`<header class="topbar ultra-minimal">
+    <div class="page-title"><span>${U.esc(title)}</span></div>
     <div class="topbar-crumbs" id="topbar-crumbs" aria-label="Breadcrumb"></div>
-    <div class="search-box" id="tp-search" role="button" tabindex="0" data-tip="Search & commands">
-      ${icon('search')}<input placeholder="Search…" readonly>
+    <div class="search-box sm" id="tp-search" role="button" tabindex="0" data-tip="Quick search & commands (Ctrl+K)">
+      ${icon('search',13)}<input placeholder="Search…" readonly>
       <span class="kbd">Ctrl K</span>
     </div>
-    <button class="icon-btn" data-tip="Module grid" id="tp-grid">${icon('grid')}</button>
-    <button class="icon-btn" data-tip="Ask Pebble AI Copilot (Ctrl+Shift+A)" id="tp-copilot" style="color:var(--green)">${icon('robot', 18)}</button>
-    <button class="icon-btn" data-tip="Bug Reporter & Diagnostics" id="tp-bug" style="color:var(--orange)">${icon('activity', 17)}</button>
-    <span class="bell-wrap">
-      <button class="icon-btn" data-tip="Notifications" id="tp-bell">${icon('bell')}</button>
-      ${unread? `<span class="bell-badge" id="tp-bell-badge">${unread>9?'9+':unread}</span>`:''}
-    </span>
-    ${pointsChip()}
-    <button class="btn btn-dark" id="tp-new">${icon('plus')} New</button>
+    <div class="topbar-actions" style="display:flex;align-items:center;gap:4px">
+      <button class="icon-btn sm" data-tip="Ask Pebble Copilot (Ctrl+Shift+A)" id="tp-copilot" style="color:var(--green)">${icon('robot', 15)}</button>
+      <span class="bell-wrap">
+        <button class="icon-btn sm" data-tip="Notifications" id="tp-bell">${icon('bell', 14)}</button>
+        ${unread? `<span class="bell-badge" id="tp-bell-badge">${unread>9?'9+':unread}</span>`:''}
+      </span>
+      ${pointsChip()}
+      <button class="btn btn-dark btn-sm" id="tp-new" style="height:30px;padding:0 12px;font-size:12px;gap:5px">${icon('plus',12)} New</button>
+    </div>
   </header>`);
   bar.querySelector('#tp-search').onclick = ()=> (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette());
   bar.querySelector('#tp-search').onkeydown = (e)=>{ if(e.key==='Enter') (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette()); };
   bar.querySelector('#tp-copilot').onclick = ()=> NX.openAskPebble && NX.openAskPebble();
-  const bugBtn = bar.querySelector('#tp-bug');
-  if(bugBtn) bugBtn.onclick = ()=> NX.openBugReporter && NX.openBugReporter();
-  bar.querySelector('#tp-grid').onclick = (e)=>NX.menu(e.currentTarget, NAV.flatMap(g=>[{label:g.group, header:true}].concat(g.items.map(it=>({ label:it.n, icon:it.ic, onClick:()=>NX.router.go(it.r) })))));
   bar.querySelector('#tp-bell').onclick = (e)=>NX.openNotifCenter(e.currentTarget);
   const ptsBtn = bar.querySelector('#tp-points');
   if(ptsBtn) ptsBtn.onclick = ()=>NX.router.go('store');
   bar.querySelector('#tp-new').onclick = (e)=>NX.menu(e.currentTarget, [
     { label:'New note', icon:'notes', onClick:()=>{ NX.router.go('notes'); setTimeout(()=>NX.newNote && NX.newNote(), 60); } },
     { label:'New task', icon:'todo', onClick:()=>{ NX.router.go('todo'); setTimeout(()=>NX.newTask && NX.newTask(), 60); } },
+    { label:'New canvas board', icon:'grid', onClick:()=>{ NX.router.go('canvas'); } },
     { label:'New reminder', icon:'bell', onClick:()=>{ NX.router.go('reminders'); setTimeout(()=>NX.newReminder && NX.newReminder(), 60); } },
     '-',
     { label:'New chat message', icon:'chat', onClick:()=>{ NX.router.go('chat'); setTimeout(()=>q('#ci-input') && q('#ci-input').focus(), 120); } },

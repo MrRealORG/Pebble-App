@@ -446,7 +446,8 @@ window.NX = window.NX || {};
     undo:'M3 7v6h6M3.5 13a9 9 0 1 0 2.1-9.4L3 7',
     snooze:'M12 3a9 9 0 1 0 9 9M12 7v5l3.5 2M21 3l-6 6M21 9h-6',
     alert:'M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01',
-    trending:'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6'
+    trending:'M23 6l-9.5 9.5-5-5L1 18M17 6h6v6',
+    brush:'M18.37 2.63 14 7l3 3 4.37-4.37a2.12 2.12 0 0 0-3-3zM13 8l-8.5 8.5A2.12 2.12 0 0 0 4 18v2h2a2.12 2.12 0 0 0 1.5-.5L16 11z'
   };
   const missingIcons = {};
   NX.icon = function(name, size){

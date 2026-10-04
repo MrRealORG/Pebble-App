@@ -118,12 +118,35 @@ function getScale(){
 }
 function applyScale(){
   const v = getScale();
-  /* At 1 do not write the property at all. Leaving `zoom:1` on the root is
-     harmless but it means the document always carries a zoom context, which
-     is the kind of thing that quietly changes how position:fixed behaves. */
   try{
-    if(v === 1) document.documentElement.style.removeProperty('zoom');
-    else document.documentElement.style.zoom = String(v);
+    if(document.documentElement && document.documentElement.style){
+      if(typeof document.documentElement.style.setProperty === 'function'){
+        document.documentElement.style.setProperty('--ui-scale', String(v));
+      }
+      if(v === 1){
+        if(typeof document.documentElement.style.removeProperty === 'function'){
+          document.documentElement.style.removeProperty('zoom');
+          document.documentElement.style.removeProperty('height');
+        } else {
+          delete document.documentElement.style.zoom;
+          delete document.documentElement.style.height;
+        }
+        if(document.body && document.body.style){
+          if(typeof document.body.style.removeProperty === 'function'){
+            document.body.style.removeProperty('height');
+          } else {
+            delete document.body.style.height;
+          }
+        }
+      } else {
+        document.documentElement.style.zoom = String(v);
+        const hPercent = (100 / v) + '%';
+        document.documentElement.style.height = hPercent;
+        if(document.body && document.body.style){
+          document.body.style.height = '100%';
+        }
+      }
+    }
   }catch(e){}
   /* the viewport changed size in CSS pixels, so anything that measured
      itself needs to re-measure */

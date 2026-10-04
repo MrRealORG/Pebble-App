@@ -63,18 +63,8 @@
    3. SLIDING NAV PILL + PINNED GROUP
    ============================================================ */
 .sidebar{position:relative}
-.nav-pill{
-  /* left/right mirror the sidebar's own padding, so width can never
-     go stale — only the vertical offset is measured in JS */
-  position:absolute;left:10px;right:10px;top:0;height:40px;z-index:0;opacity:0;
-  background:var(--green);border-radius:13px;
-  box-shadow:0 3px 10px rgba(124,213,110,.28);
-  transition:transform .38s cubic-bezier(.34,1.24,.4,1),height .26s ease,opacity .24s ease;
-  pointer-events:none;
-}
+.nav-pill{display:none!important}
 .sidebar .nav-item{z-index:1}
-.nav-item.on{background:transparent;box-shadow:none}
-.nav-item.on:hover{background:transparent}
 .nav-item.ni-pinned .ni-pin{color:var(--ink-3)}
 .nav-item.on .ni-pin{color:rgba(14,43,10,.6)}
 .sidebar .ni-pin{flex:none;display:flex;align-items:center;color:var(--ink-4);transition:color .15s}

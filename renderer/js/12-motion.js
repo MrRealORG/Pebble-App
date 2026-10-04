@@ -173,50 +173,18 @@ M.rollTitle = function(text){
 /* ---------------- sliding nav pill ---------------- */
 function placePill(target){
   const sb = q('.sidebar');
-  if(!sb || !target) return;
-  let pill = sb.querySelector('.nav-pill');
-  if(!pill){
-    pill = document.createElement('div');
-    pill.className = 'nav-pill';
-    pill.setAttribute('aria-hidden','true');
-    sb.appendChild(pill);
-  }
-  const pr = sb.getBoundingClientRect(), ar = target.getBoundingClientRect();
-  const top = Math.round(ar.top - pr.top - sb.scrollTop);
-  /* measuring height only — width comes from left/right in CSS */
-  pill.style.height = ar.height + 'px';
-  pill.style.transform = 'translateY(' + top + 'px)';
-  pill.style.opacity = '1';
+  if(!sb) return;
+  const pill = sb.querySelector('.nav-pill');
+  if(pill) pill.remove();
 }
 
-/* the pill lands on the active item, previews wherever you hover,
-   and springs back when the pointer leaves the sidebar */
+/* Nav highlight is cleanly applied directly to .nav-item.on without detached floating pills */
 M.syncNav = function(){
   const sb = q('.sidebar');
   if(!sb) return;
-  if(sb.classList.contains('mini')){
-    const p = sb.querySelector('.nav-pill');
-    if(p) p.style.opacity = '0';
-    return;
-  }
-  placePill(q('.nav-item.on', sb) || q('.nav-item', sb));
+  const pill = sb.querySelector('.nav-pill');
+  if(pill) pill.remove();
 };
-
-document.addEventListener('mouseover', e=>{
-  const sb = q('.sidebar');
-  if(!sb || sb.classList.contains('mini')) return;
-  const item = e.target.closest && e.target.closest('.nav-item[data-route]');
-  if(item && sb.contains(item)) placePill(item);
-});
-document.addEventListener('mouseleave', e=>{
-  const sb = q('.sidebar');
-  if(sb && sb.contains(e.target)) M.syncNav();
-}, true);
-document.addEventListener('mouseout', e=>{
-  const sb = q('.sidebar');
-  if(!sb || sb.classList.contains('mini')) return;
-  if(e.target.closest && e.target.closest('.nav-item[data-route]') && !e.relatedTarget) M.syncNav();
-});
 
 M.renderCrumbs = function(route){
   const host = q('#topbar-crumbs');

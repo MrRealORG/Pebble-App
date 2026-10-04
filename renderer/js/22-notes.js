@@ -54,15 +54,23 @@ function mdRender(src){
       const label = (customLabel || title).trim();
       return `<a class="md-wikilink" data-wikilink="${U.esc(title)}" href="javascript:void(0)" title="Jump to note: ${U.esc(title)}"><span class="md-wiki-ic">📄</span> ${U.esc(label)}</a>`;
     });
-    // Task mentions: [@task: Title](todo://task_id)
-    out = out.replace(/\[@task:\s*([^\]]+)\]\(todo:\/\/([^\)]+)\)/g, (m0, taskTitle, taskId) => {
+    // Task mentions: [@task: Title](todo://task_id) or :[@task: Title](todo://task_id)
+    out = out.replace(/:?\[@task:\s*([^\]]+)\]\(todo:\/\/([^\)]+)\)/g, (m0, taskTitle, taskId) => {
       const allTasks = NX.store.get('tasks', []);
       const t = allTasks.find(x => x.id === taskId);
       const isDone = t ? t.done : false;
       const dueStr = t && t.due ? `<span class="md-todo-due">📅 ${U.esc(t.due)}</span>` : '';
       return `<span class="md-todo-chip ${isDone?'done':''}" data-task-id="${U.esc(taskId)}"><input type="checkbox" class="md-todo-cb" data-task-id="${U.esc(taskId)}" ${isDone?'checked':''}><span class="md-todo-text">${U.esc(taskTitle)}</span>${dueStr}</span>`;
     });
-    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">$1</a>');
+    out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="md-link">🔗 $1</a>');
+    out = out.replace(/(^|[^"'>])(https?:\/\/[^\s<)]+)/g, (m, prefix, url) => {
+      let display = url;
+      try {
+        const u = new URL(url);
+        display = u.hostname.replace(/^www\./, '') + (u.pathname !== '/' ? u.pathname.slice(0, 18) + (u.pathname.length > 18 ? '…' : '') : '');
+      } catch(e) {}
+      return `${prefix}<a href="${url}" target="_blank" rel="noopener" class="md-link" title="${url}">🔗 ${U.esc(display)}</a>`;
+    });
     out = out.replace(/#([a-zA-Z0-9_-]{2,24})/g, '<span class="tagchip" style="cursor:pointer" data-tag="$1">#$1</span>');
     out = out.replace(/\$([^\$\n]+)\$/g, '<code class="md-math">$1</code>');
     return out;
@@ -640,10 +648,17 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
       <!-- Right Editor: Toolbar, Split views, Stats -->
       <div class="card note-editor anim-in">
+        <div id="ne-cover-hero" class="ne-cover-hero" style="display:none">
+          <div class="ne-cover-actions">
+            <button class="btn btn-dark btn-sm ne-cover-btn" id="ne-change-cover-btn">${icon('image', 12)} Change cover</button>
+            <button class="btn btn-dark btn-sm ne-cover-btn" id="ne-remove-cover-btn" style="color:var(--red,#ef4444)">${icon('trash', 12)} Remove</button>
+          </div>
+        </div>
         <div id="ne-trash-banner-host"></div>
         <div class="ne-head">
           <button class="icon-btn sm" id="nt-expand-sidebar" data-tip="Show notes list" style="margin-right:4px;display:${isCollapsed ? 'inline-flex' : 'none'}">${icon('chevR',14)}</button>
           <button class="ne-icon-btn" id="ne-icon" data-tip="Change note icon">📝</button>
+          <button class="btn btn-soft btn-sm" id="ne-add-cover-btn" data-tip="Add banner cover" style="display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:3px 8px;border-radius:6px;color:var(--ink-3);margin-right:4px;cursor:pointer">${icon('image', 12)} <span id="ne-add-cover-txt">Add cover</span></button>
           <input class="ne-title" id="ne-title" placeholder="Note title">
           <button class="btn btn-soft btn-sm" id="ne-folder-badge" data-tip="Move note to folder" style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;padding:3px 9px;border-radius:99px;color:var(--ink-3);background:var(--bg-card);border:1px solid var(--line);cursor:pointer;flex:none;margin-right:6px">${icon('layers',12)} <span id="ne-folder-badge-txt">No folder</span></button>
           <div class="nt-tools">
@@ -1051,6 +1066,104 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
   }
 
+  function updateCoverHero(n){
+    const hero = q('#ne-cover-hero', view);
+    const addBtn = q('#ne-add-cover-btn', view);
+    const addTxt = q('#ne-add-cover-txt', view);
+    if(!hero) return;
+    if(n && n.cover){
+      hero.style.display = 'block';
+      if(n.cover.startsWith('linear-gradient') || n.cover.startsWith('radial-gradient')){
+        hero.style.background = n.cover;
+        hero.style.backgroundImage = n.cover;
+      } else {
+        hero.style.background = `url("${n.cover}") center/cover no-repeat`;
+      }
+      if(addBtn) addBtn.style.display = 'none';
+    } else {
+      hero.style.display = 'none';
+      hero.style.background = 'none';
+      if(addBtn){
+        addBtn.style.display = 'inline-flex';
+        if(addTxt) addTxt.textContent = 'Add cover';
+      }
+    }
+  }
+
+  function openCoverPickerModal(){
+    const n = current();
+    if(!n) return;
+    const PRESETS = [
+      { name:'Aurora', val:'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
+      { name:'Sunset', val:'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
+      { name:'Deep Space', val:'linear-gradient(135deg, #30cfd0 0%, #330867 100%)' },
+      { name:'Neon Cyber', val:'linear-gradient(135deg, #f72585 0%, #7209b7 100%)' },
+      { name:'Lush Forest', val:'linear-gradient(135deg, #0ba360 0%, #3cba92 100%)' },
+      { name:'Ocean Wave', val:'linear-gradient(135deg, #2af598 0%, #009efd 100%)' },
+      { name:'Warm Amber', val:'linear-gradient(135deg, #f6d365 0%, #fda085 100%)' },
+      { name:'Slate Horizon', val:'linear-gradient(135deg, #2c3e50 0%, #3498db 100%)' }
+    ];
+
+    const modal = h(`<div class="modal-backdrop anim-in" id="cover-modal">
+      <div class="modal-card" style="max-width:440px">
+        <div class="modal-h">
+          <div class="modal-title"><span>🎨 Choose Note Cover</span></div>
+          <button class="modal-x icon-btn sm" id="cm-x">${icon('x')}</button>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin:8px 0 6px">Gradient Banners</div>
+        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;margin-bottom:14px">
+          ${PRESETS.map(p => `
+            <div class="cm-preset" data-val="${U.esc(p.val)}" style="height:54px;border-radius:8px;background:${p.val};cursor:pointer;border:2px solid transparent;transition:transform 0.15s" title="${p.name}"></div>
+          `).join('')}
+        </div>
+        <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:6px">Or Image URL</div>
+        <div class="row gap-8">
+          <input class="input" id="cm-url" placeholder="https://images.unsplash.com/..." style="flex:1" value="${n.cover && !n.cover.startsWith('linear-gradient') ? U.esc(n.cover) : ''}">
+          <button class="btn btn-dark btn-sm" id="cm-apply-url">Apply</button>
+        </div>
+        ${n.cover ? `<div style="margin-top:14px"><button class="btn btn-soft btn-sm" id="cm-remove" style="color:var(--red,#ef4444);width:100%">${icon('trash', 12)} Remove Cover</button></div>` : ''}
+      </div>
+    </div>`);
+
+    document.body.appendChild(modal);
+    const close = () => modal.remove();
+    q('#cm-x', modal).onclick = close;
+
+    qa('.cm-preset', modal).forEach(p => {
+      p.onmouseenter = () => p.style.transform = 'scale(1.05)';
+      p.onmouseleave = () => p.style.transform = 'scale(1)';
+      p.onclick = () => {
+        n.cover = p.dataset.val;
+        saveNotes(notes());
+        updateCoverHero(n);
+        close();
+        try{ NX.sfx.play('pop'); }catch(e){}
+      };
+    });
+
+    q('#cm-apply-url', modal).onclick = () => {
+      const u = (q('#cm-url', modal).value || '').trim();
+      if(u){
+        n.cover = u;
+        saveNotes(notes());
+        updateCoverHero(n);
+        close();
+        try{ NX.sfx.play('pop'); }catch(e){}
+      }
+    };
+
+    const remBtn = q('#cm-remove', modal);
+    if(remBtn){
+      remBtn.onclick = () => {
+        delete n.cover;
+        saveNotes(notes());
+        updateCoverHero(n);
+        close();
+        try{ NX.sfx.play('pop'); }catch(e){}
+      };
+    }
+  }
+
   function loadEditor(){
     const n = current();
     const bannerHost = q('#ne-trash-banner-host', view);
@@ -1072,6 +1185,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
 
     if(!n){
+      updateCoverHero(null);
       q('#ne-title', view).value = '';
       const iconBtn = q('#ne-icon', view);
       if(iconBtn) iconBtn.textContent = '📝';
@@ -1099,6 +1213,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     q('#ne-tags', view).innerHTML = (n.tags||[]).map(t=>`<span class="tagchip">#${U.esc(t)}</span>`).join(' ');
     q('#ne-saved', view).textContent = 'Saved ' + U.relTime(n.updated);
     q('#ne-stats', view).textContent = calculateStats(n.body);
+    updateCoverHero(n);
     refreshPreview();
     renderBacklinks();
   }
@@ -1437,6 +1552,151 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     textarea.focus();
     persist();
     NX.sfx.play('pop');
+  }
+
+  /* ---------------- Emoji Autocomplete (:smile:, etc.) ---------------- */
+  const EMOJI_LIST = [
+    { code:'smile', emoji:'😊', name:'smiling happy' },
+    { code:'grinning', emoji:'😀', name:'grinning face' },
+    { code:'joy', emoji:'😂', name:'tears of joy laugh' },
+    { code:'rofl', emoji:'🤣', name:'rolling laughing' },
+    { code:'wink', emoji:'😉', name:'winking face' },
+    { code:'blush', emoji:'😊', name:'blushing smiling' },
+    { code:'heart_eyes', emoji:'😍', name:'heart eyes love' },
+    { code:'kissing_heart', emoji:'😘', name:'blowing kiss love' },
+    { code:'thinking', emoji:'🤔', name:'thinking hmm' },
+    { code:'neutral_face', emoji:'😐', name:'neutral face' },
+    { code:'sunglasses', emoji:'😎', name:'sunglasses cool' },
+    { code:'fire', emoji:'🔥', name:'fire lit hot flame' },
+    { code:'rocket', emoji:'🚀', name:'rocket space launch' },
+    { code:'sparkles', emoji:'✨', name:'sparkles magic shine' },
+    { code:'star', emoji:'⭐', name:'star favorite' },
+    { code:'glowing_star', emoji:'🌟', name:'glowing star' },
+    { code:'heart', emoji:'❤️', name:'red heart love' },
+    { code:'green_heart', emoji:'💚', name:'green heart' },
+    { code:'blue_heart', emoji:'💙', name:'blue heart' },
+    { code:'purple_heart', emoji:'💜', name:'purple heart' },
+    { code:'broken_heart', emoji:'💔', name:'broken heart' },
+    { code:'thumbsup', emoji:'👍', name:'thumbs up yes agree +1' },
+    { code:'thumbsdown', emoji:'👎', name:'thumbs down no -1' },
+    { code:'clap', emoji:'👏', name:'clapping hands applause' },
+    { code:'raised_hands', emoji:'🙌', name:'raised hands hooray' },
+    { code:'pray', emoji:'🙏', name:'folded hands please thanks' },
+    { code:'wave', emoji:'👋', name:'waving hand hello bye' },
+    { code:'eyes', emoji:'👀', name:'eyes look observe' },
+    { code:'bulb', emoji:'💡', name:'lightbulb idea tip' },
+    { code:'memo', emoji:'📝', name:'memo note write' },
+    { code:'book', emoji:'📖', name:'open book read' },
+    { code:'books', emoji:'📚', name:'books study library' },
+    { code:'bell', emoji:'🔔', name:'bell reminder alert' },
+    { code:'warning', emoji:'⚠️', name:'warning alert notice' },
+    { code:'check', emoji:'✅', name:'check mark done complete' },
+    { code:'cross', emoji:'❌', name:'cross mark delete no' },
+    { code:'pin', emoji:'📌', name:'pushpin pin top' },
+    { code:'target', emoji:'🎯', name:'bullseye target goal' },
+    { code:'coffee', emoji:'☕', name:'hot coffee tea cafe' },
+    { code:'beer', emoji:'🍺', name:'beer mug drink' },
+    { code:'pizza', emoji:'🍕', name:'pizza food slice' },
+    { code:'tada', emoji:'🎉', name:'party popper celebration tada' },
+    { code:'trophy', emoji:'🏆', name:'trophy winner award' },
+    { code:'medal', emoji:'🥇', name:'1st gold medal' },
+    { code:'clock', emoji:'⏰', name:'alarm clock time' },
+    { code:'hourglass', emoji:'⏳', name:'hourglass timer wait' },
+    { code:'calendar', emoji:'📅', name:'calendar date event' },
+    { code:'lock', emoji:'🔒', name:'locked padlock secure' },
+    { code:'key', emoji:'🔑', name:'key secret password' },
+    { code:'zap', emoji:'⚡', name:'lightning electric zap' },
+    { code:'sun', emoji:'☀️', name:'sun sunny bright day' },
+    { code:'moon', emoji:'🌙', name:'moon night crescent' },
+    { code:'cloud', emoji:'☁️', name:'cloud weather sky' },
+    { code:'umbrella', emoji:'☂️', name:'umbrella rain weather' },
+    { code:'computer', emoji:'💻', name:'laptop computer coding' },
+    { code:'desktop', emoji:'🖥️', name:'desktop computer pc' },
+    { code:'phone', emoji:'📱', name:'mobile phone cellular' },
+    { code:'gem', emoji:'💎', name:'gem stone diamond precious' },
+    { code:'money', emoji:'💰', name:'money bag cash dollars' },
+    { code:'bug', emoji:'🐛', name:'bug caterpillar insect debug' },
+    { code:'robot', emoji:'🤖', name:'robot bot ai' },
+    { code:'ghost', emoji:'👻', name:'ghost spooky halloween' },
+    { code:'alien', emoji:'👽', name:'alien ufo space' },
+    { code:'music', emoji:'🎵', name:'musical note audio song' },
+    { code:'headphones', emoji:'🎧', name:'headphones sound audio' },
+    { code:'camera', emoji:'📷', name:'camera photo picture' },
+    { code:'palette', emoji:'🎨', name:'art palette paint colors' }
+  ];
+
+  let emojiMenu = null;
+  function removeEmojiMenu(){
+    if(emojiMenu){ emojiMenu.remove(); emojiMenu = null; }
+  }
+
+  function maybeEmoji(textarea){
+    const pos = textarea.selectionStart;
+    const val = textarea.value.slice(0, pos);
+    const match = val.match(/:([a-zA-Z0-9_+-]{1,16})$/);
+    if(!match){
+      removeEmojiMenu();
+      return;
+    }
+    const query = match[1].toLowerCase().trim();
+    const matches = EMOJI_LIST.filter(item => 
+      item.code.toLowerCase().includes(query) || 
+      item.name.toLowerCase().includes(query)
+    ).slice(0, 7);
+
+    if(!matches.length){
+      removeEmojiMenu();
+      return;
+    }
+    showEmojiMenu(textarea, matches, match[0]);
+  }
+
+  function showEmojiMenu(textarea, matches, queryPrefix){
+    removeEmojiMenu();
+    emojiMenu = h(`<div class="emoji-mention-menu" id="emoji-mention-menu">
+      <div style="padding:6px 10px 4px;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:5px">
+        <span>😀</span> <span>Emoji :${U.esc(queryPrefix.slice(1))}</span>
+      </div>
+      <div class="em-list">
+        ${matches.map((em, idx) => `
+          <div class="em-item ${idx===0?'on':''}" data-emoji="${U.esc(em.emoji)}" data-idx="${idx}">
+            <span class="em-icon">${em.emoji}</span>
+            <span class="em-code">:${U.esc(em.code)}:</span>
+            <span class="em-name">${U.esc(em.name)}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>`);
+
+    document.body.appendChild(emojiMenu);
+    const r = textarea.getBoundingClientRect();
+    emojiMenu.style.left = Math.min(innerWidth - 300, Math.max(20, r.left + 50)) + 'px';
+    emojiMenu.style.top = Math.min(innerHeight - 260, r.top + 90) + 'px';
+
+    qa('.em-item', emojiMenu).forEach(item => {
+      item.onmousedown = (e) => {
+        e.preventDefault();
+        insertEmoji(textarea, item.dataset.emoji, queryPrefix);
+      };
+      item.onmouseenter = () => {
+        qa('.em-item', emojiMenu).forEach(i => i.classList.remove('on'));
+        item.classList.add('on');
+      };
+    });
+  }
+
+  function insertEmoji(textarea, emojiChar, queryPrefix){
+    removeEmojiMenu();
+    const pos = textarea.selectionStart;
+    const v = textarea.value;
+    const before = v.slice(0, pos - queryPrefix.length);
+    const after = v.slice(pos);
+    textarea.value = before + emojiChar + (after.startsWith(' ') ? '' : ' ') + after;
+    const nextPos = before.length + emojiChar.length + (after.startsWith(' ') ? 0 : 1);
+    textarea.selectionStart = textarea.selectionEnd = nextPos;
+    textarea.focus();
+    persist();
+    try{ NX.sfx.play('pop'); }catch(e){}
   }
 
   /* ---------------- Table of Contents / Outline ---------------- */
@@ -2010,6 +2270,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     maybeSlash(ta);
     maybeWikiLink(ta);
     maybeTaskMention(ta);
+    maybeEmoji(ta);
   });
 
   // Format selection helper
@@ -2043,6 +2304,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       removeSlashMenu();
       removeWikiMenu();
       removeTaskMentionMenu();
+      removeEmojiMenu();
       removeTocMenu();
       if(isZenMode) toggleZenMode();
     }
@@ -2055,6 +2317,24 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       e.preventDefault();
       toggleZenMode();
       return;
+    }
+    const emMenu = q('#emoji-mention-menu');
+    if(emMenu && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Tab')){
+      const visible = qa('.em-item', emMenu);
+      if(visible.length){
+        e.preventDefault();
+        let idx = visible.findIndex(x => x.classList.contains('on'));
+        if(idx < 0) idx = 0;
+        if(e.key === 'Enter' || e.key === 'Tab'){
+          visible[idx].dispatchEvent(new MouseEvent('mousedown'));
+          return;
+        }
+        const nextIdx = e.key === 'ArrowDown' ? (idx + 1) % visible.length : (idx - 1 + visible.length) % visible.length;
+        visible.forEach(x => x.classList.remove('on'));
+        visible[nextIdx].classList.add('on');
+        visible[nextIdx].scrollIntoView({ block:'nearest' });
+        return;
+      }
     }
     const tmMenu = q('#task-mention-menu');
     if(tmMenu && (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter')){
@@ -2108,6 +2388,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   ta.addEventListener('blur', () => {
     setTimeout(removeSlashMenu, 150);
     setTimeout(removeTaskMentionMenu, 150);
+    setTimeout(removeEmojiMenu, 150);
   });
 
   function maybeSlash(textarea){
@@ -2491,6 +2772,22 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
   const iconBtn = q('#ne-icon', view);
   if(iconBtn) iconBtn.onclick = () => openEmojiPicker(current(), iconBtn);
+
+  const addCoverBtn = q('#ne-add-cover-btn', view);
+  if(addCoverBtn) addCoverBtn.onclick = openCoverPickerModal;
+  const changeCoverBtn = q('#ne-change-cover-btn', view);
+  if(changeCoverBtn) changeCoverBtn.onclick = openCoverPickerModal;
+  const removeCoverBtn = q('#ne-remove-cover-btn', view);
+  if(removeCoverBtn) removeCoverBtn.onclick = () => {
+    const n = current();
+    if(n){
+      delete n.cover;
+      saveNotes(notes());
+      updateCoverHero(n);
+      NX.sfx.play('pop');
+      NX.toastOk('Cover removed', '');
+    }
+  };
 
   const starBtn = q('#ne-star', view);
   if(starBtn) starBtn.onclick = () => {

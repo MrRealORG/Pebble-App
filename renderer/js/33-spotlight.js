@@ -219,6 +219,7 @@ function openSpotlight(){
         currentResults = [
           { type:'action', icon:'notes', title:'New Note', subtitle:'Start a fresh note (or type n Title)', action:()=>handleCreate('note', 'New Note') },
           { type:'action', icon:'check', title:'New Task', subtitle:'Add a task (or type t Title)', action:()=>handleCreate('task', 'New Task') },
+          { type:'nav', icon:'brush', title:'Canvas Whiteboard', subtitle:'Draw, brainstorm, and create sticky notes', action:()=>NX.router.go('canvas') },
           { type:'action', icon:'mic', title:'Record Voice Note', subtitle:'Dictate thoughts with microphone (or type v)', action:()=>handleCreate('voice', '') },
           { type:'action', icon:'robot', title:'Ask Pebble AI', subtitle:'Chat with your notes & productivity data (or type ?)', action:()=>handleCreate('ai', '') },
           { type:'nav', icon:'clock', title:'Timeless Activity', subtitle:'View system app time tracking & focus score', action:()=>NX.router.go('timeless') },
@@ -226,6 +227,22 @@ function openSpotlight(){
         ];
       } else {
         const qLower = query.toLowerCase();
+
+        // 0. App Navigation
+        (NX.NAV || []).flatMap(g => g.items || []).filter(item => item.n.toLowerCase().includes(qLower) || item.r.toLowerCase().includes(qLower)).slice(0, 3).forEach(item => {
+          currentResults.push({
+            type: 'nav',
+            icon: item.ic,
+            title: item.n,
+            subtitle: `Jump to ${item.n}`,
+            badge: 'App',
+            badgeCls: 'green',
+            action: () => {
+              close();
+              NX.router.go(item.r);
+            }
+          });
+        });
 
         // 1. Notes
         const notesList = NX.store.get('notes', []).filter(n => !n.trash);

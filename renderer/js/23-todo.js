@@ -758,31 +758,73 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
         card.classList.remove('dragging');
         setTimeout(() => { justDragged = false; }, 80);
         window.__draggedTaskId = null;
-        qa('.kcol', container).forEach(c => c.classList.remove('dragover'));
+        qa('.kcol, .kcol-body', container).forEach(c => c.classList.remove('dragover'));
+        qa('.task-card', container).forEach(c => c.classList.remove('drag-target'));
         qa('.mstodo-nav-item', view).forEach(n => n.classList.remove('dragover'));
+      });
+      card.addEventListener('dragover', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        try { e.dataTransfer.dropEffect = 'move'; } catch(err){}
+        card.classList.add('drag-target');
+      });
+      card.addEventListener('dragleave', () => {
+        card.classList.remove('drag-target');
+      });
+      card.addEventListener('drop', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        card.classList.remove('drag-target');
+        const targetId = card.dataset.id;
+        const sourceId = window.__draggedTaskId || e.dataTransfer.getData('text/plain');
+        if(!sourceId || sourceId === targetId) return;
+        const list = tasks();
+        const srcTask = list.find(x => x.id === sourceId);
+        const tgtTask = list.find(x => x.id === targetId);
+        if(!srcTask || !tgtTask) return;
+        const col = card.closest('.kcol');
+        const targetCol = col ? col.dataset.col : tgtTask.col;
+        if(targetCol === 'done'){
+          srcTask.done = true; srcTask.col = 'done';
+          NX.confetti(e.clientX, e.clientY); NX.sfx.play('ok');
+        } else {
+          srcTask.done = false; srcTask.col = targetCol || 'today';
+          NX.sfx.play('tick');
+        }
+        const fromIdx = list.indexOf(srcTask);
+        if(fromIdx !== -1) list.splice(fromIdx, 1);
+        const toIdx = list.indexOf(tgtTask);
+        if(toIdx !== -1) list.splice(toIdx, 0, srcTask);
+        else list.push(srcTask);
+        saveTasks(list); renderSidebar(); renderMain();
+        if(activeTaskId === sourceId) openDetailPanel(sourceId);
       });
     });
 
-    qa('.kcol', container).forEach(col => {
+    qa('.kcol, .kcol-body', container).forEach(col => {
       col.addEventListener('dragover', e => {
         e.preventDefault();
         try { e.dataTransfer.dropEffect = 'move'; } catch(err){}
-        col.classList.add('dragover');
+        const kcolEl = col.closest('.kcol') || col;
+        kcolEl.classList.add('dragover');
       });
       col.addEventListener('dragleave', e => {
         if(e.relatedTarget && col.contains(e.relatedTarget)) return;
-        col.classList.remove('dragover');
+        const kcolEl = col.closest('.kcol') || col;
+        kcolEl.classList.remove('dragover');
       });
       col.addEventListener('drop', e => {
         e.preventDefault();
-        col.classList.remove('dragover');
+        const colEl = col.closest('.kcol') || col;
+        colEl.classList.remove('dragover');
         const id = window.__draggedTaskId || e.dataTransfer.getData('text/plain');
         if(!id) return;
         const list = tasks(); const t = list.find(x => x.id === id); if(!t) return;
-        if(col.dataset.col === 'done'){
+        const targetCol = colEl.dataset.col;
+        if(targetCol === 'done'){
           t.done = true; t.col = 'done'; NX.confetti(e.clientX, e.clientY); NX.sfx.play('ok');
         } else {
-          t.done = false; t.col = col.dataset.col; NX.sfx.play('pop');
+          t.done = false; t.col = targetCol || 'today'; NX.sfx.play('pop');
         }
         saveTasks(list); renderSidebar(); renderMain();
         if(activeTaskId === id) openDetailPanel(id);

@@ -72,10 +72,12 @@ NX.renderShell = function(routeName){
     const top = view.closest('.main-col');
     const bar = top && top.querySelector('#shell-top .topbar');
     if(bar && !bar.querySelector('#nx-status')){
-      const chip = h(`<div class="nx-status" id="nx-status">
-        <button class="nx-status-btn" id="nx-saved" data-tip="Last workspace save">${icon('check')}<span id="nx-saved-t">saved</span></button>
-        <button class="nx-status-btn" id="nx-net" data-tip="Connection status">${icon('globe')}<span id="nx-net-t">online</span></button>
-        <button class="icon-btn" id="nx-storage" data-tip="Storage & backups">${icon('layers')}</button>
+      const chip = h(`<div class="nx-status ultra-mini" id="nx-status" style="display:inline-flex;align-items:center;gap:6px">
+        <button class="nx-status-btn-mini" id="nx-saved" data-tip="Auto-saved to disk · click for snapshots" style="display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:99px;font-size:11px;background:rgba(255,255,255,0.04);border:1px solid var(--line);color:var(--ink-3);cursor:pointer">
+          <span class="status-dot green" style="width:6px;height:6px;border-radius:50%;background:var(--green)"></span>
+          <span id="nx-saved-t">saved</span>
+        </button>
+        <button class="icon-btn sm" id="nx-storage" data-tip="Storage & backups" style="width:26px;height:26px">${icon('layers',12)}</button>
       </div>`);
       bar.insertBefore(chip, bar.querySelector('#tp-search'));
       q('#nx-storage', chip).onclick = ()=>NX.openStorage();

@@ -131,14 +131,33 @@ body.login-mode{
 .login-dots i.g{background:var(--green)}
 
 /* ================= APP SHELL ================= */
-#nx-app.app-root{display:flex;height:100vh;overflow:hidden}
+#nx-app.app-root{display:flex;height:100%;min-height:100%;flex:1;overflow:hidden}
 
 /* ---------- sidebar ---------- */
 .sidebar{
   width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;
   padding:14px 10px 12px;gap:2px;transition:width .22s ease;overflow:hidden;
-  background:var(--bg);min-height:0;
+  background:var(--bg);min-height:0;height:100%;
 }
+.sidebar .nav-item.on{
+  background:var(--green, #7CD56E) !important;
+  color:#0E2B0A !important;
+  font-weight:700 !important;
+  border-radius:12px !important;
+  box-shadow:0 3px 12px rgba(124,213,110,.35) !important;
+}
+.sidebar .nav-item.on svg,
+.sidebar .nav-item.on .nav-ic,
+.sidebar .nav-item.on .nav-label,
+.sidebar .nav-item.on span{
+  color:#0E2B0A !important;
+  stroke:#0E2B0A !important;
+}
+.sidebar .nav-item.on .ni-badge{
+  background:#0E2B0A !important;
+  color:var(--green, #7CD56E) !important;
+}
+.nav-pill{display:none !important}
 .sidebar.mini{width:var(--sidebar-mini)}
 
 /* The nav used to be a direct child of the rail with `overflow:hidden` on the
@@ -319,12 +338,13 @@ body.login-mode{
 /* ---------- main column ---------- */
 .main-col{flex:1;display:flex;flex-direction:column;min-width:0}
 .topbar{
-  height:var(--topbar-h);flex:none;display:flex;align-items:center;gap:12px;
-  padding:0 20px 0 24px;
+  height:52px;flex:none;display:flex;align-items:center;gap:10px;
+  padding:0 18px 0 22px;border-bottom:1px solid var(--line);background:var(--bg);
 }
-.topbar .page-title{font-size:21px;font-weight:800;letter-spacing:-.02em;flex:0 1 auto;display:flex;align-items:baseline;gap:10px;min-width:0;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.topbar .page-title .sub{font-size:12.5px;color:var(--ink-3);font-weight:500;white-space:nowrap}
-.topbar .search-box{margin-left:auto}
+.topbar .page-title{font-size:18px;font-weight:800;letter-spacing:-.02em;flex:0 1 auto;display:flex;align-items:center;min-width:0;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.topbar .page-title .sub{font-size:12px;color:var(--ink-3);font-weight:500;white-space:nowrap;margin-left:8px}
+.topbar .search-box{margin-left:auto;height:32px;max-width:220px}
+.topbar .search-box input{font-size:12px}
 .view-host{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 20px 24px 24px}
 .view-host.full{padding:0}
 
