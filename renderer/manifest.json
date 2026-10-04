@@ -1,0 +1,35 @@
+{
+  "name": "PebbleX",
+  "short_name": "PebbleX",
+  "description": "Unified Productivity Workspace — Notes, Tasks, Focus, AI & Timeless",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#141413",
+  "theme_color": "#141413",
+  "icons": [
+    {
+      "src": "icons/512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/256x256.png",
+      "sizes": "256x256",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/128x128.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    }
+  ],
+  "categories": ["productivity", "utilities"]
+}

@@ -253,10 +253,18 @@ NX.routeInShell('dashboard', 'Dashboard', 'dashboard', function(view){
       <button class="btn btn-soft btn-sm" data-done="${t.id}">Done</button>
     </div>`).join('')
     : `<div class="empty" style="padding:18px"><div class="e-sub">Inbox zero. Add tasks in Tasks.</div></div>`;
-  qa('[data-done]', tEl).forEach(b=>b.onclick = ()=>{
+  qa('[data-done]', tEl).forEach(b=>b.onclick = (e)=>{
     const ts = NX.store.get('tasks', []);
     const t = ts.find(x=>x.id === b.dataset.done);
-    if(t){ t.done = true; t.doneAt = Date.now(); NX.store.set('tasks', ts); NX.confetti(e.clientX, e.clientY); NX.sfx.play('ok'); NX.router.go('dashboard'); }
+    if(t){
+      t.done = true; t.doneAt = Date.now();
+      NX.store.set('tasks', ts);
+      const cx = (e && e.clientX) ? e.clientX : (window.innerWidth / 2);
+      const cy = (e && e.clientY) ? e.clientY : (window.innerHeight / 2);
+      NX.confetti(cx, cy);
+      NX.sfx.play('ok');
+      NX.router.go('dashboard');
+    }
   });
 
   /* ---------- live weather (fresh on every visit) ---------- */

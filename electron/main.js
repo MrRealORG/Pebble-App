@@ -215,13 +215,25 @@ function createWidgetIsland() {
       contextIsolation: true, nodeIntegration: false, sandbox: false
     }
   });
-  const bundled = path.join(__dirname, '..', 'renderer', 'index.html');
-  widgetWin.loadFile(bundedOrStaged(), { query: 'widget=1' });
+  widgetWin.loadFile(rendererIndex(), { query: 'widget=1' });
   widgetWin.on('closed', () => { widgetWin = null; });
   widgetWin.setVisibleOnAllWorkspaces && widgetWin.setVisibleOnAllWorkspaces(true);
 }
-function budedOrStaged() { return path.join(__dirname, '..', 'renderer', 'index.html'); }
-function bundedOrStaged2() { return budedOrStaged(); }
+
+/* The renderer to load: a staged update bundle in userData/updates wins,
+   otherwise the bundled one. One helper for every window — this used to be
+   typo'd copies (budedOrStaged/bundedOrStaged2) and the widget island called
+   a name that did not exist, which threw a ReferenceError in the middle of
+   app.whenReady() and silently killed everything after it: the pet window,
+   the reminder scheduler, the global shortcuts and the deep-link bootstrap
+   all never ran. */
+function rendererIndex() {
+  try {
+    const staged = path.join(app.getPath('userData'), 'updates', 'index.html');
+    if (fs.existsSync(staged)) return staged;
+  } catch (e) {}
+  return path.join(__dirname, '..', 'renderer', 'index.html');
+}
 
 function createTray() {
   const iconPath = path.join(__dirname, '..', 'assets', 'icons', 'tray.png');

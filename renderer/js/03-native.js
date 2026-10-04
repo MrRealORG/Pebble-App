@@ -24,6 +24,31 @@ function findTauri(){
 
 let seq = 0;
 
+/* The Electron preload (electron/preload.js) exposes a fixed set of
+   channels as window.nex — there is no generic invoke. Translate the
+   handful of commands the renderer actually needs onto it; everything
+   else reports a stub so callers degrade gracefully. */
+function electronBridge(){
+  try{
+    if(window.nex && window.nex.isDesktop && typeof window.nex.loadData === 'function') return window.nex;
+  }catch(e){}
+  return null;
+}
+async function electronInvoke(nex, cmd, args){
+  args = args || {};
+  switch(cmd){
+    case 'load_workspace':   return await nex.loadData();
+    case 'save_workspace':   return await nex.saveData(JSON.parse(args.data || '{}'));
+    case 'notify':           return await nex.notify(args.title, args.body, args.silent);
+    case 'login_done':       return await nex.authOk(args.name || '');
+    case 'open_external':    return await nex.openExternal(args.url || '');
+    case 'open_path':        return await nex.openPath(args.path || args.p || '');
+    case 'widget_toggle':    return await nex.widgetToggle();
+    case 'save_file':        return await nex.saveDialog({ defaultPath: args.name || 'pebble-export', content: args.content || '', base64: !!args.base64 });
+    default:                 return { stub: true };
+  }
+}
+
 const native = {
   available:false, mode:'web',
 
@@ -31,6 +56,12 @@ const native = {
   invoke(cmd, args){
     const ti = findTauri();
     if(!ti){
+      const nex = electronBridge();
+      if(nex){
+        return Promise.resolve(electronInvoke(nex, cmd, args))
+          .then(v=>({ ok:true, data:v }))
+          .catch(e=>({ ok:false, error:String(e) }));
+      }
       if(window.electronAPI && typeof window.electronAPI.invoke === 'function'){
         return Promise.resolve(window.electronAPI.invoke(cmd, args || {}))
           .then(v=>({ ok:true, data:v })).catch(e=>({ ok:false, error:String(e) }));
@@ -52,8 +83,14 @@ const native = {
   },
 
   /* native notification with app icon */
-  async notify({ title, body, silent }){
-    const r = await this.invoke('notify', { title: title || 'Pebble', body: body || '', silent: !!silent });
+  async notify(arg, bodyStr, silentBool){
+    let title = 'Pebble', body = '', silent = false;
+    if(typeof arg === 'string'){
+      title = arg; body = bodyStr || ''; silent = !!silentBool;
+    } else if(arg && typeof arg === 'object'){
+      title = arg.title || 'Pebble'; body = arg.body || ''; silent = !!arg.silent;
+    }
+    const r = await this.invoke('notify', { title, body, silent });
     if(r && r.ok && r.data) return true;
     try{
       if('Notification' in window){
@@ -226,13 +263,25 @@ const native = {
 (function detect(){
   if(findTauri() || window.__PEBBLE_WINDOW__){
     native.available = true; native.mode = 'tauri';
-  } else if(window.nexadekElectron || (window.electronAPI && window.electronAPI.ping)){
+  } else if(electronBridge()){
+    /* The preload exposes window.nex (contextBridge) — NOT electronAPI or
+       nexadekElectron, which is what this check used to look for, so the
+       desktop build silently ran in web mode: no disk mirror, no IPC
+       notifications, no login-window handoff. */
     native.available = true; native.mode = 'electron';
   } else {
     native.available = false; native.mode = 'web';
   }
 })();
 
-window.nex = new Proxy({}, { get: ()=>native });   // legacy alias
+/* Legacy alias. In Electron the contextBridge property is read-only, so a
+   plain assignment either silently fails (sloppy) or THROWS (strict — this
+   file is strict) and would have aborted the module before NX.native was
+   published. Guard it and only shadow the bridge where it is actually ours
+   to replace (plain browser). */
+try{
+  const existing = Object.getOwnPropertyDescriptor(window, 'nex');
+  if(!existing || existing.writable || existing.configurable) window.nex = new Proxy({}, { get: ()=>native });
+}catch(e){}
 NX.native = native;
 })(window.NX);

@@ -192,6 +192,7 @@ function startEngines(){
      wedged the UI thread. It is now opened deliberately: the taskbar button,
      Shift+W, the action palette, or Settings. */
   try{ NX.extsync.setEnabled(NX.modules.isOn('extension')); }catch(e){ console.error('extsync', e); }
+  try{ if(NX.cloud && NX.cloud.sync && NX.cloud.sync.startAutoSync) NX.cloud.sync.startAutoSync(); }catch(e){ console.error('cloud-sync', e); }
 
   /* listen for profile handoff from login window */
   try {

@@ -61,8 +61,20 @@ console.warn = function(...args){
 };
 
 NX.openBugReporter = async function(initialErr){
+  let initialTitle = '';
+  let initialSteps = '';
   if(initialErr) {
-    recordLog('error', initialErr.message || String(initialErr), initialErr.stack || '');
+    if(initialErr instanceof Error){
+      initialTitle = initialErr.message || 'Error occurred';
+      recordLog('error', initialErr.message, initialErr.stack || '');
+    } else if(typeof initialErr === 'string'){
+      initialTitle = initialErr;
+      recordLog('error', initialErr, '');
+    } else if(typeof initialErr === 'object'){
+      initialTitle = initialErr.title || initialErr.message || '';
+      initialSteps = initialErr.steps || '';
+      if(initialErr.error) recordLog('error', String(initialErr.error), '');
+    }
   }
 
   // Gather system telemetry
@@ -116,7 +128,7 @@ NX.openBugReporter = async function(initialErr){
         <div style="display:flex;flex-direction:column;gap:10px">
           <div class="field">
             <label class="faint tiny bold">Issue Title</label>
-            <input class="input" id="br-title" placeholder="Brief summary of what went wrong…" value="${initialErr ? U.esc(initialErr.message || 'Error occurred') : ''}">
+            <input class="input" id="br-title" placeholder="Brief summary of what went wrong…" value="${U.esc(initialTitle)}">
           </div>
           <div class="row gap-8">
             <div class="field" style="flex:1">
@@ -145,7 +157,7 @@ NX.openBugReporter = async function(initialErr){
           </div>
           <div class="field">
             <label class="faint tiny bold">Steps to Reproduce</label>
-            <textarea class="input" id="br-steps" rows="3" placeholder="1. What were you doing?&#10;2. What did you click?&#10;3. What happened unexpectedly?"></textarea>
+            <textarea class="input" id="br-steps" rows="3" placeholder="1. What were you doing?&#10;2. What did you click?&#10;3. What happened unexpectedly?">${U.esc(initialSteps)}</textarea>
           </div>
           <div class="field">
             <label class="faint tiny bold">Expected vs Actual Result</label>

@@ -1213,4 +1213,7 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
   renderHeader();
   renderMain();
 });
+
+NX.events.on('todo:changed', () => { if(typeof window.__nx_refreshTodoView === 'function') window.__nx_refreshTodoView(); });
+NX.events.on('tasks:changed', () => { if(typeof window.__nx_refreshTodoView === 'function') window.__nx_refreshTodoView(); });
 })(window.NX);

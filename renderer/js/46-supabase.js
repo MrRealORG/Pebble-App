@@ -282,35 +282,22 @@ async function sb(){
 
 function teardown(){ _sb = null; _mod = null; _loading = null; _err = null; }
 
-/* Connection test that verifies URL and publishable key reachability */
+/* Connection test. Verifies the URL + publishable key reach the auth
+   service AND that the schema was actually migrated — a fresh Supabase
+   project answers 200 on /auth/v1/* even with zero tables, and reporting
+   "Connected" there would hide the real problem. Delegates to ping(),
+   which probes /rest/v1 and recognises PGRST205. */
 async function testConnection(){
-  const c = readConfig();
-  if(!c.supabaseUrl || !c.supabaseKey){
-    return { ok:false, error:'Add your Supabase URL and publishable key in Settings → Cloud.' };
-  }
-  if(!online()){
-    return { ok:false, error:'You are offline — cannot reach Supabase.' };
-  }
-  try{
-    const res = await fetch(c.supabaseUrl + '/auth/v1/settings', {
-      method: 'GET',
-      headers: { 'apikey': c.supabaseKey }
-    });
-    if(!res.ok){
-      const t = await res.text().catch(()=>'');
-      return { ok:false, error:'Supabase returned HTTP ' + res.status + (t ? ': ' + t.slice(0, 100) : '') };
-    }
-    const data = await res.json().catch(()=>({}));
-    return {
-      ok: true,
-      data,
-      url: c.supabaseUrl,
-      signedIn: auth.signedIn,
-      user: auth.user
-    };
-  }catch(e){
-    return { ok:false, error:'Could not reach Supabase: ' + (e && e.message || e) };
-  }
+  const base = await ping();
+  if(!base.ok) return base;
+  return {
+    ok: true,
+    version: base.version,
+    tables: base.tables !== false,
+    url: readConfig().supabaseUrl,
+    signedIn: auth.signedIn,
+    user: auth.user
+  };
 }
 
 /* single place that explains why a call did nothing */
@@ -320,11 +307,51 @@ function notReady(){
   return _err || 'Cloud is unavailable right now.';
 }
 
+/* ------------------------------------------------------------
+ *  Reachability — a real ping that needs NO sign-in.
+ *  "Test connection" used to call sync.pull, which answers
+ *  "sign in to sync" when signed out — so a perfectly healthy
+ *  project looked broken. This hits the auth service directly and
+ *  then probes the REST schema, so each failure says what to DO.
+ * ------------------------------------------------------------ */
+async function ping(){
+  const c = readConfig();
+  if(!online()) return { ok:false, error:'You are offline.' };
+  if(!c.supabaseUrl || !c.supabaseKey) return { ok:false, error:'Supabase URL and publishable key are required.' };
+  try{
+    const res = await fetch(c.supabaseUrl + '/auth/v1/health', {
+      headers:{ apikey: c.supabaseKey }, cache:'no-store'
+    });
+    if(!res.ok) return { ok:false, error:'Auth service answered HTTP ' + res.status + ' — check the project URL and key.' };
+    const health = await res.json().catch(()=>({}));
+    /* the schema probe: a project nobody ran the migrations on answers
+       PGRST205 "could not find the table" — say exactly that, because the
+       fix (running APPLY_ALL.sql) is not guessable from the error */
+    const rest = await fetch(c.supabaseUrl + '/rest/v1/workspace_items?select=id&limit=1', {
+      headers:{ apikey: c.supabaseKey }, cache:'no-store'
+    });
+    if(rest.status === 404){
+      return { ok:true, version:health.version, tables:false,
+        error:'Supabase is reachable, but the database has no tables yet. Run Website/backend/supabase/init_pebblex_supabase.sql in the Supabase SQL editor (supabase.com/dashboard → SQL), then press Sync.' };
+    }
+    if(!rest.ok) return { ok:false, error:'REST answered HTTP ' + rest.status + '.' };
+    return { ok:true, version:health.version, tables:true };
+  }catch(e){
+    return { ok:false, error:'Could not reach ' + c.supabaseUrl + ' — ' + String(e && e.message || e) };
+  }
+}
+
 /* ------------------------------------------------------------ *
  *  Identity — OPTIONAL, alongside the PIN
  * ------------------------------------------------------------ */
 const _subs = new Set();
-function emit(u){ _subs.forEach(fn => { try{ fn(u); }catch(e){} }); }
+function emit(u){
+  _subs.forEach(fn => { try{ fn(u); }catch(e){} });
+  /* app-level signal, so modules that are not the settings panel (usage
+     sync, badges, the widget) can react. Nothing listened before, which is
+     why usage sync never activated even after a successful sign-in. */
+  try{ NX.events.emit(u ? 'cloud:signed-in' : 'cloud:signed-out', u); }catch(e){}
+}
 
 /* a stable id for this install, so devices can be told apart */
 function deviceId(){
@@ -471,39 +498,117 @@ const COLLECTION = { task:'tasks', note:'notes', prompt:'prompts', reminder:'rem
 
 function nowIso(){ return new Date().toISOString(); }
 
+/* ------------------------------------------------------------
+ *  Offline Sync Queue & Debounce Watcher
+ * ------------------------------------------------------------ */
+const OFFLINE_QUEUE_KEY = 'pebble._cloud_sync_queue';
+function getOfflineQueue(){
+  try{ return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); }catch(e){ return []; }
+}
+function enqueueOffline(action){
+  try{
+    const q = getOfflineQueue();
+    const id = action.item ? (action.item.id || action.item.local_id) : action.id;
+    const filtered = q.filter(x => !(x.kind === action.kind && (x.id === id || (x.item && x.item.id === id))));
+    filtered.push({ ...action, at: Date.now() });
+    if(filtered.length > 500) filtered.shift();
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(filtered));
+  }catch(e){}
+}
+async function drainOfflineQueue(){
+  if(!online() || !auth.user || !configured()) return;
+  const q = getOfflineQueue();
+  if(!q.length) return;
+  const remaining = [];
+  for(const act of q){
+    try {
+      if(act.type === 'push'){
+        const r = await sync.push(act.kind, act.item, true);
+        if(!r.ok) remaining.push(act);
+      } else if(act.type === 'remove'){
+        const r = await sync.remove(act.kind, act.id, true);
+        if(!r.ok) remaining.push(act);
+      }
+    }catch(e){ remaining.push(act); }
+  }
+  try{ localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(remaining)); }catch(e){}
+}
+
+let _reconciling = false;
+let _suppressSyncPush = false;
+let _autoSyncStarted = false;
+let _syncDebounceTimer = null;
+let _rtSub = null;
+
 const sync = {
-  /* Push one local item. Upsert by a stable client id kept in extra so
-     repeated pushes do not duplicate rows. */
-  async push(kind, item){
-    /* readiness first: an offline user should be told they are offline,
-       not that they need to sign in */
-    if(!configured() || !online()) return { ok:false, error: notReady() };
+  /* Push one local item. Upsert by stable client id kept in extra. */
+  async push(kind, item, skipQueue){
+    if(!configured() || !online()){
+      if(!skipQueue) enqueueOffline({ type:'push', kind, item });
+      return { ok:false, error: notReady() };
+    }
     const u = auth.user;
     if(!u) return { ok:false, error:'sign in to sync' };
     const c = await sb();
     if(!c) return { ok:false, error: notReady() };
     try{
+      const localId = String(item.id || item.local_id || '');
+      const extra = { local_id: localId, device_id: deviceId(), ...(item.extra || {}) };
+
+      // Enrich extra by kind
+      if(kind === 'task'){
+        extra.col = item.col || 'today';
+        extra.cat = item.cat || 'work';
+        extra.due = item.due || '';
+        extra.steps = item.steps || [];
+        extra.important = !!item.important;
+        extra.myDay = !!item.myDay;
+        extra.myDayDate = item.myDayDate || '';
+        extra.repeat = item.repeat || 'none';
+        extra.created = item.created || Date.now();
+      } else if(kind === 'note'){
+        extra.tags = item.tags || [];
+        extra.folder = item.folder || '';
+        extra.starred = !!item.starred;
+        extra.trash = !!item.trash;
+        extra.mdRel = item.mdRel || '';
+        extra.updated = item.updated || Date.now();
+      } else if(kind === 'reminder'){
+        extra.when = item.when || Date.now() + 3600e3;
+        extra.repeat = item.repeat || 'none';
+        extra.cat = item.cat || 'work';
+        extra.fired = !!item.fired;
+      } else if(kind === 'prompt'){
+        extra.cat = item.cat || 'general';
+        extra.desc = item.desc || '';
+        extra.tags = item.tags || [];
+      }
+
       const row = {
         owner_id: u.id,
         kind,
-        title: String(item.title || item.name || '').slice(0,180),
-        body: String(item.body || item.text || '').slice(0, 100000),
+        title: String(item.title || item.name || '').slice(0, 180),
+        body: String(item.body || item.text || item.note || item.prompt || '').slice(0, 100000),
         status: item.done ? 'done' : (item.status || 'todo'),
-        priority: item.priority || 'medium',
-        project: String(item.project || item.folder || 'Personal').slice(0,60),
+        priority: ['low','medium','high'].includes(item.priority) ? item.priority : 'medium',
+        project: String(item.folder || item.cat || item.project || 'Personal').slice(0, 60),
         pinned: !!item.pinned,
-        origin: 'desktop',
-        extra: { local_id: String(item.id || ''), ...(item.extra || {}) },
+        origin: NX.native && NX.native.available ? 'desktop' : 'web',
+        extra,
         updated_at: nowIso()
       };
+
       const { data: found } = await c
         .from('workspace_items').select('id')
         .eq('owner_id', u.id).eq('kind', kind)
-        .eq('extra->>local_id', String(item.id || '')).maybeSingle();
+        .eq('extra->>local_id', localId).maybeSingle();
       if(found) await c.from('workspace_items').update(row).eq('id', found.id);
       else await c.from('workspace_items').insert(row);
       return { ok:true };
-    }catch(e){ return { ok:false, error: dbError(e) }; }
+    }catch(e){
+      if(!skipQueue) enqueueOffline({ type:'push', kind, item });
+      return { ok:false, error: dbError(e) };
+    }
   },
 
   /* Full pull. Only newer-than rows are sent unless `full` is set. */
@@ -518,7 +623,7 @@ const sync = {
         .eq('owner_id', u.id)
         .is('deleted_at', null)
         .order('updated_at', { ascending:false })
-        .limit(500);
+        .limit((opts && opts.limit) || 1000);
       if(opts && opts.since) q = q.gt('updated_at', opts.since);
       const { data, error } = await q;
       if(error) return { ok:false, error: dbError(error), items:[] };
@@ -526,8 +631,7 @@ const sync = {
     }catch(e){ return { ok:false, error: dbError(e), items:[] }; }
   },
 
-  /* Realtime. Fires for this user's rows only — RLS enforces that, we
-     just narrow the filter. Returns an unsubscribe function. */
+  /* Realtime subscription */
   subscribe(cb){
     let live = true, chan = null;
     const out = { unsubscribe(){ live = false; try{ chan && chan.unsubscribe(); }catch(e){} } };
@@ -547,7 +651,11 @@ const sync = {
     return out;
   },
 
-  async remove(kind, localId){
+  async remove(kind, localId, skipQueue){
+    if(!configured() || !online()){
+      if(!skipQueue) enqueueOffline({ type:'remove', kind, id: localId });
+      return { ok:false, error: notReady() };
+    }
     const u = auth.user;
     if(!u) return { ok:false, error:'sign in to sync' };
     const c = await sb();
@@ -560,7 +668,282 @@ const sync = {
       if(found) await c.from('workspace_items')
         .update({ deleted_at: nowIso(), updated_at: nowIso() }).eq('id', found.id);
       return { ok:true };
-    }catch(e){ return { ok:false, error:String(e && e.message || e) }; }
+    }catch(e){
+      if(!skipQueue) enqueueOffline({ type:'remove', kind, id: localId });
+      return { ok:false, error:String(e && e.message || e) };
+    }
+  },
+
+  /* Master bidirectional reconciliation */
+  async reconcile(){
+    if(_reconciling) return { ok:false, error:'Sync already in progress' };
+    if(!configured() || !online()) return { ok:false, error: notReady() };
+    if(!auth.user) return { ok:false, error:'Sign in to sync with cloud.' };
+
+    _reconciling = true;
+    try {
+      await drainOfflineQueue();
+
+      const pulled = await sync.pull({ limit: 1000 });
+      if(!pulled.ok){ _reconciling = false; return pulled; }
+      const remoteItems = pulled.items || [];
+      const remoteMap = new Map();
+      remoteItems.forEach(item => {
+        const lid = (item.extra && item.extra.local_id) || item.id;
+        remoteMap.set(`${item.kind}:${lid}`, item);
+      });
+
+      const stats = { tasksPulled:0, notesPulled:0, remsPulled:0, promptsPulled:0, pushed:0 };
+      _suppressSyncPush = true; // prevent local writes from triggering auto-push loop
+
+      // 1. Reconcile Tasks
+      const localTasks = NX.store.get('tasks', []) || [];
+      const taskMap = new Map(localTasks.map(t => [String(t.id), t]));
+      let tasksChanged = false;
+
+      remoteItems.filter(i => i.kind === 'task').forEach(ri => {
+        const lid = (ri.extra && ri.extra.local_id) || ri.id;
+        const existing = taskMap.get(String(lid));
+        const rUpdated = ri.updated_at ? new Date(ri.updated_at).getTime() : 0;
+        const lUpdated = existing ? (existing.updated || existing.updatedAt || existing.created || 0) : 0;
+
+        if(!existing){
+          const newTask = {
+            id: lid,
+            name: ri.title || 'Untitled task',
+            note: ri.body || '',
+            done: ri.status === 'done',
+            col: (ri.extra && ri.extra.col) || (ri.status === 'done' ? 'done' : 'today'),
+            cat: (ri.extra && ri.extra.cat) || 'work',
+            priority: ri.priority || 'medium',
+            due: (ri.extra && ri.extra.due) || ri.due_date || '',
+            steps: (ri.extra && ri.extra.steps) || [],
+            important: !!(ri.extra && ri.extra.important),
+            myDay: !!(ri.extra && ri.extra.myDay),
+            myDayDate: (ri.extra && ri.extra.myDayDate) || '',
+            created: ri.created_at ? new Date(ri.created_at).getTime() : Date.now(),
+            updated: rUpdated
+          };
+          localTasks.unshift(newTask);
+          taskMap.set(String(lid), newTask);
+          tasksChanged = true;
+          stats.tasksPulled++;
+        } else if(rUpdated > lUpdated){
+          existing.name = ri.title;
+          existing.note = ri.body;
+          existing.done = ri.status === 'done';
+          if(ri.extra && ri.extra.col) existing.col = ri.extra.col;
+          if(ri.extra && ri.extra.cat) existing.cat = ri.extra.cat;
+          if(ri.priority) existing.priority = ri.priority;
+          if(ri.extra && ri.extra.steps) existing.steps = ri.extra.steps;
+          if(ri.extra && ri.extra.due) existing.due = ri.extra.due;
+          if(ri.extra && ri.extra.important !== undefined) existing.important = !!ri.extra.important;
+          existing.updated = rUpdated;
+          tasksChanged = true;
+          stats.tasksPulled++;
+        }
+      });
+
+      // 2. Reconcile Notes
+      const localNotes = NX.store.get('notes', []) || [];
+      const noteMap = new Map(localNotes.map(n => [String(n.id), n]));
+      let notesChanged = false;
+
+      remoteItems.filter(i => i.kind === 'note').forEach(ri => {
+        const lid = (ri.extra && ri.extra.local_id) || ri.id;
+        const existing = noteMap.get(String(lid));
+        const rUpdated = ri.updated_at ? new Date(ri.updated_at).getTime() : 0;
+        const lUpdated = existing ? (existing.updated || 0) : 0;
+
+        if(!existing){
+          const newNote = {
+            id: lid,
+            title: ri.title || 'Untitled Note',
+            body: ri.body || '',
+            tags: (ri.extra && ri.extra.tags) || [],
+            folder: (ri.extra && ri.extra.folder) || '',
+            pinned: !!ri.pinned,
+            starred: !!(ri.extra && ri.extra.starred),
+            updated: rUpdated || Date.now()
+          };
+          localNotes.unshift(newNote);
+          noteMap.set(String(lid), newNote);
+          notesChanged = true;
+          stats.notesPulled++;
+          try {
+            if(NX.native && NX.native.available && NX.native.mode === 'tauri'){
+              const rel = (newNote.folder ? newNote.folder + '/' : '') + (newNote.title.replace(/[\\/:*?"<>|]/g,'-').slice(0,60).trim() || 'Untitled') + '.md';
+              NX.native.invoke('note_write_file', { rel, content: newNote.body });
+            }
+          }catch(e){}
+        } else if(rUpdated > lUpdated){
+          existing.title = ri.title;
+          existing.body = ri.body;
+          if(ri.extra && ri.extra.tags) existing.tags = ri.extra.tags;
+          if(ri.extra && ri.extra.folder) existing.folder = ri.extra.folder;
+          existing.pinned = !!ri.pinned;
+          if(ri.extra && ri.extra.starred !== undefined) existing.starred = !!ri.extra.starred;
+          existing.updated = rUpdated;
+          notesChanged = true;
+          stats.notesPulled++;
+        }
+      });
+
+      // 3. Reconcile Reminders
+      const localRems = NX.store.get('reminders', []) || [];
+      const remMap = new Map(localRems.map(r => [String(r.id), r]));
+      let remsChanged = false;
+
+      remoteItems.filter(i => i.kind === 'reminder').forEach(ri => {
+        const lid = (ri.extra && ri.extra.local_id) || ri.id;
+        const existing = remMap.get(String(lid));
+        if(!existing){
+          const newRem = {
+            id: lid,
+            name: ri.title,
+            note: ri.body,
+            when: (ri.extra && ri.extra.when) || (Date.now() + 3600e3),
+            repeat: (ri.extra && ri.extra.repeat) || 'none',
+            cat: (ri.extra && ri.extra.cat) || 'work',
+            fired: !!(ri.extra && ri.extra.fired)
+          };
+          localRems.unshift(newRem);
+          remMap.set(String(lid), newRem);
+          remsChanged = true;
+          stats.remsPulled++;
+        }
+      });
+
+      // 4. Reconcile Prompts
+      const localPrompts = NX.store.get('prompts', []) || [];
+      const promptMap = new Map(localPrompts.map(p => [String(p.id), p]));
+      let promptsChanged = false;
+
+      remoteItems.filter(i => i.kind === 'prompt').forEach(ri => {
+        const lid = (ri.extra && ri.extra.local_id) || ri.id;
+        const existing = promptMap.get(String(lid));
+        if(!existing){
+          const newPrompt = {
+            id: lid,
+            title: ri.title,
+            prompt: ri.body,
+            desc: (ri.extra && ri.extra.desc) || '',
+            cat: (ri.extra && ri.extra.cat) || 'general',
+            tags: (ri.extra && ri.extra.tags) || []
+          };
+          localPrompts.unshift(newPrompt);
+          promptMap.set(String(lid), newPrompt);
+          promptsChanged = true;
+          stats.promptsPulled++;
+        }
+      });
+
+      if(tasksChanged) NX.store.set('tasks', localTasks);
+      if(notesChanged) NX.store.set('notes', localNotes);
+      if(remsChanged) NX.store.set('reminders', localRems);
+      if(promptsChanged) NX.store.set('prompts', localPrompts);
+
+      _suppressSyncPush = false; // re-enable auto-push
+
+      // 5. Push Local Items Missing from Cloud
+      for(const t of localTasks){
+        if(!remoteMap.has(`task:${t.id}`)){
+          await sync.push('task', t);
+          stats.pushed++;
+        }
+      }
+      for(const n of localNotes){
+        if(!n.trash && !remoteMap.has(`note:${n.id}`)){
+          await sync.push('note', n);
+          stats.pushed++;
+        }
+      }
+      for(const r of localRems){
+        if(!remoteMap.has(`reminder:${r.id}`)){
+          await sync.push('reminder', r);
+          stats.pushed++;
+        }
+      }
+      for(const p of localPrompts){
+        if(!remoteMap.has(`prompt:${p.id}`)){
+          await sync.push('prompt', p);
+          stats.pushed++;
+        }
+      }
+
+      if(tasksChanged) NX.events.emit('tasks:changed');
+      if(notesChanged) NX.events.emit('notes:changed');
+      if(remsChanged) NX.events.emit('reminders:changed');
+      NX.refreshBadges && NX.refreshBadges();
+
+      const lastSync = Date.now();
+      NX.store.set('cloud:lastSyncAt', lastSync);
+      NX.events.emit('cloud:synced', { lastSync, stats });
+      return { ok:true, stats, lastSync };
+    } catch(err) {
+      _suppressSyncPush = false;
+      return { ok:false, error:String(err && err.message || err) };
+    } finally {
+      _reconciling = false;
+    }
+  },
+
+  /* Start automatic continuous sync watcher */
+  startAutoSync(){
+    if(_autoSyncStarted) return;
+    _autoSyncStarted = true;
+
+    // Drain queue when internet comes back
+    window.addEventListener('online', () => { drainOfflineQueue().catch(()=>{}); });
+
+    // Initial reconciliation if signed in
+    if(auth.user && configured() && online()){
+      sync.reconcile().catch(()=>{});
+    }
+
+    // Realtime changes listener from other devices
+    if(auth.user && configured()){
+      if(_rtSub) _rtSub.unsubscribe();
+      _rtSub = sync.subscribe((items) => {
+        if(!Array.isArray(items) || !items.length) return;
+        const incoming = items[0];
+        if(!incoming || !incoming.kind) return;
+        // Skip self-origin changes
+        if(incoming.extra && incoming.extra.device_id === deviceId()) return;
+
+        // Remote mutation arrived — trigger reconcile to merge seamlessly
+        sync.reconcile().catch(()=>{});
+      });
+    }
+
+    // Coalesced debounce watcher for local mutations
+    function scheduleLocalSync(){
+      if(_suppressSyncPush || !auth.user || !configured() || !online()) return;
+      clearTimeout(_syncDebounceTimer);
+      _syncDebounceTimer = setTimeout(() => {
+        sync.reconcile().catch(()=>{});
+      }, 1500);
+    }
+
+    NX.events.on('store:tasks', scheduleLocalSync);
+    NX.events.on('store:notes', scheduleLocalSync);
+    NX.events.on('store:reminders', scheduleLocalSync);
+    NX.events.on('store:prompts', scheduleLocalSync);
+  },
+
+  stopAutoSync(){
+    _autoSyncStarted = false;
+    if(_rtSub){ _rtSub.unsubscribe(); _rtSub = null; }
+    if(_syncDebounceTimer){ clearTimeout(_syncDebounceTimer); _syncDebounceTimer = null; }
+  },
+
+  status(){
+    return {
+      reconciling: _reconciling,
+      autoSync: _autoSyncStarted,
+      queued: getOfflineQueue().length,
+      lastSyncAt: NX.store.get('cloud:lastSyncAt', 0)
+    };
   },
 
   kindFor(collection){ return KIND[collection] || null; },
@@ -702,7 +1085,7 @@ const chat = {
  * ------------------------------------------------------------ */
 NX.cloud = {
   provider:'supabase+cloudflare',
-  readConfig, saveConfig, clearConfig, configured,
+  readConfig, saveConfig, clearConfig, configured, ping,
   auth, sync, chat, r2, deviceId,
   testConnection,
   /* Path helpers are exposed at the top level too: 48-chat-social.js calls

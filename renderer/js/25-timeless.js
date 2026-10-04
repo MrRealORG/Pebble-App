@@ -78,7 +78,7 @@ async function resolveFavicon(host){
     const img = new Image();
     let done = false;
     const finish = (ok) => { if(done) return; done = true; resolve(ok ? url : ''); };
-    img.onload = () => finish(naturalWidth > 0 || naturalHeight > 0);
+    img.onload = () => { const { naturalWidth, naturalHeight } = img; finish(naturalWidth > 0 || naturalHeight > 0); };
     img.onerror = () => finish(false);
     setTimeout(() => finish(false), 6000);
     img.referrerPolicy = 'no-referrer';
@@ -219,7 +219,7 @@ const tracker = {
 
   currentWindow(){
     return new Promise(resolve=>{
-      if(NX.native.available && NX.native.mode === 'tauri'){
+      if(NX.native.available && (NX.native.mode === 'tauri' || NX.native.mode === 'electron')){
         NX.native.activeWindow().then(w=>{
           if(w && w.name) resolve(w);
           else resolve(null);

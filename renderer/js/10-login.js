@@ -171,7 +171,12 @@ const skipNextTime = !auth || !auth.pinHash;
          session in it. */
       try{ if(NX.store && NX.store.flush) await NX.store.flush(); }catch(e){}
 
-      if(NX.native.available && NX.native.mode === 'tauri'){
+      /* Electron runs this renderer in a small auth window when "ask for
+         login at start" is on: the main window is ONLY created once the
+         renderer hands off via loginDone → auth:ok. The handoff used to be
+         tauri-only, so the Electron build sat in the 400px login window
+         forever no matter what the user did. */
+      if(NX.native.available && (NX.native.mode === 'tauri' || NX.native.mode === 'electron')){
         try{
           await NX.native.loginDone(name);
           /* login_done shows the main window and closes this one. There is

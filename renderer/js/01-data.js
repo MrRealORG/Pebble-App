@@ -194,13 +194,16 @@ NX.weather = {
       try{ sessionStorage.setItem('nx.geo', JSON.stringify({ lat, lon, city, at:Date.now() })); }catch(e){}
       return { lat, lon, city };
     };
-    try{
-      const d = await (await fetch('https://ipapi.co/json/', { cache:'no-store' })).json();
-      if(d && d.latitude != null) return save(d.latitude, d.longitude, d.city || d.region || 'Your area');
-    }catch(e){}
+    /* geojs.io first: it sends CORS headers, so the browser actually gets an
+       answer. ipapi.co does not, and its blocked request used to be the
+       first thing every dashboard visit logged. */
     try{
       const d = await (await fetch('https://get.geojs.io/v1/ip/geo.json', { cache:'no-store' })).json();
       if(d && d.latitude) return save(parseFloat(d.latitude), parseFloat(d.longitude), d.city || d.region || 'Your area');
+    }catch(e){}
+    try{
+      const d = await (await fetch('https://ipapi.co/json/', { cache:'no-store' })).json();
+      if(d && d.latitude != null) return save(d.latitude, d.longitude, d.city || d.region || 'Your area');
     }catch(e){}
     return null;
   },

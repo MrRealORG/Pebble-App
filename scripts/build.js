@@ -72,6 +72,17 @@ function build() {
   html = html.replace(/<meta http-equiv="Content-Security-Policy"[\s\S]*?>/,
     `<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https:;">`);
   fs.writeFileSync(path.join(webDir, 'index.html'), html);
+  // copy PWA assets so the web build is installable as an app
+  const manifestPath = path.join(ROOT, 'renderer', 'manifest.json');
+  if (fs.existsSync(manifestPath)) fs.copyFileSync(manifestPath, path.join(webDir, 'manifest.json'));
+  const swPath = path.join(ROOT, 'renderer', 'sw.js');
+  if (fs.existsSync(swPath)) fs.copyFileSync(swPath, path.join(webDir, 'sw.js'));
+  const iconsSrc = path.join(ROOT, 'renderer', 'icons');
+  const iconsDest = path.join(webDir, 'icons');
+  if (fs.existsSync(iconsSrc)) {
+    ensure(iconsDest);
+    fs.readdirSync(iconsSrc).forEach(f => fs.copyFileSync(path.join(iconsSrc, f), path.join(iconsDest, f)));
+  }
   // also keep the split version alongside for anyone who wants to hack on it
   ensure(path.join(webDir, 'renderer', 'css'));
   ensure(path.join(webDir, 'renderer', 'js'));

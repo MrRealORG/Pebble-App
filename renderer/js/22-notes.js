@@ -2537,4 +2537,8 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   renderList();
   loadEditor();
 });
+
+NX.events.on('notes:changed', () => {
+  if(typeof window.__nx_refreshNotesView === 'function') window.__nx_refreshNotesView();
+});
 })(window.NX);

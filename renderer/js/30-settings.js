@@ -1441,7 +1441,9 @@ function renderCloud(host){
     const r = await NX.cloud.testConnection();
     test.disabled = false;
     test.textContent = label;
-    if(r.ok){
+    if(r.ok && r.tables === false){
+      NX.toastErr('Cloud', r.error || 'Supabase is reachable but the database has no tables yet.');
+    } else if(r.ok){
       let msg = 'Connected to Supabase project successfully!';
       if(r.signedIn && r.user){
         msg += ' Signed in as ' + (r.user.name || r.user.email) + '.';
@@ -1460,26 +1462,59 @@ function renderCloud(host){
     const state = q('#cl-sync-state', host);
     if(state) state.textContent = 'Syncing…';
     syncNow.disabled = true;
-    const r = await NX.cloud.sync.pull({});
+    const r = await NX.cloud.sync.reconcile();
     syncNow.disabled = false;
-    if(state) state.textContent = r.ok ? (r.items.length + ' item(s) up to date') : (r.error || 'failed');
-    if(r.ok) NX.toastOk('Sync', r.items.length + ' item(s) in the cloud.');
-    else NX.toastErr('Sync', r.error || 'Sync failed.');
+    if(r.ok){
+      const s = r.stats || {};
+      const msg = `${s.tasksPulled || 0} task(s), ${s.notesPulled || 0} note(s) updated; ${s.pushed || 0} pushed`;
+      if(state) state.textContent = msg;
+      NX.toastOk('Sync Complete', msg);
+    } else {
+      if(state) state.textContent = r.error || 'failed';
+      NX.toastErr('Sync', r.error || 'Sync failed.');
+    }
   };
 
   const clr = q('#cl-clear', host);
   if(clr) clr.onclick = ()=>{ NX.cloud.clearConfig(); NX.toastOk('Cloud', 'Config cleared.'); renderBody(); };
 
-  const ask = mode =>{
-    const email = window.prompt(mode === 'in' ? 'Email' : 'Email for your new account');
-    if(!email) return null;
-    const pass = window.prompt('Password (6+ characters)');
-    return pass ? { email:String(email).trim(), pass } : null;
-  };
+  /* Email/password entry as a real form. window.prompt is not supported
+     inside Electron (it throws "prompt() is and will not be supported"),
+     which made Sign in / Create account silently do nothing on the desktop
+     build. */
+  const ask = (mode) => new Promise(resolve => {
+    const form = h(`<div style="display:flex;flex-direction:column;gap:12px">
+      <label class="field"><span class="nx-field-label">Email</span>
+        <input class="input" id="cf-email" type="email" placeholder="you@example.com" autocomplete="email"></label>
+      <label class="field"><span class="nx-field-label">Password</span>
+        <input class="input" id="cf-pass" type="password" placeholder="${mode === 'in' ? 'Your password' : 'At least 8 characters'}" autocomplete="${mode === 'in' ? 'current-password' : 'new-password'}"></label>
+      ${mode === 'reg' ? `<label class="field"><span class="nx-field-label">Name (optional)</span>
+        <input class="input" id="cf-name" type="text" placeholder="How we should call you"></label>
+        <div class="faint tiny">Passwords need at least 8 characters.</div>` : ''}
+    </div>`);
+    const dlg = NX.modal({
+      title: mode === 'in' ? 'Sign in' : 'Create account', icon: 'user',
+      body: form,
+      footer: [
+        { label: 'Cancel', cls: 'btn-soft' },
+        { label: mode === 'in' ? 'Sign in' : 'Create account', cls: 'btn-green', icon: 'check', onClick: () => {
+          const email = String(q('#cf-email', form) && q('#cf-email', form).value || '').trim();
+          const pass = String(q('#cf-pass', form) && q('#cf-pass', form).value || '');
+          const name = String(q('#cf-name', form) && q('#cf-name', form).value || '').trim();
+          if(!email || !pass){ NX.toastErr('Cloud', 'Email and password are both required.'); return; }
+          NX.closeAllModals();
+          resolve({ email, pass, name });
+        } }
+      ]
+    });
+    const onEnter = (e) => { if(e.key === 'Enter'){ const btn = qa('.modal-f .btn', dlg).pop(); if(btn) btn.click(); } };
+    form.addEventListener('keydown', onEnter);
+    setTimeout(()=>{ const em = q('#cf-email', form); if(em) em.focus(); }, 60);
+  });
 
   const si = q('#cl-signin', host);
   if(si) si.onclick = async ()=>{
-    const c = ask('in'); if(!c) return;
+    const c = await ask('in'); if(!c) return;
     si.disabled = true;
     const r = await NX.cloud.auth.signIn(c.email, c.pass);
     si.disabled = false;
@@ -1489,11 +1524,12 @@ function renderCloud(host){
 
   const rg = q('#cl-register', host);
   if(rg) rg.onclick = async ()=>{
-    const c = ask('reg'); if(!c) return;
+    const c = await ask('reg'); if(!c) return;
     rg.disabled = true;
-    const r = await NX.cloud.auth.register(c.email, c.pass);
+    const r = await NX.cloud.auth.register(c.email, c.pass, c.name);
     rg.disabled = false;
-    if(r.ok){ NX.toastOk('Cloud', 'Account created.'); renderBody(); }
+    if(r.ok && r.pending){ NX.toastInfo('Cloud', 'Check your inbox — confirm the email, then sign in.'); renderBody(); }
+    else if(r.ok){ NX.toastOk('Cloud', 'Account created.'); renderBody(); }
     else NX.toastErr('Cloud', r.error);
   };
 
@@ -1502,7 +1538,8 @@ function renderCloud(host){
     gg.disabled = true;
     const r = await NX.cloud.auth.signInWithGoogle();
     gg.disabled = false;
-    if(r.ok){ NX.toastOk('Cloud', 'Signed in as ' + (r.user.name || r.user.email)); renderBody(); }
+    if(r.ok && r.redirecting){ NX.toastInfo('Google', 'Continue in your browser — PebbleX picks the session up when you come back.'); }
+    else if(r.ok){ NX.toastOk('Cloud', 'Signed in as ' + ((r.user && (r.user.name || r.user.email)) || 'your account')); renderBody(); }
     else NX.toastErr('Cloud', r.error);
   };
 
