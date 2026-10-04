@@ -716,15 +716,18 @@ body.login-mode{
 
 /* ================= GLASS HUB & ACRYLIC STYLING ================= */
 .glass-hub-card {
-  background: rgba(18, 22, 30, 0.88);
-  backdrop-filter: blur(36px) saturate(200%);
-  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  background: rgba(18, 22, 30, 0.92);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
   border-radius: 16px;
   padding: 14px;
   color: var(--ink);
   overflow: hidden;
+  transform: translate3d(0, 0, 0);
+  will-change: transform, opacity;
+  contain: layout style;
 }
 .light .glass-hub-card {
   background: rgba(255, 255, 255, 0.92);

@@ -183,8 +183,8 @@ function openAskPebble(initialQuery = ''){
   if(copilotModal) copilotModal.remove();
 
   const ctx = getWorkspaceContext();
-  const back = h(`<div class="cmdk-backdrop anim-in" style="backdrop-filter:blur(8px);background:rgba(0,0,0,0.5);z-index:2100">
-    <div class="card copilot-modal" style="width:min(620px,94vw);margin:8vh auto auto;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.4);border:1px solid var(--line-strong);background:var(--surface);display:flex;flex-direction:column;max-height:84vh">
+  const back = h(`<div class="cmdk-backdrop anim-fade" style="backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);background:rgba(0,0,0,0.5);z-index:2100;contain:strict;will-change:opacity">
+    <div class="card copilot-modal anim-pop" style="width:min(620px,94vw);margin:8vh auto auto;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.4);border:1px solid var(--line-strong);background:var(--surface);display:flex;flex-direction:column;max-height:84vh;transform:translate3d(0,0,0);will-change:transform,opacity;contain:layout style">
       <div class="copilot-head" style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line);background:var(--surface-2)">
         <div class="tile sm" style="background:var(--green);color:#0E2B0A">${icon('robot', 18)}</div>
         <div style="flex:1">

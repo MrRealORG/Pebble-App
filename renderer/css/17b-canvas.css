@@ -406,3 +406,43 @@
   line-height: 1.4;
   color: inherit;
 }
+
+/* Obsidian-Style Canvas Card Editor */
+.canvas-card-editor {
+  position: absolute;
+  z-index: 102;
+  background: #1A1E24;
+  color: #FFFFFF;
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  padding: 12px 14px;
+  font-family: inherit;
+  outline: none;
+  box-sizing: border-box;
+  animation: nx-pop .12s ease both;
+}
+.canvas-card-title-inp {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 3px 0 6px;
+  outline: none;
+  font-family: inherit;
+}
+.canvas-card-editor textarea {
+  width: 100%;
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  resize: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #A8B2C1;
+  margin-top: 6px;
+}

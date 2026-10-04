@@ -36,7 +36,7 @@ const STICKY_COLORS = [
   { id:'purple', bg:'#E9D5FF', fg:'#581C87' }
 ];
 
-let curTool = 'draw'; // 'select','hand','draw','highlighter','arrow','line','rect','circle','sticky','text','eraser'
+let curTool = 'draw'; // 'select','hand','draw','highlighter','arrow','line','rect','circle','sticky','card','text','eraser'
 let curColor = '#7CD56E';
 let curWidth = 3;
 let curFill = false;
@@ -109,6 +109,9 @@ NX.routeInShell('canvas', 'Canvas', 'brush', function(view){
         <button class="ct-btn ${curTool==='sticky'?'on':''}" data-t="sticky" data-tip="Sticky Note (S)">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9l-6-6zM15 3v6h6"/></svg>
         </button>
+        <button class="ct-btn ${curTool==='card'?'on':''}" data-t="card" data-tip="Obsidian Note Card (C)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="7" y1="13" x2="14" y2="13"/><line x1="7" y1="16" x2="11" y2="16"/></svg>
+        </button>
         <button class="ct-btn ${curTool==='text'?'on':''}" data-t="text" data-tip="Text (T)">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
         </button>
@@ -153,11 +156,16 @@ NX.routeInShell('canvas', 'Canvas', 'brush', function(view){
         <button class="icon-btn sm" id="cz-out" data-tip="Zoom Out (-)">${icon('minus', 12)}</button>
         <span class="canvas-zoom-txt" id="cz-txt" style="min-width:44px;text-align:center">100%</span>
         <button class="icon-btn sm" id="cz-in" data-tip="Zoom In (+)">${icon('plus', 12)}</button>
-        <button class="btn btn-ghost btn-sm" id="cz-reset" style="padding:2px 8px;font-size:11px">Fit</button>
+        <button class="btn btn-ghost btn-sm" id="cz-reset" style="padding:2px 8px;font-size:11px" title="Fit to content">Fit</button>
         <div class="ct-divider" style="margin:0 2px"></div>
         <button class="btn btn-ghost btn-sm" id="cz-grid-toggle" style="padding:2px 8px;font-size:11px" title="Toggle canvas background grid">
           Grid: <span id="cz-grid-lbl">Dots</span>
         </button>
+      </div>
+
+      <!-- Bottom Right Node Stats -->
+      <div class="canvas-bottom-right" id="canvas-hud-stats" style="position:absolute;bottom:16px;right:16px;z-index:100;display:flex;align-items:center;gap:6px">
+        <span class="pill gray sm" id="cz-stats-pill" style="font-size:11px;font-weight:600;opacity:0.85">0 nodes · 60fps</span>
       </div>
     </div>
   `;
@@ -185,8 +193,10 @@ function initCanvasEngine(root, initialBoard, allBoards){
   let isDrawing = false;
   let isPanning = false;
   let isDraggingElem = false;
+  let isSpaceDown = false;
   let startX = 0, startY = 0;
   let dragElemId = null;
+  let selectedElemId = null;
   let activeElement = null;
 
   // Cached HTML Image elements for rapid 60fps rendering
@@ -283,6 +293,58 @@ function initCanvasEngine(root, initialBoard, allBoards){
     };
   }
 
+  function isElementInViewport(el, minWx, minWy, maxWx, maxWy){
+    if(el.type === 'rect' || el.type === 'sticky' || el.type === 'image' || el.type === 'card'){
+      const w = el.w || (el.type === 'card' ? 220 : 160);
+      const h = el.h || (el.type === 'card' ? 150 : 140);
+      const elMinX = Math.min(el.x, el.x + w);
+      const elMaxX = Math.max(el.x, el.x + w);
+      const elMinY = Math.min(el.y, el.y + h);
+      const elMaxY = Math.max(el.y, el.y + h);
+      return elMaxX >= minWx && elMinX <= maxWx && elMaxY >= minWy && elMinY <= maxWy;
+    }
+    if(el.type === 'circle'){
+      const r = Math.max(Math.abs(el.w || 0), Math.abs(el.h || 0)) / 2;
+      const cx = el.x + (el.w || 0) / 2;
+      const cy = el.y + (el.h || 0) / 2;
+      return (cx + r) >= minWx && (cx - r) <= maxWx && (cy + r) >= minWy && (cy - r) <= maxWy;
+    }
+    if(el.type === 'line' || el.type === 'arrow'){
+      const elMinX = Math.min(el.x1, el.x2) - 16;
+      const elMaxX = Math.max(el.x1, el.x2) + 16;
+      const elMinY = Math.min(el.y1, el.y2) - 16;
+      const elMaxY = Math.max(el.y1, el.y2) + 16;
+      return elMaxX >= minWx && elMinX <= maxWx && elMaxY >= minWy && elMinY <= maxWy;
+    }
+    if((el.type === 'draw' || el.type === 'highlighter') && el.points && el.points.length){
+      if(!el._bx){
+        let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+        for(let j = 0; j < el.points.length; j++){
+          const p = el.points[j];
+          if(p.x < minX) minX = p.x;
+          if(p.x > maxX) maxX = p.x;
+          if(p.y < minY) minY = p.y;
+          if(p.y > maxY) maxY = p.y;
+        }
+        el._bx = { minX: minX - 16, maxX: maxX + 16, minY: minY - 16, maxY: maxY + 16 };
+      }
+      return el._bx.maxX >= minWx && el._bx.minX <= maxWx && el._bx.maxY >= minWy && el._bx.minY <= maxWy;
+    }
+    if(el.type === 'text'){
+      const tw = (el.text ? el.text.length * 14 : 120);
+      const th = (el.fontSize || 18) * 1.5;
+      return (el.x + tw) >= minWx && el.x <= maxWx && (el.y + th) >= minWy && el.y <= maxWy;
+    }
+    return true;
+  }
+
+  function updateStatsHud(){
+    const pill = q('#cz-stats-pill', root);
+    if(pill){
+      pill.textContent = `${elements.length} node${elements.length === 1 ? '' : 's'} · 60fps`;
+    }
+  }
+
   function render(){
     const rect = vp.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
@@ -292,7 +354,7 @@ function initCanvasEngine(root, initialBoard, allBoards){
     ctx.save();
     ctx.scale(dpr, dpr);
 
-    // Draw Background Grid if enabled
+    // Draw Background Grid if enabled (with zoom LOD)
     if(curGrid === 'dots'){
       drawDotsGrid(ctx, rect.width, rect.height);
     } else if(curGrid === 'grid'){
@@ -302,10 +364,19 @@ function initCanvasEngine(root, initialBoard, allBoards){
     ctx.translate(panX, panY);
     ctx.scale(zoom, zoom);
 
-    // Draw saved elements
-    elements.forEach(el => {
-      drawElement(ctx, el);
-    });
+    // Obsidian-style Viewport Frustum Culling bounds
+    const minWx = -panX / zoom - 40;
+    const maxWx = (rect.width - panX) / zoom + 40;
+    const minWy = -panY / zoom - 40;
+    const maxWy = (rect.height - panY) / zoom + 40;
+
+    // Draw saved elements (culled)
+    for(let i = 0; i < elements.length; i++){
+      const el = elements[i];
+      if(isElementInViewport(el, minWx, minWy, maxWx, maxWy)){
+        drawElement(ctx, el);
+      }
+    }
 
     // Draw in-progress element
     if(activeElement){
@@ -313,12 +384,13 @@ function initCanvasEngine(root, initialBoard, allBoards){
     }
 
     ctx.restore();
+    updateStatsHud();
   }
 
   function drawDotsGrid(c, w, h){
     c.save();
     const gap = 24 * zoom;
-    if(gap >= 8){
+    if(gap >= 8 && zoom >= 0.35){
       c.fillStyle = 'rgba(255, 255, 255, 0.08)';
       const offsetX = ((panX % gap) + gap) % gap;
       const offsetY = ((panY % gap) + gap) % gap;
@@ -338,7 +410,7 @@ function initCanvasEngine(root, initialBoard, allBoards){
   function drawLinesGrid(c, w, h){
     c.save();
     const gap = 32 * zoom;
-    if(gap >= 12){
+    if(gap >= 12 && zoom >= 0.25){
       c.strokeStyle = 'rgba(255, 255, 255, 0.05)';
       c.lineWidth = 1;
       const offsetX = ((panX % gap) + gap) % gap;
@@ -484,6 +556,60 @@ function initCanvasEngine(root, initialBoard, allBoards){
         lineY += 20;
       });
     }
+    // 7b. Obsidian-Style Note Card
+    else if(el.type === 'card'){
+      const cw = el.w || 220;
+      const ch = el.h || 150;
+      const cardBg = el.bg || '#1E232B';
+      const accent = el.color || curColor;
+
+      // Card shadow
+      c.save();
+      c.shadowColor = 'rgba(0,0,0,0.35)';
+      c.shadowBlur = 16;
+      c.shadowOffsetY = 6;
+      c.fillStyle = cardBg;
+      roundRect(c, el.x, el.y, cw, ch, 10);
+      c.fill();
+      c.restore();
+
+      // Card outer border
+      c.save();
+      c.strokeStyle = 'rgba(255,255,255,0.12)';
+      c.lineWidth = 1;
+      roundRect(c, el.x, el.y, cw, ch, 10);
+      c.stroke();
+
+      // Top color accent bar
+      c.fillStyle = accent;
+      roundRect(c, el.x + 12, el.y + 10, 26, 4, 2);
+      c.fill();
+
+      // Card Title
+      c.fillStyle = '#FFFFFF';
+      c.font = 'bold 13px Inter, system-ui, sans-serif';
+      c.textBaseline = 'top';
+      const titleStr = el.title || 'Untitled Card';
+      c.fillText(titleStr.slice(0, 26), el.x + 12, el.y + 22);
+
+      // Divider line
+      c.strokeStyle = 'rgba(255,255,255,0.08)';
+      c.beginPath();
+      c.moveTo(el.x + 12, el.y + 44);
+      c.lineTo(el.x + cw - 12, el.y + 44);
+      c.stroke();
+
+      // Body text
+      c.fillStyle = '#A8B2C1';
+      c.font = '12px Inter, system-ui, sans-serif';
+      const lines = (el.text || 'Double-click to write note…').split('\n');
+      let lineY = el.y + 52;
+      for(let j = 0; j < Math.min(lines.length, 5); j++){
+        c.fillText(lines[j].slice(0, 30), el.x + 12, lineY);
+        lineY += 18;
+      }
+      c.restore();
+    }
     // 8. Text Label
     else if(el.type === 'text'){
       c.fillStyle = el.color || curColor;
@@ -514,7 +640,51 @@ function initCanvasEngine(root, initialBoard, allBoards){
         c.beginPath();
         roundRect(c, el.x, el.y, el.w, el.h, 8);
         c.stroke();
+      } else {
+        // Smooth loading placeholder
+        c.save();
+        c.fillStyle = 'rgba(255,255,255,0.06)';
+        roundRect(c, el.x, el.y, el.w, el.h, 8);
+        c.fill();
+        c.strokeStyle = 'rgba(255,255,255,0.15)';
+        c.lineWidth = 1.5;
+        c.stroke();
+        c.fillStyle = 'rgba(255,255,255,0.4)';
+        c.font = '12px Inter, sans-serif';
+        c.textAlign = 'center';
+        c.textBaseline = 'middle';
+        c.fillText('Loading image…', el.x + el.w/2, el.y + el.h/2);
+        c.restore();
       }
+    }
+
+    // Active Selection Outline & Handles
+    if(selectedElemId && selectedElemId === el.id){
+      c.save();
+      c.strokeStyle = '#5EB8FF';
+      c.lineWidth = 2;
+      c.setLineDash([4, 4]);
+      let bx = el.x - 4, by = el.y - 4, bw = (el.w || (el.type === 'card' ? 220 : 160)) + 8, bh = (el.h || (el.type === 'card' ? 150 : 140)) + 8;
+      if(el.type === 'circle'){
+        bx = el.x - 4; by = el.y - 4; bw = (el.w || 0) + 8; bh = (el.h || 0) + 8;
+      } else if(el.type === 'line' || el.type === 'arrow'){
+        bx = Math.min(el.x1, el.x2) - 6; by = Math.min(el.y1, el.y2) - 6;
+        bw = Math.abs(el.x2 - el.x1) + 12; bh = Math.abs(el.y2 - el.y1) + 12;
+      } else if(el.type === 'text'){
+        bx = el.x - 4; by = el.y - 4; bw = ((el.text||'').length * 14) + 8; bh = (el.fontSize || 20) + 8;
+      } else if(el._bx){
+        bx = el._bx.minX; by = el._bx.minY; bw = el._bx.maxX - el._bx.minX; bh = el._bx.maxY - el._bx.minY;
+      }
+      roundRect(c, bx, by, bw, bh, 6);
+      c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#5EB8FF';
+      const hs = 6;
+      c.fillRect(bx - hs/2, by - hs/2, hs, hs);
+      c.fillRect(bx + bw - hs/2, by - hs/2, hs, hs);
+      c.fillRect(bx - hs/2, by + bh - hs/2, hs, hs);
+      c.fillRect(bx + bw - hs/2, by + bh - hs/2, hs, hs);
+      c.restore();
     }
     c.restore();
   }
@@ -533,8 +703,8 @@ function initCanvasEngine(root, initialBoard, allBoards){
   function findElementAt(wx, wy){
     for(let i = elements.length - 1; i >= 0; i--){
       const el = elements[i];
-      if(el.type === 'sticky' || el.type === 'rect' || el.type === 'image'){
-        const x = el.x, y = el.y, w = el.w || 160, h = el.h || 140;
+      if(el.type === 'sticky' || el.type === 'rect' || el.type === 'image' || el.type === 'card'){
+        const x = el.x, y = el.y, w = el.w || (el.type === 'card' ? 220 : 160), h = el.h || (el.type === 'card' ? 150 : 140);
         const minX = Math.min(x, x+w), maxX = Math.max(x, x+w);
         const minY = Math.min(y, y+h), maxY = Math.max(y, y+h);
         if(wx >= minX && wx <= maxX && wy >= minY && wy <= maxY) return el;
@@ -602,7 +772,7 @@ function initCanvasEngine(root, initialBoard, allBoards){
     startX = sx;
     startY = sy;
 
-    if(e.button === 1 || e.spaceKey || curTool === 'hand'){
+    if(e.button === 1 || e.spaceKey || curTool === 'hand' || isSpaceDown){
       isPanning = true;
       vp.setPointerCapture(e.pointerId);
       return;
@@ -611,16 +781,21 @@ function initCanvasEngine(root, initialBoard, allBoards){
     if(curTool === 'select'){
       const hit = findElementAt(w.x, w.y);
       if(hit){
+        selectedElemId = hit.id;
         isDraggingElem = true;
         dragElemId = hit.id;
         vp.setPointerCapture(e.pointerId);
+      } else {
+        selectedElemId = null;
       }
+      scheduleRender();
       return;
     }
 
     if(curTool === 'eraser'){
       const hit = findElementAt(w.x, w.y);
       if(hit){
+        if(selectedElemId === hit.id) selectedElemId = null;
         elements = elements.filter(x => x.id !== hit.id);
         pushHistory();
         scheduleRender();
@@ -643,9 +818,32 @@ function initCanvasEngine(root, initialBoard, allBoards){
         text: 'New Note'
       };
       elements.push(newSticky);
+      selectedElemId = newSticky.id;
       pushHistory();
       scheduleRender();
       openStickyEditor(newSticky);
+      try{ NX.sfx.play('tick'); }catch(err){}
+      return;
+    }
+
+    if(curTool === 'card'){
+      const newCard = {
+        id: U.uid('crd'),
+        type: 'card',
+        x: Math.round(w.x - 110),
+        y: Math.round(w.y - 75),
+        w: 220,
+        h: 150,
+        title: 'New Note',
+        text: '',
+        color: curColor,
+        bg: '#1E232B'
+      };
+      elements.push(newCard);
+      selectedElemId = newCard.id;
+      pushHistory();
+      scheduleRender();
+      openCardEditor(newCard);
       try{ NX.sfx.play('tick'); }catch(err){}
       return;
     }
@@ -794,15 +992,83 @@ function initCanvasEngine(root, initialBoard, allBoards){
     }
   });
 
-  // Double click sticky note to edit
+  // Double click to edit note/card, or double click empty space to create Obsidian note card
   vp.addEventListener('dblclick', e => {
     const r = vp.getBoundingClientRect();
     const w = toWorld(e.clientX - r.left, e.clientY - r.top);
     const hit = findElementAt(w.x, w.y);
-    if(hit && hit.type === 'sticky'){
-      openStickyEditor(hit);
+    if(hit){
+      if(hit.type === 'sticky') openStickyEditor(hit);
+      else if(hit.type === 'card') openCardEditor(hit);
+      else if(hit.type === 'text'){
+        const newTxt = prompt('Edit text:', hit.text || '');
+        if(newTxt !== null){
+          hit.text = newTxt;
+          pushHistory();
+          scheduleRender();
+        }
+      }
+    } else {
+      // Obsidian signature: Double-click empty canvas space creates an Obsidian Card!
+      const newCard = {
+        id: U.uid('crd'),
+        type: 'card',
+        x: Math.round(w.x - 110),
+        y: Math.round(w.y - 75),
+        w: 220,
+        h: 150,
+        title: 'New Note',
+        text: '',
+        color: curColor,
+        bg: '#1E232B'
+      };
+      elements.push(newCard);
+      selectedElemId = newCard.id;
+      pushHistory();
+      scheduleRender();
+      openCardEditor(newCard);
+      try{ NX.sfx.play('tick'); }catch(err){}
     }
   });
+
+  function openCardEditor(crd){
+    const prev = q('.canvas-card-editor', vp);
+    if(prev) prev.remove();
+
+    const scr = toScreen(crd.x, crd.y);
+    const editor = h(`<div class="canvas-card-editor" style="left:${scr.x}px;top:${scr.y}px;width:${Math.max(220, (crd.w||220)*zoom)}px;min-height:${Math.max(150, (crd.h||150)*zoom)}px;border-color:${crd.color||curColor}">
+      <input class="canvas-card-title-inp" value="${U.esc(crd.title||'Card')}" placeholder="Card Title…">
+      <textarea placeholder="Write card notes, thoughts or markdown…">${U.esc(crd.text||'')}</textarea>
+    </div>`);
+    vp.appendChild(editor);
+
+    const titleInp = q('.canvas-card-title-inp', editor);
+    const bodyTa = q('textarea', editor);
+    titleInp.focus();
+    titleInp.select();
+
+    let committed = false;
+    const commit = () => {
+      if(committed) return;
+      committed = true;
+      crd.title = titleInp.value.trim() || 'Untitled Note';
+      crd.text = bodyTa.value.trim();
+      editor.remove();
+      pushHistory();
+      scheduleRender();
+    };
+
+    titleInp.onkeydown = (ev) => {
+      if(ev.key === 'Enter'){ ev.preventDefault(); bodyTa.focus(); }
+      if(ev.key === 'Escape') commit();
+    };
+    bodyTa.onkeydown = (ev) => {
+      if(ev.key === 'Escape') commit();
+    };
+    editor.addEventListener('focusout', (ev) => {
+      if(!editor.contains(ev.relatedTarget)) commit();
+    });
+  }
 
   function openStickyEditor(stk){
     const prev = q('.canvas-sticky-editor', vp);
@@ -902,6 +1168,40 @@ function initCanvasEngine(root, initialBoard, allBoards){
       fileInput.value = '';
     };
   }
+
+  // Drag & drop images directly onto whiteboard canvas
+  vp.addEventListener('dragover', e => {
+    e.preventDefault();
+    if(e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  });
+
+  vp.addEventListener('drop', async e => {
+    e.preventDefault();
+    if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length){
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type && f.type.startsWith('image/'));
+      if(!files.length) return;
+      const rect = vp.getBoundingClientRect();
+      const dropWorld = toWorld(e.clientX - rect.left, e.clientY - rect.top);
+      let offX = 0;
+      for(const file of files){
+        try {
+          let dataUrl = '';
+          if(NX.compressImageToWebP){
+            const comp = await NX.compressImageToWebP(file, { maxWidth: 800, maxHeight: 800, quality: 0.84 });
+            dataUrl = comp.dataUrl;
+          }
+          if(!dataUrl){
+            const rd = new FileReader();
+            dataUrl = await new Promise(res => { rd.onload = () => res(rd.result); rd.readAsDataURL(file); });
+          }
+          insertImageFromDataUrl(dataUrl, dropWorld.x + offX, dropWorld.y);
+          offX += 40;
+        } catch(err){
+          console.error('Canvas drop image error:', err);
+        }
+      }
+    }
+  });
 
   // Board Switcher & Management Menu
   const switchBtn = q('#cb-switch-btn', root);
@@ -1130,12 +1430,59 @@ function initCanvasEngine(root, initialBoard, allBoards){
     updateZoomLabel();
     scheduleRender();
   };
-  q('#cz-reset', root).onclick = () => {
-    zoom = 1.0;
-    panX = 0; panY = 0;
+  function fitToContent(){
+    if(!elements.length){
+      zoom = 1.0;
+      panX = 0; panY = 0;
+      updateZoomLabel();
+      scheduleRender();
+      return;
+    }
+    const rect = vp.getBoundingClientRect();
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for(const el of elements){
+      if(el.type === 'rect' || el.type === 'sticky' || el.type === 'image' || el.type === 'card'){
+        const w = el.w || (el.type === 'card' ? 220 : 160);
+        const h = el.h || (el.type === 'card' ? 150 : 140);
+        minX = Math.min(minX, el.x); maxX = Math.max(maxX, el.x + w);
+        minY = Math.min(minY, el.y); maxY = Math.max(maxY, el.y + h);
+      } else if(el.type === 'circle'){
+        const r = Math.max(Math.abs(el.w || 0), Math.abs(el.h || 0)) / 2;
+        const cx = el.x + (el.w || 0) / 2, cy = el.y + (el.h || 0) / 2;
+        minX = Math.min(minX, cx - r); maxX = Math.max(maxX, cx + r);
+        minY = Math.min(minY, cy - r); maxY = Math.max(maxY, cy + r);
+      } else if(el.type === 'line' || el.type === 'arrow'){
+        minX = Math.min(minX, el.x1, el.x2); maxX = Math.max(maxX, el.x1, el.x2);
+        minY = Math.min(minY, el.y1, el.y2); maxY = Math.max(maxY, el.y1, el.y2);
+      } else if(el.type === 'text'){
+        minX = Math.min(minX, el.x); maxX = Math.max(maxX, el.x + (el.text ? el.text.length * 14 : 100));
+        minY = Math.min(minY, el.y); maxY = Math.max(maxY, el.y + 30);
+      } else if(el.points && el.points.length){
+        for(const p of el.points){
+          minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+          minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+        }
+      }
+    }
+    if(!isFinite(minX) || !isFinite(maxX)) return;
+    const bbW = Math.max(100, maxX - minX);
+    const bbH = Math.max(100, maxY - minY);
+    const pad = 80;
+    const availW = Math.max(200, rect.width - pad * 2);
+    const availH = Math.max(200, rect.height - pad * 2);
+    const fitZoom = Math.min(2.0, Math.max(0.2, Math.min(availW / bbW, availH / bbH)));
+    zoom = fitZoom;
+    const midX = (minX + maxX) / 2;
+    const midY = (minY + maxY) / 2;
+    panX = rect.width / 2 - midX * zoom;
+    panY = rect.height / 2 - midY * zoom;
     updateZoomLabel();
     scheduleRender();
-  };
+    NX.toastOk('Fit Canvas', `${elements.length} element${elements.length===1?'':'s'} centered`);
+    try{ NX.sfx.play('nav'); }catch(e){}
+  }
+
+  q('#cz-reset', root).onclick = fitToContent;
 
   // Grid Style Toggle
   const gridBtn = q('#cz-grid-toggle', root);
@@ -1154,15 +1501,62 @@ function initCanvasEngine(root, initialBoard, allBoards){
   window.addEventListener('keydown', e => {
     if(!cvs.isConnected) return;
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    if(e.code === 'Space' && !e.repeat){
+      isSpaceDown = true;
+      vp.classList.add('tool-hand');
+    }
+
     if(e.ctrlKey && e.key.toLowerCase() === 'z'){
       e.preventDefault();
       undo();
+      return;
     }
-    const map = { v:'select', h:'hand', p:'draw', m:'highlighter', r:'rect', o:'circle', a:'arrow', l:'line', s:'sticky', t:'text', e:'eraser' };
+
+    // Delete / Backspace selected item
+    if((e.key === 'Delete' || e.key === 'Backspace') && selectedElemId){
+      elements = elements.filter(x => x.id !== selectedElemId);
+      selectedElemId = null;
+      pushHistory();
+      scheduleRender();
+      NX.toastOk('Item deleted', '');
+      try{ NX.sfx.play('pop'); }catch(err){}
+      return;
+    }
+
+    // Ctrl+D Duplicate selected item
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd' && selectedElemId){
+      e.preventDefault();
+      const orig = elements.find(x => x.id === selectedElemId);
+      if(orig){
+        const copy = JSON.parse(JSON.stringify(orig));
+        copy.id = U.uid(copy.type || 'el');
+        if(copy.x !== undefined){ copy.x += 24; copy.y += 24; }
+        else if(copy.x1 !== undefined){ copy.x1 += 24; copy.y1 += 24; copy.x2 += 24; copy.y2 += 24; }
+        else if(copy.points){ copy.points.forEach(p => { p.x += 24; p.y += 24; }); copy._bx = null; }
+        elements.push(copy);
+        selectedElemId = copy.id;
+        pushHistory();
+        scheduleRender();
+        NX.toastOk('Item duplicated', '');
+        try{ NX.sfx.play('tick'); }catch(err){}
+      }
+      return;
+    }
+
+    const map = { v:'select', h:'hand', p:'draw', m:'highlighter', r:'rect', o:'circle', a:'arrow', l:'line', s:'sticky', c:'card', t:'text', e:'eraser' };
     if(!e.ctrlKey && !e.metaKey && map[e.key.toLowerCase()]){
       const t = map[e.key.toLowerCase()];
       const btn = q(`.ct-btn[data-t="${t}"]`, root);
       if(btn) btn.click();
+    }
+  });
+
+  window.addEventListener('keyup', e => {
+    if(e.code === 'Space'){
+      isSpaceDown = false;
+      vp.classList.remove('tool-hand');
+      vp.className = `canvas-viewport tool-${curTool}`;
     }
   });
 

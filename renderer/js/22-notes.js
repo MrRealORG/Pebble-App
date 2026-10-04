@@ -79,7 +79,8 @@ function mdRender(src){
   const inline = s => {
     let out = U.esc(s);
     out = out.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt, rawUrl) => {
-      const realUrl = resolveAsset(rawUrl);
+      const cleanUrl = String(rawUrl).replace(/&amp;/g, '&');
+      const realUrl = resolveAsset(cleanUrl);
       return `<img src="${realUrl}" alt="${alt}" class="md-img" loading="lazy">`;
     });
     out = out.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');

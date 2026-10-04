@@ -175,6 +175,7 @@
   position:fixed;z-index:900;min-width:190px;padding:6px;
   background:var(--surface);border-radius:var(--r-md);box-shadow:var(--sh-pop);
   animation:nx-pop .14s ease both;
+  transform:translate3d(0,0,0);will-change:transform,opacity;contain:layout style;
 }
 .menu-item{
   display:flex;align-items:center;gap:10px;width:100%;height:36px;padding:0 10px;
@@ -190,14 +191,16 @@
 
 /* ---------- modal ---------- */
 .modal-backdrop{
-  position:fixed;inset:0;z-index:800;background:rgba(20,20,18,.45);
+  position:fixed;inset:0;z-index:800;background:rgba(20,20,18,.5);
   display:flex;align-items:center;justify-content:center;padding:24px;
-  animation:nx-fade .15s ease both;
+  animation:nx-fade .14s ease both;
+  contain:strict;will-change:opacity;
 }
 .modal{
   background:var(--surface);border-radius:22px;box-shadow:var(--sh-pop);
   width:100%;max-width:480px;max-height:86vh;display:flex;flex-direction:column;
-  animation:nx-pop .18s ease both;overflow:hidden;
+  animation:nx-pop .16s ease both;overflow:hidden;
+  transform:translate3d(0,0,0);will-change:transform,opacity;contain:layout style;
 }
 .modal.m-lg{max-width:640px}
 .modal.m-xl{max-width:860px}

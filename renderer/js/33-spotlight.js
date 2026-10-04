@@ -16,8 +16,8 @@ function openSpotlight(){
   if(spotlightOpen) return;
   spotlightOpen = true;
 
-  const back = h(`<div class="cmdk-backdrop spotlight-backdrop anim-in" style="backdrop-filter:blur(10px);background:rgba(0,0,0,0.55);z-index:2000">
-    <div class="spotlight-box card" style="width:min(640px,94vw);margin:12vh auto auto;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.45);border:1px solid var(--line-strong);background:var(--surface)">
+  const back = h(`<div class="cmdk-backdrop spotlight-backdrop anim-fade" style="backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);background:rgba(0,0,0,0.55);z-index:2000;contain:strict;will-change:opacity">
+    <div class="spotlight-box card anim-pop" style="width:min(640px,94vw);margin:12vh auto auto;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,0.45);border:1px solid var(--line-strong);background:var(--surface);transform:translate3d(0,0,0);will-change:transform,opacity;contain:layout style">
       <div class="spotlight-head" style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--line)">
         <span class="spotlight-icon" style="color:var(--green);display:flex;align-items:center;flex:none">${icon('search', 20)}</span>
         <input class="spotlight-input" id="sl-input" placeholder="Search anything, or type 't Task', 'n Note', '? Ask AI'…" 
