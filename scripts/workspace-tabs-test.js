@@ -156,3 +156,4 @@ assert.ok(shellCss.includes('.omni-search-box'), '03-shell.css has omni-search-b
 console.log('  ✓ 03-shell.css styles Workspace Tabs and Omnibar');
 
 console.log('\nAll Workspace Tabs & Website Logo Favicon tests passed!\n');
+process.exit(0);

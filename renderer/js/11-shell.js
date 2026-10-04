@@ -779,5 +779,6 @@ NX.events.on('points:changed', ()=>{ NX.refreshPointsChip && NX.refreshPointsChi
 NX.events.on('store:entitlements', ()=>{ NX.refreshSidebarUser && NX.refreshSidebarUser(); });
 
 /* live day in topbar */
-setInterval(()=>{ const s = q('#tp-sub'); if(s) s.textContent = U.dayName(0); }, 60e3);
+const _topbarTimer = setInterval(()=>{ const s = typeof q === 'function' ? q('#tp-sub') : null; if(s) s.textContent = U.dayName(0); }, 60e3);
+if(_topbarTimer && typeof _topbarTimer.unref === 'function') _topbarTimer.unref();
 })(window.NX);
