@@ -1611,7 +1611,7 @@ fn spawn_reminder_thread(app: AppHandle) {
             if let Some(win) = app.get_webview_window("main") {
                 let _ = win.eval("try{ if (window.NX && NX.reminders && NX.reminders.pollDue) NX.reminders.pollDue(); }catch(e){}");
             }
-            std::thread::sleep(Duration::from_secs(20));
+            std::thread::sleep(Duration::from_secs(60));
         }
     });
 }

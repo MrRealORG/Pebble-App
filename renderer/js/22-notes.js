@@ -97,8 +97,8 @@ function mdRender(src){
     out = out.replace(/:?\[@task:\s*([^\]]+)\]\(todo:\/\/([^\)]+)\)/g, (m0, taskTitle, taskId) => {
       const allTasks = NX.store.get('tasks', []);
       const t = allTasks.find(x => x.id === taskId);
-      // taskTitle is matched from `out`, which was already entity-escaped at the start of inline().
-      // Use taskTitle directly so apostrophes and quotes are not double-escaped into raw HTML entities.
+      const isDone = t ? !!t.done : false;
+      const dueStr = t && t.due ? `<span class="md-todo-due">📅 ${U.esc(t.due)}</span>` : '';
       return `<span class="md-todo-chip ${isDone?'done':''}" data-task-id="${U.esc(taskId)}"><input type="checkbox" class="md-todo-cb" data-task-id="${U.esc(taskId)}" ${isDone?'checked':''}><span class="md-todo-text">${taskTitle}</span>${dueStr}</span>`;
     });
     // File Attachment Cards: [📎 filename (size)](url) or [file: filename (size)](url) or files ending in common formats

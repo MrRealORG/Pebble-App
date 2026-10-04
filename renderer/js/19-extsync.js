@@ -185,7 +185,7 @@ NX.extsync = {
   status(){ return lastStatus; },
   start(){
     if(drainTimer) return;
-    drainTimer = setInterval(()=>{ drainOnce(); pollStatus(); }, 4000);
+    drainTimer = setInterval(()=>{ drainOnce(); pollStatus(); }, 8000);
     drainOnce(); pollStatus();
   },
   stop(){

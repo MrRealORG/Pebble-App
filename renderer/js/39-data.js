@@ -107,7 +107,7 @@ function syncStatus(){
     sc.setAttribute('data-tip', 'Last workspace save · ' + Save.count + ' writes this session');
   }
 }
-setInterval(syncStatus, 4000);
+setInterval(syncStatus, 30000);
 NX.events.on('store:saved', syncStatus);
 NX.events.on('net:changed', syncStatus);
 

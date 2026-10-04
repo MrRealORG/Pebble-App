@@ -88,38 +88,38 @@
   75%, 86%       { opacity: 1; }
 }
 
-/* rotating rays */
-.wx-icon[data-wx="clear"] .wx-rays,
-.wx-icon[data-wx="mostly-clear"] .wx-rays { animation: wx-spin 14s linear infinite; }
-.wx-icon[data-wx="clear"] .wx-sun-core      { animation: wx-pulse 4s ease-in-out infinite; transform-origin: 32px 32px; }
+/* rotating rays — animate only on hover to prevent continuous CPU repaints on systems without dedicated GPU */
+.wx-icon:hover[data-wx="clear"] .wx-rays,
+.wx-icon:hover[data-wx="mostly-clear"] .wx-rays { animation: wx-spin 14s linear infinite; }
+.wx-icon:hover[data-wx="clear"] .wx-sun-core      { animation: wx-pulse 4s ease-in-out infinite; transform-origin: 32px 32px; }
 
-/* drifting clouds */
-.wx-drift-a { animation: wx-drift 5.5s ease-in-out infinite; }
-.wx-drift-b { animation: wx-drift 7s ease-in-out infinite reverse; }
+/* drifting clouds — calm by default */
+.wx-icon:hover .wx-drift-a { animation: wx-drift 5.5s ease-in-out infinite; }
+.wx-icon:hover .wx-drift-b { animation: wx-drift 7s ease-in-out infinite reverse; }
 
 /* precipitation, staggered per drop/flake via --i */
-.wx-fall line,
-.wx-fall circle {
+.wx-icon:hover .wx-fall line,
+.wx-icon:hover .wx-fall circle {
   animation: wx-fall 1.15s linear infinite;
   animation-delay: calc(var(--i, 0) * .19s);
 }
-.wx-fall-slow line,
-.wx-fall-slow circle {
+.wx-icon:hover .wx-fall-slow line,
+.wx-icon:hover .wx-fall-slow circle {
   animation: wx-fall-slow 1.9s linear infinite;
   animation-delay: calc(var(--i, 0) * .28s);
 }
-.wx-icon[data-wx="snow"] .wx-fall-slow circle { animation-name: wx-flake; }
+.wx-icon:hover[data-wx="snow"] .wx-fall-slow circle { animation-name: wx-flake; }
 .wx-fall circle,
 .wx-fall line { transform-origin: center; }
 
-/* fog bars slide independently */
-.wx-fog-bars .wx-fog {
+/* fog bars */
+.wx-icon:hover .wx-fog-bars .wx-fog {
   animation: wx-fog-slide 3.4s ease-in-out infinite;
   animation-delay: calc(var(--i, 0) * .35s);
 }
 
 /* lightning */
-.wx-bolt { animation: wx-flash 3.2s ease-in-out infinite; transform-origin: 32px 52px; }
+.wx-icon:hover .wx-bolt { animation: wx-flash 3.2s ease-in-out infinite; transform-origin: 32px 52px; }
 
 /* the dashboard headline icon is larger */
 #db-wx-ic .wx-icon { width: 42px; height: 42px; }

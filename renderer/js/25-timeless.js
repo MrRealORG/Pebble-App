@@ -310,7 +310,7 @@ const tracker = {
         this.bump(label, dt, false);
       }
       NX.events.emit('timeless:tick');
-    }, 2000));
+    }, 5000));
   },
 
   /* Hourly signal for the points ledger's focus_hour rule.
