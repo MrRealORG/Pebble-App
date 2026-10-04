@@ -12,12 +12,18 @@ const firebaseConfig = {
   appId: env.VITE_FIREBASE_APP_ID,
 };
 
-export const cloudConfigured = Boolean(
-  firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId &&
-  env.VITE_SUPABASE_URL && env.VITE_SUPABASE_PUBLISHABLE_KEY
+export const supabaseConfigured = Boolean(
+  (env.VITE_SUPABASE_URL || 'https://uqrkpssesnxhevkgcgsu.supabase.co') &&
+  (env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_AQgLWYOskawdqLpqOmdk0g_J4WoSrH-')
 );
 
-const firebaseApp = cloudConfigured ? getApps()[0] ?? initializeApp(firebaseConfig) : null;
+export const hasFirebase = Boolean(
+  firebaseConfig.apiKey && firebaseConfig.authDomain && firebaseConfig.projectId && firebaseConfig.appId
+);
+
+export const cloudConfigured = Boolean(supabaseConfigured || hasFirebase);
+
+const firebaseApp = hasFirebase ? getApps()[0] ?? initializeApp(firebaseConfig) : null;
 if (firebaseApp && env.VITE_FIREBASE_APPCHECK_SITE_KEY) {
   initializeAppCheck(firebaseApp, {
     provider: new ReCaptchaV3Provider(env.VITE_FIREBASE_APPCHECK_SITE_KEY),
@@ -27,10 +33,14 @@ if (firebaseApp && env.VITE_FIREBASE_APPCHECK_SITE_KEY) {
 
 export const firebaseAuth = firebaseApp ? getAuth(firebaseApp) : null;
 export const cloudFunctions = firebaseApp ? getFunctions(firebaseApp, env.VITE_FIREBASE_FUNCTIONS_REGION || 'us-central1') : null;
-export const supabase = cloudConfigured
-  ? createClient(env.VITE_SUPABASE_URL!, env.VITE_SUPABASE_PUBLISHABLE_KEY!, {
-      accessToken: async () => firebaseAuth?.currentUser?.getIdToken() ?? null,
-    })
+export const supabase = supabaseConfigured
+  ? createClient(
+      env.VITE_SUPABASE_URL || 'https://uqrkpssesnxhevkgcgsu.supabase.co',
+      env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_AQgLWYOskawdqLpqOmdk0g_J4WoSrH-',
+      hasFirebase
+        ? { accessToken: async () => firebaseAuth?.currentUser?.getIdToken() ?? null }
+        : {}
+    )
   : null;
 
 export async function provisionAccount() {

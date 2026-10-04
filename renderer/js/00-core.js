@@ -265,6 +265,18 @@ window.NX = window.NX || {};
     routes:{}, current:null, layout:'app',
     register(name, opts){ this.routes[name] = opts; },
     go(name, params){
+      const inWidgetMode = document.body.classList.contains('widget-mode') ||
+                           document.documentElement.classList.contains('widget-mode') ||
+                           (window.NX && window.NX.isWidgetWindow);
+      if(inWidgetMode && name !== 'widget'){
+        const target = '#/' + name + (params ? '/' + params : '');
+        try{
+          if(NX.native && NX.native.available && typeof NX.native.showMain === 'function'){
+            NX.native.showMain(target);
+          }
+        }catch(e){}
+        return;
+      }
       if(!this.routes[name]) name = 'dashboard';
       const r = this.routes[name];
       if(this.current && this.current.onLeave) try{ this.current.onLeave(); }catch(e){}

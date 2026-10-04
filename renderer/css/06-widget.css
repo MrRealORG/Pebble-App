@@ -1,9 +1,14 @@
-/* PebbleX — desktop widget styles */
+/* ============================================================
+   PebbleX v0.1 — 06-widget.css
+   Desktop Widget Island (Dark Glassmorphic UI with 5 Tabs):
+   1. Tasks  2. Focus  3. Notes  4. Timeless  5. Glance
+   ============================================================ */
+
 html.widget-mode,
 body.widget-mode {
   background: transparent !important;
   margin: 0;
-  padding: 8px;
+  padding: 6px;
   box-sizing: border-box;
   width: 100vw;
   height: 100vh;
@@ -11,261 +16,123 @@ body.widget-mode {
   user-select: none;
   display: flex;
 }
+
 body.widget-mode #nx-widget-root {
   width: 100%;
   height: 100%;
   display: flex;
   flex: 1;
 }
+
 body.widget-mode #nx-splash,
 body.widget-mode #nx-login,
 body.widget-mode #nx-app {
   display: none !important;
 }
 
-/* The widget window is created with transparent + always_on_top +
-   decorations(false) + shadow. On Windows that is a layered WebView2
-   surface, and backdrop-filter on a layered surface pushes the compositor
-   onto a path that can blank or take down the window. The widget is a small
-   panel sitting over the desktop and gains nothing from a blur, so every
-   backdrop filter is dropped while the widget owns the window. */
-body.widget-mode *,
-body.widget-mode *::before,
-body.widget-mode *::after {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-}
-
+/* Glassmorphic Widget Container */
 .widget {
   width: 100%;
   height: 100%;
-  background: var(--surface);
-  border-radius: 22px;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.35), 0 0 0 1px var(--line);
-  padding: 16px;
+  background: rgba(18, 21, 26, 0.94);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-radius: 20px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08);
+  padding: 13px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  border: 1px solid var(--line);
-  animation: nx-pop .25s ease both;
+  gap: 9px;
+  border: 1px solid rgba(255,255,255,0.1);
+  animation: nx-pop .2s cubic-bezier(.16,1,.3,1) both;
   overflow: hidden;
   position: relative;
   box-sizing: border-box;
+  color: #f1f3f7;
 }
 
+.widget.drag-hover {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 2px var(--green-ring), 0 18px 50px rgba(0,0,0,0.6) !important;
+}
+
+/* Header & Drag Region */
 .widget-drag-area {
   cursor: grab;
   user-select: none;
+  -webkit-app-region: drag;
 }
 .widget-drag-area:active {
   cursor: grabbing;
+}
+.widget button, .widget input, .widget textarea {
+  -webkit-app-region: no-drag;
 }
 
 .widget .w-head {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: none;
 }
 .widget .w-head .brand-mark {
-  width: 28px;
-  height: 28px;
-  border-radius: 9px;
-  background: var(--tile);
-  color: var(--tile-ink);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--green);
+  color: #0c180a;
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
+  font-weight: 800;
+  font-size: 13px;
 }
 .widget .w-head .brand-mark svg {
-  width: 15px;
-  height: 15px;
+  width: 14px;
+  height: 14px;
 }
 .widget .w-head b {
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 800;
   flex: 1;
+  letter-spacing: -.01em;
 }
 
 .widget-btns {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: none;
 }
 .widget-btn-icon {
   width: 24px;
   height: 24px;
   border-radius: 7px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  color: var(--ink-2);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #9aa4b8;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 11px;
+  transition: all .14s;
 }
 .widget-btn-icon:hover {
-  background: var(--surface-3);
-  color: var(--ink);
-}
-
-.widget .w-clock {
-  font-size: 32px;
-  font-weight: 800;
-  letter-spacing: -.03em;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-}
-.widget .w-date {
-  font-size: 11px;
-  color: var(--ink-3);
-  margin-top: 3px;
-  font-weight: 600;
-}
-
-.widget .w-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  background: var(--surface-2);
-  border-radius: 12px;
-}
-.widget .w-row .wr-ic {
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: none;
+  background: rgba(255,255,255,0.12);
   color: #fff;
-}
-.widget .w-row .wr-ic svg {
-  width: 13px;
-  height: 13px;
-}
-.widget .w-row .wr-t {
-  font-size: 10.5px;
-  color: var(--ink-3);
-  font-weight: 600;
-  line-height: 1.2;
-}
-.widget .w-row .wr-v {
-  font-size: 12px;
-  font-weight: 800;
-  line-height: 1.2;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  border-color: rgba(255,255,255,0.18);
 }
 
-.widget .w-score {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.widget .w-score .meter {
-  flex: 1;
-  height: 6px;
-  background: var(--surface-3);
-  border-radius: 99px;
-  overflow: hidden;
-}
-.widget .w-score .meter i {
-  display: block;
-  height: 100%;
-  background: var(--green);
-  border-radius: 99px;
-  transition: width .3s ease;
-}
-.widget .w-sec {
-  font-size: 9.5px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--ink-3);
-}
-
-/* Quick Note in Widget.
-   Matched to .w-row on purpose: the old hard 1px border read as a stray line
-   across the widget once the row was narrower than the border radius. */
-.widget-quick-note {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--surface-2);
-  border-radius: 12px;
-  padding: 7px 10px;
-  border: none;
-  min-width: 0;
-}
-.widget-quick-note input {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  color: var(--ink);
-  font-size: 11.5px;
-  outline: none;
-  font-family: inherit;
-}
-.widget-quick-note input::placeholder {
-  color: var(--ink-3);
-}
-.widget-quick-note button {
-  background: var(--green);
-  color: #0f1c0d;
-  border: none;
-  border-radius: 6px;
-  padding: 3px 8px;
-  font-size: 10px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-/* Quick Tasks in Widget */
-.widget-tasks-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.widget-task-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 4px 6px;
-  background: var(--surface-2);
-  border-radius: 8px;
-  font-size: 11.5px;
-  color: var(--ink-2);
-}
-.widget-task-item input[type="checkbox"] {
-  cursor: pointer;
-  accent-color: var(--green);
-}
-.widget-task-item span {
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Mini Compact Mode (The smaller widget requested!) */
-
-/* The mini bar is only ever shown in mini mode. Previously the class list on
-   it was toggled from JS, but `.w-hide-mini` is only styled inside
-   `.mini-mode`, so in full mode nothing hid the mini bar and the clock
-   rendered twice. One CSS rule now owns this, driven by the widget's own
-   class, so the two layouts can never both be visible. */
+/* Mini Mode Capsule Bar */
 .widget:not(.mini-mode) .w-mini-bar {
   display: none !important;
 }
 .widget.mini-mode {
   padding: 8px 12px;
   gap: 6px;
-  border-radius: 18px;
+  border-radius: 16px;
 }
 .widget.mini-mode .w-hide-mini {
   display: none !important;
@@ -273,137 +140,438 @@ body.widget-mode *::after {
 .widget.mini-mode .w-mini-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex: 1;
 }
 .widget.mini-mode .w-mini-clock {
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 800;
   letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums;
 }
 .widget.mini-mode .w-mini-badge {
   font-size: 10.5px;
   font-weight: 700;
-  background: var(--green-soft);
-  color: var(--green-deep);
+  background: rgba(124,213,110,0.16);
+  color: var(--green);
   padding: 2px 7px;
   border-radius: 99px;
+  border: 1px solid rgba(124,213,110,0.25);
 }
 
-/* ============================================================
-   RESPONSIVE BEHAVIOUR
-
-   The widget is its own resizable window, so its viewport is the
-   breakpoint source. Without this, shrinking the window clipped the
-   task list and pushed content past the rounded edge. Sections now
-   compact in order of importance: chrome first, then the clock, then
-   the task list, which is the only part allowed to scroll.
-   ============================================================ */
-.widget {
-  overflow: hidden;
-}
-.widget > * {
+/* 5 Switchable Tabs Navigation Pill Bar */
+.wg-nav {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0,0,0,0.32);
+  border-radius: 11px;
+  padding: 2.5px;
+  border: 1px solid rgba(255,255,255,0.06);
   flex: none;
 }
-.widget-tasks-list,
-.w-quick-scroll {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-/* short window: tighten the vertical rhythm */
-@media (max-height: 460px) {
-  .widget {
-    padding: 13px;
-    gap: 8px;
-  }
-  .widget .w-clock {
-    font-size: 27px;
-  }
-}
-@media (max-height: 400px) {
-  .widget {
-    padding: 11px;
-    gap: 7px;
-  }
-  .widget .w-clock {
-    font-size: 23px;
-  }
-  .widget .w-date {
-    display: none;
-  }
-}
-@media (max-height: 330px) {
-  .widget {
-    padding: 9px;
-    gap: 6px;
-  }
-  .widget .w-score {
-    display: none;
-  }
-  .widget .w-row {
-    padding: 6px 8px;
-  }
-}
-
-/* narrow window: stop the row contents from colliding */
-@media (max-width: 270px) {
-  .widget {
-    padding: 11px;
-    gap: 7px;
-  }
-  .widget .w-clock {
-    font-size: 22px;
-  }
-  .widget .w-score {
-    gap: 7px;
-  }
-  .widget .w-row {
-    padding: 7px 8px;
-    gap: 7px;
-  }
-  .widget-quick-note {
-    padding: 6px 8px;
-  }
-  .widget-quick-note input {
-    font-size: 11px;
-  }
-  .widget-head-actions,
-  .widget-btns {
-    gap: 2px;
-  }
-}
-@media (max-width: 210px) {
-  .widget .w-clock {
-    font-size: 19px;
-  }
-  .widget-quick-note button {
-    padding: 3px 6px;
-  }
-  /* the pomo button is the first thing to go when there is no room */
-  .widget .w-row #wg-pomo-btn {
-    display: none;
-  }
-}
-
-/* The task block is the only elastic region in the widget: it absorbs the
-   leftover height and scrolls when the window is short, instead of pushing
-   the rounded corner out of view. */
-.widget .w-tasks-wrap {
+.wg-tab-btn {
+  flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 5px;
-  flex: 1 1 auto;
-  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  color: #8f9ba8;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: all .15s ease;
+  white-space: nowrap;
 }
-.widget .w-tasks-head {
+.wg-tab-btn:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.05);
+}
+.wg-tab-btn.active {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+.wg-tab-btn.active svg {
+  color: var(--green);
+}
+.wg-tab-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* Tab Panes */
+.wg-tab-pane {
+  display: none;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.wg-tab-pane.active {
+  display: flex;
+  animation: nx-fade-up .18s ease both;
+}
+
+/* Tab 1: Tasks */
+.wg-task-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px;
+  padding: 4px 8px;
+}
+.wg-task-input-wrap:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 2px rgba(124,213,110,0.2);
+}
+.wg-task-input-wrap input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+  min-width: 0;
+  font-family: inherit;
+}
+.wg-task-input-wrap input::placeholder { color: #697386; }
+.wg-task-input-wrap button {
+  background: var(--green);
+  color: #0c180a;
+  border: none;
+  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: none;
+}
+.wg-tasks-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 2px;
+}
+.w-sec {
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: #7d8799;
+}
+.wg-tasks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.widget-task-item {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  padding: 6px 9px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  font-size: 12px;
+  color: #d1d5db;
+  cursor: grab;
+  transition: all .12s ease;
+  user-select: none;
+}
+.widget-task-item:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.1);
+}
+.widget-task-item.dragging {
+  opacity: 0.35;
+  cursor: grabbing;
+}
+.widget-task-item.drag-over {
+  border-top: 2px solid var(--green);
+  background: rgba(124,213,110,0.08);
+}
+.wg-drag-grip {
+  color: #4b5563;
+  font-size: 11px;
+  cursor: grab;
+  letter-spacing: -2px;
   flex: none;
 }
-.widget .w-tasks-head .tiny {
+.widget-task-item input[type="checkbox"] {
   cursor: pointer;
+  accent-color: var(--green);
+  margin: 0;
   flex: none;
+}
+.wg-task-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wg-task-text.done {
+  text-decoration: line-through;
+  color: #6b7280;
+}
+.wg-drop-hint {
+  font-size: 9.5px;
+  color: #6b7280;
+  text-align: center;
+  padding: 2px 0;
+  border-top: 1px dashed rgba(255,255,255,0.07);
+}
+
+/* Tab 2: Focus / Pomodoro */
+.wg-pomo-presets {
+  display: flex;
+  gap: 5px;
+}
+.wg-preset-btn {
+  flex: 1;
+  padding: 5px 0;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #9aa4b8;
+  cursor: pointer;
+  transition: all .14s;
+}
+.wg-preset-btn.active {
+  background: var(--green);
+  color: #0c180a;
+  border-color: var(--green);
+  font-weight: 700;
+}
+.wg-pomo-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 12px;
+  background: rgba(0,0,0,0.28);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.06);
+  gap: 6px;
+}
+.wg-pomo-clock {
+  font-size: 38px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #fff;
+}
+.wg-pomo-round-chip {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+}
+.wg-pomo-meter-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.wg-pomo-meter-fill {
+  height: 100%;
+  background: var(--green);
+  border-radius: 99px;
+  transition: width .3s ease;
+}
+.wg-pomo-actions {
+  display: flex;
+  gap: 8px;
+}
+.wg-pomo-actions .btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  padding: 8px;
+  font-weight: 700;
+}
+
+/* Tab 3: Notes / Scratchpad */
+.wg-notes-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 8px 10px;
+}
+.wg-notes-card textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  min-height: 72px;
+}
+.wg-notes-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 6px;
+}
+.wg-recent-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.wg-recent-note-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 8px;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.wg-recent-note-row:hover { background: rgba(255,255,255,0.07); }
+.wg-rn-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Tab 4: Timeless / Screen Time */
+.wg-active-app-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+}
+.wg-active-app-card .wr-ic {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.wg-time-split {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.24);
+  border-radius: 12px;
+}
+.wg-ratio-meter {
+  display: flex;
+  height: 7px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.wg-rm-prod { background: var(--green); height: 100%; }
+.wg-rm-distr { background: var(--orange); height: 100%; }
+
+.wg-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.wg-stat-box {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 11px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.wg-stat-box b { font-size: 13.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+/* Tab 5: Glance / Daily Dashboard */
+.wg-glance-clock-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(0,0,0,0.28);
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.07);
+  text-align: center;
+  gap: 3px;
+}
+.wg-glance-clock {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.wg-glance-date {
+  font-size: 11.5px;
+  color: #9ca3af;
+  font-weight: 600;
+}
+.wg-glance-greeting {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--green);
+  margin-top: 3px;
+}
+.wg-glance-meter-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 11px;
+}
+.wg-glance-meter-wrap .meter {
+  height: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.wg-glance-meter-wrap .meter i {
+  display: block;
+  height: 100%;
+  background: var(--green);
+  border-radius: 99px;
+  transition: width .3s ease;
 }

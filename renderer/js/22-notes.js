@@ -2265,9 +2265,11 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   function setSidebarCollapsed(collapsed){
     const layout = q('#nt-layout', view);
     const expandBtn = q('#nt-expand-sidebar', view);
-    if(layout) layout.classList.toggle('collapsed', collapsed);
+    if(layout) layout.classList.toggle('collapsed', !!collapsed);
     if(expandBtn) expandBtn.style.display = collapsed ? 'inline-flex' : 'none';
-    NX.store.set('ui:notesSidebarCollapsed', collapsed);
+    NX.store.set('ui:notesSidebarCollapsed', !!collapsed);
+    try{ if(NX.sfx) NX.sfx.play('nav'); }catch(e){}
+    setTimeout(()=> window.dispatchEvent(new Event('resize')), 50);
   }
 
   const collapseBtn = q('#nt-collapse-sidebar', view);

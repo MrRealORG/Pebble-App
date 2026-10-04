@@ -1,72 +1,133 @@
 /* Pebble 3.0 — shell: login window, app sidebar, topbar, layout */
 
-/* ================= LOGIN (small window feel) ================= */
-body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg) 46%,var(--surface-2) 100%)}
+/* ================= LOGIN (Modern Dark Glassmorphism) ================= */
+body.login-mode{
+  background:radial-gradient(ellipse at 50% -10%, rgba(124,213,110,.14) 0%, #0d0f12 65%, #07080a 100%) fixed;
+  color:#f4f2ee;
+}
 .login-wrap{
-  height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
+  height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
 }
 .login-card{
-  width:380px;max-width:100%;background:var(--surface);border-radius:26px;
-  box-shadow:var(--sh-login);padding:34px 32px 28px;
-  animation:nx-pop .3s ease both;position:relative;overflow:hidden;
+  width:440px;max-width:100%;
+  background:rgba(20,23,28,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border:1px solid rgba(255,255,255,.09);border-radius:24px;
+  box-shadow:0 24px 64px rgba(0,0,0,.6), 0 0 0 1px rgba(124,213,110,.12);
+  padding:28px 28px 22px;animation:nx-pop .28s ease both;
+  position:relative;overflow:hidden;
 }
 .login-card::before{
-  content:"";position:absolute;top:-70px;right:-70px;width:180px;height:180px;
-  border-radius:50%;background:var(--green-soft);opacity:.8;
+  content:"";position:absolute;top:-60px;right:-60px;width:160px;height:160px;
+  border-radius:50%;background:radial-gradient(circle, rgba(124,213,110,.25) 0%, transparent 70%);pointer-events:none;
 }
 .login-logo{
-  position:relative;display:flex;align-items:center;gap:12px;margin-bottom:6px;
+  position:relative;display:flex;align-items:center;gap:12px;margin-bottom:14px;
 }
 .login-mark{
-  width:46px;height:46px;border-radius:15px;background:var(--tile);color:var(--tile-ink);
-  display:flex;align-items:center;justify-content:center;
+  width:44px;height:44px;border-radius:14px;background:var(--tile);color:var(--tile-ink);
+  display:flex;align-items:center;justify-content:center;flex:none;box-shadow:0 4px 14px rgba(0,0,0,.4);
 }
 .login-mark svg{width:24px;height:24px}
-.login-logo h1{font-size:21px;letter-spacing:-.02em}
-.login-logo .ver{font-size:11px;color:var(--ink-3);font-weight:600;margin-top:1px}
-.login-sub{position:relative;color:var(--ink-2);font-size:13px;margin-bottom:24px}
-.login-form{position:relative;display:flex;flex-direction:column;gap:14px}
-.login-form .avatar-pick{display:flex;gap:8px;flex-wrap:wrap}
-.avatar-pick .av-opt{
-  width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  color:#fff;font-weight:700;font-size:13px;cursor:pointer;border:2.5px solid transparent;transition:all .15s;
+.login-logo h1{font-size:20px;letter-spacing:-.02em;font-weight:800;display:flex;align-items:center;gap:6px}
+.login-logo .env-badge{font-size:10px;font-weight:900;background:var(--green);color:#0E2B0A;padding:1px 6px;border-radius:6px;letter-spacing:.04em}
+.login-logo .ver{font-size:11.5px;color:var(--ink-3);font-weight:500;margin-top:2px}
+
+/* Tabs */
+.lg-tabs{
+  display:flex;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.07);
+  border-radius:12px;padding:3px;gap:3px;margin-bottom:14px;
 }
-.avatar-pick .av-opt.on{border-color:var(--ink);transform:scale(1.08)}
-.login-row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;color:var(--ink-2)}
-/* "Don't ask again" — a plain, quiet checkbox under the primary button.
-   It is the difference between a login that feels fine and one that gets
-   resented every single launch. */
+.lg-tab-btn{
+  flex:1;height:34px;border-radius:9px;font-size:12.5px;font-weight:600;
+  color:var(--ink-3);display:flex;align-items:center;justify-content:center;gap:6px;
+  transition:all .16s ease;
+}
+.lg-tab-btn.on{
+  background:rgba(255,255,255,.09);color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.3);
+}
+.lg-panel{display:none}
+.lg-panel.show{display:flex;flex-direction:column;gap:10px;animation:nx-fade .2s ease both}
+
+/* Cloud sub-mode toggle */
+.cloud-sub-toggle{
+  display:flex;gap:14px;border-bottom:1px solid rgba(255,255,255,.07);padding-bottom:8px;margin-bottom:4px;
+}
+.cst-btn{
+  font-size:12px;font-weight:700;color:var(--ink-3);padding:2px 0;position:relative;
+  transition:color .14s ease;
+}
+.cst-btn.on{color:var(--green)}
+.cst-btn.on::after{
+  content:"";position:absolute;bottom:-9px;left:0;right:0;height:2px;background:var(--green);border-radius:2px;
+}
+
+.login-form{display:flex;flex-direction:column;gap:10px}
+.login-form .field label{font-size:11.5px;font-weight:600;color:var(--ink-2);margin-bottom:4px;display:block}
+.login-form .input{
+  width:100%;height:38px;padding:0 12px;border-radius:10px;
+  background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.1);
+  color:#fff;font-size:13px;transition:border-color .15s, box-shadow .15s;
+}
+.login-form .input:focus{
+  border-color:var(--green);outline:none;box-shadow:0 0 0 3px rgba(124,213,110,.2);
+}
+.input-pass-wrap{position:relative;display:flex;align-items:center}
+.btn-toggle-pass{
+  position:absolute;right:8px;width:26px;height:26px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;color:var(--ink-3);cursor:pointer;
+}
+.btn-toggle-pass:hover{color:#fff}
+
+.or-divider{display:flex;align-items:center;gap:10px;margin:2px 0}
+.or-divider::before,.or-divider::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.08)}
+.or-divider span{font-size:10px;font-weight:700;color:var(--ink-3);letter-spacing:.05em}
+
+.btn-google-oauth{
+  display:flex;align-items:center;justify-content:center;gap:9px;font-size:13px;
+  font-weight:600;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+  color:#fff;transition:background .15s, border-color .15s;
+}
+.btn-google-oauth:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.2)}
+
+.cloud-status-hint{font-size:11.5px;color:var(--ink-3);text-align:center;margin-top:4px}
+.avatar-pick{display:flex;gap:7px;flex-wrap:wrap}
+.avatar-pick .av-opt{
+  width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:700;font-size:12.5px;cursor:pointer;border:2.5px solid transparent;transition:all .15s;
+}
+.avatar-pick .av-opt.on{border-color:#fff;transform:scale(1.1)}
+
 .lg-remember{
   display:flex;align-items:center;gap:8px;justify-content:center;
-  margin-top:12px;cursor:pointer;user-select:none;
-  font-size:12px;color:var(--ink-3);font-weight:500;
+  cursor:pointer;user-select:none;font-size:12px;color:var(--ink-3);font-weight:500;
 }
 .lg-remember input{
   width:15px;height:15px;flex:none;cursor:pointer;
   accent-color:var(--green);margin:0;
 }
-.lg-remember:hover{ color:var(--ink-2) }
-.lg-opt{ color:var(--ink-3); font-weight:500 }
+.lg-remember:hover{color:var(--ink-2)}
+.lg-opt{color:var(--ink-3);font-weight:500}
 .login-err{
-  background:var(--red-soft);color:var(--red);font-size:12.5px;font-weight:600;
-  border-radius:10px;padding:8px 12px;display:none;animation:nx-shake .4s ease;
+  background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.35);color:#fca5a5;
+  font-size:12px;font-weight:600;border-radius:10px;padding:8px 12px;display:none;animation:nx-shake .35s ease;
+  margin-bottom:8px;line-height:1.4;
 }
 .login-err.show{display:block}
-/* "continue where you left off" resume card on the login screen */
+
 .resume-card{
   position:relative;display:flex;align-items:flex-start;gap:10px;
-  background:var(--green-soft);border:1px solid color-mix(in srgb, var(--green) 26%, transparent);
-  border-radius:16px;padding:12px;margin-bottom:16px;
+  background:rgba(124,213,110,.08);border:1px solid rgba(124,213,110,.25);
+  border-radius:14px;padding:11px;margin-bottom:12px;
 }
-.resume-card .rc-ic{flex:none;width:34px;height:34px;border-radius:11px;background:var(--surface);color:var(--green);display:flex;align-items:center;justify-content:center}
+.resume-card .rc-ic{flex:none;width:32px;height:32px;border-radius:10px;background:rgba(0,0,0,.3);color:var(--green);display:flex;align-items:center;justify-content:center}
 .resume-card .rc-txt{flex:1;min-width:0}
-.resume-card .rc-txt b{display:block;font-size:12.5px;margin-bottom:2px}
-.resume-card .rc-txt span{font-size:11.5px;color:var(--ink-2);line-height:1.45;display:block}
-.resume-card .btn{margin-top:8px}
-.login-foot{margin-top:20px;text-align:center;font-size:11.5px;color:var(--ink-3)}
-/* window dots (simulates small window chrome in web/electron) */
+.resume-card .rc-txt b{display:block;font-size:12.5px;margin-bottom:2px;color:#fff}
+.resume-card .rc-txt span{font-size:11.5px;color:var(--ink-2);line-height:1.4;display:block}
+.resume-card .btn{margin-top:6px}
+
+.login-foot{margin-top:14px;text-align:center;font-size:11px;color:var(--ink-4)}
 .login-dots{position:absolute;top:14px;right:16px;display:flex;gap:6px}
-.login-dots i{width:10px;height:10px;border-radius:50%;background:var(--line-strong)}
+.login-dots i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.14)}
 .login-dots i.g{background:var(--green)}
 
 /* ================= APP SHELL ================= */
@@ -261,8 +322,9 @@ body.login-mode{background:linear-gradient(160deg,var(--green-soft) 0%,var(--bg)
   height:var(--topbar-h);flex:none;display:flex;align-items:center;gap:12px;
   padding:0 20px 0 24px;
 }
-.topbar .page-title{font-size:21px;font-weight:800;letter-spacing:-.02em;flex:1;display:flex;align-items:baseline;gap:10px;min-width:0}
+.topbar .page-title{font-size:21px;font-weight:800;letter-spacing:-.02em;flex:0 1 auto;display:flex;align-items:baseline;gap:10px;min-width:0;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .topbar .page-title .sub{font-size:12.5px;color:var(--ink-3);font-weight:500;white-space:nowrap}
+.topbar .search-box{margin-left:auto}
 .view-host{flex:1;overflow-y:auto;overflow-x:hidden;padding:4px 20px 24px 24px}
 .view-host.full{padding:0}
 

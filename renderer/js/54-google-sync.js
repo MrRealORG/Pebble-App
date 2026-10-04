@@ -170,7 +170,11 @@ async function authorize(scopes, opts){
           done(resp);
         },
         error_callback: (err)=>{
-          log('Authorisation error: ' + ((err && err.message) || 'unknown'), 'err');
+          const msg = (err && (err.message || err.type)) || 'unknown';
+          log('Authorisation error: ' + msg, 'err');
+          if(String(msg).toLowerCase().includes('popup') || (err && err.type === 'popup_failed_to_open')){
+            NX.toast('err', 'Google Popup Blocked', 'Popups are restricted. In Settings -> Cloud, connect with Supabase or allow OAuth windows.');
+          }
           done(null);
         },
       });

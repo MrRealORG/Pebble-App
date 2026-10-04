@@ -53,9 +53,22 @@ function writeJSON(file, obj) {
 let authWin = null;
 function createAuthWindow(onDone) {
   authWin = new BrowserWindow({
-    width: 400, height: 520, frame: false, resizable: false, center: true,
-    backgroundColor: '#f4f2ee', show: false,
+    width: 480, height: 620, frame: false, resizable: false, center: true,
+    backgroundColor: '#0c0d0e', show: false,
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: false }
+  });
+  authWin.webContents.setWindowOpenHandler(({ url }) => {
+    if (/accounts\.google\.com\/o\/oauth2/i.test(url) || /supabase\.co\/auth/i.test(url) || /oauth/i.test(url)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 520, height: 640, autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false }
+        }
+      };
+    }
+    if (/^https?:/i.test(url)) shell.openExternal(url);
+    return { action: 'deny' };
   });
   authWin.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'), { query: 'auth=1' });
   authWin.once('ready-to-show', () => authWin.show());
@@ -156,8 +169,17 @@ function createWindow() {
     mainWindow.focus();
   });
 
-  // Open external links in the system browser, never inside the app
+  // Open external links in the system browser, except OAuth popups
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/accounts\.google\.com\/o\/oauth2/i.test(url) || /supabase\.co\/auth/i.test(url) || /oauth/i.test(url)) {
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          width: 520, height: 640, autoHideMenuBar: true,
+          webPreferences: { contextIsolation: true, nodeIntegration: false }
+        }
+      };
+    }
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -205,11 +227,14 @@ function createPetWindow() {
 function createWidgetIsland() {
   const prefs = readJSON(settingsFile(), {});
   if (prefs.desktopIsland === false) return;
-  const { width } = require('electron').screen.getPrimaryDisplay().workAreaSize;
+  const { width, height } = require('electron').screen.getPrimaryDisplay().workAreaSize;
+  const isMini = prefs.widgetMini === true;
+  const w = 340;
+  const h = isMini ? 88 : 500;
   widgetWin = new BrowserWindow({
-    width: 480, height: 58, x: Math.round((width - 480) / 2), y: 4,
-    frame: false, transparent: true, alwaysOnTop: true, resizable: false,
-    skipTaskbar: true, hasShadow: false, fullscreenable: false, minimizable: false, maximizable: false,
+    width: w, height: h, x: Math.max(20, width - w - 24), y: Math.max(20, height - h - 36),
+    frame: false, transparent: true, alwaysOnTop: true, resizable: true,
+    skipTaskbar: true, hasShadow: true, fullscreenable: false, minimizable: false, maximizable: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, nodeIntegration: false, sandbox: false
@@ -465,6 +490,15 @@ ipcMain.handle('shot:window', async () => {
 ipcMain.handle('widget:toggle', () => {
   if (widgetWin) { widgetWin.destroy(); widgetWin = null; return { on: false }; }
   createWidgetIsland(); return { on: true };
+});
+ipcMain.handle('widget:size', (_e, mini) => {
+  if (!widgetWin || widgetWin.isDestroyed()) return false;
+  const { width, height } = require('electron').screen.getPrimaryDisplay().workAreaSize;
+  const w = 340;
+  const h = mini ? 88 : 500;
+  widgetWin.setSize(w, h);
+  widgetWin.setPosition(Math.max(20, width - w - 24), Math.max(20, height - h - 36));
+  return true;
 });
 ipcMain.handle('tray:setBadge', (_e, n) => { rebuildTrayMenu(n || undefined); return true; });
 

@@ -60,6 +60,7 @@
   /* metrics */
   --sidebar-w:244px;
   --sidebar-mini:68px;
+  --sidebar-mini-w:68px;
   --topbar-h:64px;
 
   --font:'Inter Variable',Inter,-apple-system,'Segoe UI',Roboto,'Noto Sans SC',sans-serif;

@@ -258,14 +258,27 @@ NX.openNotifCenter = function(anchor){
 /* unread count helper */
 NX.unreadNotifs = ()=> NX.notifLog().filter(n=>!n.read).length;
 
-/* confetti */
+/* celebratory radial sparkle burst — smooth, modern micro-interaction */
 NX.confetti = function(x, y){
   const colors = ['#7CD56E','#5EB8FF','#E8853D','#8B5CF6','#E05C9C','#FFD166'];
-  for(let i=0;i<26;i++){
-    const b = h(`<i class="confetti-bit" style="left:${x!=null?x:50 + (Math.random()*30-15)}%;background:${U.pick(colors)};animation-delay:${Math.random()*0.2}s;transform:rotate(${Math.random()*360}deg)"></i>`);
-    b.style.left = (x!=null? x + (Math.random()*60-30) : innerWidth*0.5 + (Math.random()*120-60)) + 'px';
+  const originX = (x != null && !isNaN(x) && x > 0) ? x : (window.innerWidth / 2);
+  const originY = (y != null && !isNaN(y) && y > 0) ? y : (window.innerHeight * 0.35);
+  for(let i = 0; i < 22; i++){
+    const angle = (Math.PI * 2 * i) / 22 + (Math.random() * 0.4 - 0.2);
+    const dist = 35 + Math.random() * 75;
+    const dx = Math.round(Math.cos(angle) * dist);
+    const dy = Math.round(Math.sin(angle) * dist + 16);
+    const color = colors[i % colors.length];
+    const b = document.createElement('i');
+    b.className = 'sparkle-bit';
+    b.style.left = originX + 'px';
+    b.style.top = originY + 'px';
+    b.style.background = color;
+    b.style.boxShadow = `0 0 6px ${color}`;
+    b.style.setProperty('--dx', `${dx}px`);
+    b.style.setProperty('--dy', `${dy}px`);
     document.body.appendChild(b);
-    setTimeout(()=>b.remove(), 1600);
+    setTimeout(() => { try { b.remove(); } catch(e){} }, 780);
   }
 };
 

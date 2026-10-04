@@ -37,6 +37,7 @@ contextBridge.exposeInMainWorld('nex', {
   // --- desktop widget island -------------------------------------
   widgetAction: (hash) => ipcRenderer.invoke('widget:action', hash),
   widgetToggle: () => ipcRenderer.invoke('widget:toggle'),
+  widgetSize:   (mini) => ipcRenderer.invoke('widget:size', mini),
   petToggle: (on) => ipcRenderer.invoke('pet:toggle', on),
   shotWindow: () => ipcRenderer.invoke('shot:window'),
   authOk: (name) => ipcRenderer.invoke('auth:ok', name),

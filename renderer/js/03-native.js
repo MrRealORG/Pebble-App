@@ -44,6 +44,8 @@ async function electronInvoke(nex, cmd, args){
     case 'open_external':    return await nex.openExternal(args.url || '');
     case 'open_path':        return await nex.openPath(args.path || args.p || '');
     case 'widget_toggle':    return await nex.widgetToggle();
+    case 'widget_size':      return await (nex.widgetSize ? nex.widgetSize(!!args.mini) : false);
+    case 'show_main':        return await (nex.widgetAction ? nex.widgetAction(args.hash || '#/dashboard') : false);
     case 'save_file':        return await nex.saveDialog({ defaultPath: args.name || 'pebble-export', content: args.content || '', base64: !!args.base64 });
     default:                 return { stub: true };
   }
@@ -246,7 +248,7 @@ const native = {
   async widgetSize(mini){ const r = await this.invoke('widget_size', { mini: !!mini }); return !!(r && r.ok && r.data); },
   async loginDone(profileName){ const r = await this.invoke('login_done', { name: profileName }); return !!(r && r.ok && r.data); },
   async quitApp(){ await this.invoke('quit_app'); },
-  async showMain(){ await this.invoke('show_main'); },
+  async showMain(route){ await this.invoke('show_main', { hash: route || '#/dashboard' }); },
   async startDragging(){
     try {
       if (window.__TAURI__ && window.__TAURI__.window) {

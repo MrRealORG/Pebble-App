@@ -19,6 +19,7 @@ const PEBBLE_WIN = window.__PEBBLE_WINDOW__ || '';
 const AUTH_WINDOW = params.has('auth') || PEBBLE_WIN === 'login';
 const MAIN_WINDOW = params.has('main') || PEBBLE_WIN === 'main';
 const WIDGET_WINDOW = params.has('widget') || PEBBLE_WIN === 'widget';
+NX.isWidgetWindow = WIDGET_WINDOW;
 
 function hideSplash(){
   const s = document.getElementById('nx-splash');
