@@ -552,7 +552,7 @@ const sync = {
     const c = await sb();
     if(!c) return { ok:false, error: notReady() };
     try{
-      const localId = String(item.id || item.local_id || '');
+      const localId = String(item.id || item.local_id || (kind === 'profile' ? 'main_profile' : ''));
       const extra = { local_id: localId, device_id: deviceId(), ...(item.extra || {}) };
 
       // Enrich extra by kind
@@ -582,6 +582,12 @@ const sync = {
         extra.cat = item.cat || 'general';
         extra.desc = item.desc || '';
         extra.tags = item.tags || [];
+      } else if(kind === 'profile'){
+        extra.name = item.name || '';
+        extra.avatar = item.avatar || '';
+        extra.avatarImg = item.avatarImg || null;
+        extra.bio = item.bio || '';
+        extra.email = item.email || '';
       }
 
       const row = {
@@ -695,6 +701,39 @@ const sync = {
 
       const stats = { tasksPulled:0, notesPulled:0, remsPulled:0, promptsPulled:0, pushed:0 };
       _suppressSyncPush = true; // prevent local writes from triggering auto-push loop
+
+      // 0. Reconcile Profile & Identity (name, avatar, logo, bio, email)
+      const remoteProfileItem = remoteItems.find(i => i.kind === 'profile');
+      if(remoteProfileItem && remoteProfileItem.extra){
+        const curProfile = NX.store.get('profile', NX.defaults.profile);
+        const curEnt = NX.store.get('entitlements', {}) || {};
+        const rExtra = remoteProfileItem.extra;
+        const rUpdated = remoteProfileItem.updated_at ? new Date(remoteProfileItem.updated_at).getTime() : 0;
+        const lUpdated = curProfile.updated || 0;
+
+        if(!curProfile.name || curProfile.name === 'You' || rUpdated >= lUpdated){
+          if(rExtra.name) curProfile.name = rExtra.name;
+          if(rExtra.avatar) curProfile.avatar = rExtra.avatar;
+          if(rExtra.avatarImg){
+            curProfile.avatarImg = rExtra.avatarImg;
+            curEnt.avatarImg = rExtra.avatarImg;
+            NX.store.set('entitlements', curEnt);
+          }
+          if(rExtra.bio !== undefined) curProfile.bio = rExtra.bio;
+          if(rExtra.email) curProfile.email = rExtra.email;
+          curProfile.updated = rUpdated || Date.now();
+          NX.store.set('profile', curProfile);
+          NX.refreshSidebarUser && NX.refreshSidebarUser();
+        }
+      } else {
+        const curProfile = NX.store.get('profile', NX.defaults.profile);
+        const curEnt = NX.store.get('entitlements', {}) || {};
+        const pushProfile = Object.assign({}, curProfile, {
+          id: 'main_profile',
+          avatarImg: curProfile.avatarImg || curEnt.avatarImg || null
+        });
+        await sync.push('profile', pushProfile, true).catch(()=>{});
+      }
 
       // 1. Reconcile Tasks
       const localTasks = NX.store.get('tasks', []) || [];

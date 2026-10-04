@@ -4,7 +4,7 @@
   "version": "2.2.0",
   "description": "The official PebbleX companion — auto-connects to the desktop app, streams tab time into Timeless, and adds tasks, notes, prompts and messages in one click.",
   "permissions": ["tabs", "storage", "idle"],
-  "host_permissions": ["http://localhost:*/*", "http://127.0.0.1:*/*", "https://*/*"],
+  "host_permissions": ["http://localhost/*", "http://127.0.0.1/*", "<all_urls>"],
   "background": { "service_worker": "background.js" },
   "action": { "default_popup": "popup.html", "default_title": "PebbleX Timeless", "default_icon": { "48": "icon.png", "128": "icon.png" } },
   "icons": { "48": "icon.png", "128": "icon.png" }

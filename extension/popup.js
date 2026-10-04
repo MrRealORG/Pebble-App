@@ -66,9 +66,70 @@ async function refreshToday() {
   }).join('');
 }
 
+function compressToWebP(file, maxDim = 512, quality = 0.86) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      const scale = Math.min(1, maxDim / Math.max(w, h));
+      const cw = Math.max(1, Math.round(w * scale));
+      const ch = Math.max(1, Math.round(h * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+      let dataUrl = canvas.toDataURL('image/webp', quality);
+      if (!dataUrl.startsWith('data:image/webp')) {
+        dataUrl = canvas.toDataURL('image/png');
+      }
+      resolve(dataUrl);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Could not load image'));
+    };
+    img.src = url;
+  });
+}
+
+async function handleLogoUpload(file) {
+  if (!file) return;
+  try {
+    flash($('sendMsg'), 'Compressing to .webp…');
+    const webpUrl = await compressToWebP(file, 512, 0.86);
+    $('userLogo').src = webpUrl;
+    const r = await send({ type: 'upload_logo', dataUrl: webpUrl });
+    flash($('sendMsg'), r.ok ? 'Logo compressed to .webp & saved ✓' : 'Logo saved locally — PebbleX quiet', !r.ok);
+  } catch(e) {
+    flash($('sendMsg'), 'Error processing logo: ' + e.message, true);
+  }
+}
+
+const fileInp = $('extFileInput');
+if (fileInp) {
+  fileInp.addEventListener('change', e => {
+    const f = e.target.files && e.target.files[0];
+    if (f) handleLogoUpload(f);
+  });
+}
+const btnLogoPick = $('btnLogoPick');
+if (btnLogoPick) btnLogoPick.addEventListener('click', () => fileInp && fileInp.click());
+const qUploadLogo = $('qUploadLogo');
+if (qUploadLogo) qUploadLogo.addEventListener('click', () => fileInp && fileInp.click());
+
 async function refreshConn() {
   const st = await send({ type: 'status' });
   if (st.ok && st.status && st.status.connected) $('connDot').classList.add('on');
+  if (st.ok && st.profile) {
+    if (st.profile.name) $('userName').textContent = st.profile.name;
+    const logoSrc = st.profile.avatarImg || (st.profile.avatar && st.profile.avatar.startsWith('data:') ? st.profile.avatar : null);
+    if (logoSrc) $('userLogo').src = logoSrc;
+  }
 }
 
 /* send tab */
@@ -115,10 +176,12 @@ $('sendMessage').addEventListener('click', async () => {
 });
 
 /* settings tab */
-chrome.storage.local.get(['cfg'], r => {
+chrome.storage.local.get(['cfg', 'profile', 'userLogo'], r => {
   const c = r.cfg || {};
   $('cfgUrl').value = c.url || 'http://127.0.0.1:47615';
   $('cfgToken').value = c.token || 'pebble';
+  if (r.userLogo) $('userLogo').src = r.userLogo;
+  if (r.profile && r.profile.name) $('userName').textContent = r.profile.name;
 });
 $('saveCfg').addEventListener('click', async () => {
   const r = await send({ type: 'setcfg', url: $('cfgUrl').value.trim(), token: $('cfgToken').value.trim() });

@@ -44,12 +44,33 @@ chrome.windows.onFocusChanged.addListener(async wid => {
 chrome.idle.onStateChanged?.addListener(st => { if (st !== 'active') rotate(null); });
 
 async function api(path, method, body) {
-  const res = await fetch(cfg.url.replace(/\/$/, '') + path, {
-    method: method || 'GET',
-    headers: Object.assign({ 'Content-Type': 'application/json' }, cfg.token ? { 'Authorization': 'Bearer ' + cfg.token } : {}),
-    body: body ? JSON.stringify(body) : undefined
-  });
-  return await res.json();
+  const tryUrls = [cfg.url.replace(/\/$/, '')];
+  if (cfg.url.includes('127.0.0.1')) {
+    tryUrls.push(cfg.url.replace('127.0.0.1', 'localhost').replace(/\/$/, ''));
+  } else if (cfg.url.includes('localhost')) {
+    tryUrls.push(cfg.url.replace('localhost', '127.0.0.1').replace(/\/$/, ''));
+  }
+
+  let lastErr = null;
+  for (const base of tryUrls) {
+    try {
+      const res = await fetch(base + path, {
+        method: method || 'GET',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, cfg.token ? { 'Authorization': 'Bearer ' + cfg.token } : {}),
+        body: body ? JSON.stringify(body) : undefined
+      });
+      if (res.ok) {
+        if (cfg.url !== base) {
+          cfg.url = base;
+          chrome.storage.local.set({ cfg });
+        }
+        return await res.json();
+      }
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('Connection failed');
 }
 
 /* heartbeat: keeps PebbleX's "browser link" dot green + auto-reconnects */
@@ -57,6 +78,12 @@ async function heartbeat() {
   try {
     const h = await api('/api/health');
     connected = !!(h && h.ok);
+    if (connected) {
+      try {
+        const pf = await api('/api/profile');
+        if (pf && pf.ok) chrome.storage.local.set({ profile: pf });
+      } catch (e) {}
+    }
   } catch (e) { connected = false; }
   try { chrome.storage.local.set({ lastSeen: Date.now(), connected }); } catch (e) {}
 }
@@ -82,7 +109,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     try {
       if (msg.type === 'status') {
         const s = await api('/api/status');
-        sendResponse({ ok: true, status: s, url: cfg.url, connected });
+        let pf = null;
+        try { pf = await api('/api/profile'); } catch(e){}
+        sendResponse({ ok: true, status: s, url: cfg.url, connected, profile: pf });
+      } else if (msg.type === 'get_profile') {
+        try {
+          const pf = await api('/api/profile');
+          if (pf && pf.ok) chrome.storage.local.set({ profile: pf });
+          sendResponse({ ok: true, profile: pf });
+        } catch(e) {
+          chrome.storage.local.get(['profile'], r => {
+            sendResponse({ ok: !!(r && r.profile), profile: r ? r.profile : null });
+          });
+        }
+      } else if (msg.type === 'upload_logo') {
+        const r = await api('/api/profile', 'POST', { avatarImg: msg.dataUrl, avatar: msg.dataUrl });
+        chrome.storage.local.set({ userLogo: msg.dataUrl });
+        sendResponse({ ok: true, result: r });
       } else if (msg.type === 'today') {
         const j = await api('/api/timelens');
         sendResponse({ ok: true, sessions: j.sessions || [] });

@@ -298,6 +298,39 @@ pub fn spawn_bridge() {
                 return;
             }
 
+            if line.starts_with("GET /api/profile") {
+                let doc = read_workspace_doc().unwrap_or(serde_json::Value::Null);
+                let profile = doc.get("profile")
+                    .or_else(|| doc.get("workspace").and_then(|w| w.get("profile")))
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({ "name": "You", "avatar": "#7CD56E" }));
+                let ent = doc.get("entitlements")
+                    .or_else(|| doc.get("workspace").and_then(|w| w.get("entitlements")))
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                let avatar_img = ent.get("avatarImg").and_then(|v| v.as_str()).unwrap_or("");
+                let b = serde_json::json!({
+                    "ok": true,
+                    "name": profile.get("name").and_then(|v| v.as_str()).unwrap_or("You"),
+                    "avatar": profile.get("avatar").and_then(|v| v.as_str()).unwrap_or("#7CD56E"),
+                    "avatarImg": if avatar_img.is_empty() { profile.get("avatarImg").and_then(|v| v.as_str()).unwrap_or("") } else { avatar_img },
+                    "email": profile.get("email").and_then(|v| v.as_str()).unwrap_or("")
+                });
+                let _ = stream.write_all(&json_response(b.to_string()));
+                return;
+            }
+
+            if line.starts_with("POST /api/profile") {
+                if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&body) {
+                    push_queue(serde_json::json!({
+                        "kind": "profile",
+                        "payload": v
+                    }));
+                }
+                let _ = stream.write_all(&json_response("{\"ok\":true}".into()));
+                return;
+            }
+
             if line.starts_with("POST /api/timelens") {
                 if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&body) {
                     let sessions = v

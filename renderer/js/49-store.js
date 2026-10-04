@@ -178,13 +178,14 @@ NX.store.purchase = function(kind, id, opts){
 NX.avatarHtml = function(profile, size){
   const e = ent();
   const cls = 'avatar' + (size ? ' ' + size : '');
-  const color = (profile && profile.avatar) || '#7CD56E';
+  const color = (profile && profile.avatar && !/^(https?:\/\/|data:image\/|asset\.localhost|\/assets\/)/i.test(profile.avatar)) ? profile.avatar : '#7CD56E';
   const initials = U.initials((profile && profile.name) || 'You');
 
-  if(e.avatarImg){
+  const imgSrc = (profile && profile.avatarImg) || e.avatarImg || ((profile && profile.avatar && /^(https?:\/\/|data:image\/|asset\.localhost|\/assets\/)/i.test(profile.avatar)) ? profile.avatar : null);
+
+  if(imgSrc){
     const frame = e.frame && e.frame !== 'none' ? ' avatar-frame-' + e.frame : '';
-    const src = e.avatarImg;
-    return `<span class="${cls}${frame}"><img src="${U.esc(src)}" alt="" loading="lazy"></span>`;
+    return `<span class="${cls}${frame}"><img src="${U.esc(imgSrc)}" alt="" loading="lazy"></span>`;
   }
   const frame = e.frame && e.frame !== 'none' ? ' avatar-frame-' + e.frame : '';
   return `<span class="${cls}${frame}" style="background:${U.esc(color)}">${U.esc(initials)}</span>`;

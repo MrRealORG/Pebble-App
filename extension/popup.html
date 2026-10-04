@@ -50,12 +50,24 @@
   nav { display: flex; border-bottom: 1px solid #262626; }
   nav button { flex: 1; background: none; border: none; color: #9b968d; padding: 9px 0; font: 600 12px "Segoe UI", sans-serif; cursor: pointer; border-bottom: 2px solid transparent; }
   nav button.on { color: #eceae6; border-bottom-color: #7ed268; }
+  .user-logo-wrap { position: relative; width: 32px; height: 32px; border-radius: 9px; overflow: hidden; cursor: pointer; flex: none; border: 1.5px solid #333; }
+  .user-logo-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .logo-badge { position: absolute; bottom: 0; right: 0; background: rgba(0,0,0,0.75); font-size: 8px; padding: 1px 2px; border-radius: 3px; opacity: 0; transition: opacity 0.15s; }
+  .user-logo-wrap:hover .logo-badge { opacity: 1; }
+  .user-logo-wrap:hover { border-color: #7ed268; }
 </style>
 </head>
 <body>
 <header>
-  <img src="icon.png" alt="PebbleX">
-  <b>PebbleX</b>
+  <div class="user-logo-wrap" id="btnLogoPick" title="Upload your logo (auto-compresses to .webp)">
+    <img id="userLogo" src="icon.png" alt="PebbleX Logo">
+    <span class="logo-badge" title="Change logo">📷</span>
+  </div>
+  <input type="file" id="extFileInput" accept="image/*" style="display:none">
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;margin-left:2px">
+    <b id="userName" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">PebbleX</b>
+    <span class="user-sub" id="userSub" style="font-size:10.5px;color:#9b968d">Connected workspace</span>
+  </div>
   <span class="dot" id="connDot" title="connection"></span>
 </header>
 <div class="connline" id="connLine">connecting to the PebbleX app…</div>
@@ -80,6 +92,7 @@
   <div class="quick">
     <button class="qbtn" id="qSavePage"><span class="ic">🔖</span> Save this page as a note</button>
     <button class="qbtn" id="qOpenApp"><span class="ic">🪨</span> Open the PebbleX app</button>
+    <button class="qbtn" id="qUploadLogo" style="grid-column:span 2"><span class="ic">🖼️</span> Upload Logo (Compress to .webp)</button>
   </div>
   <label>Quick task</label>
   <input id="taskTitle" placeholder="e.g. Review the PR from Sam">

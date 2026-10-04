@@ -134,6 +134,24 @@ function handle(ev){
         return true;
       }
     }
+    if(ev.kind === 'profile' && ev.payload){
+      const p = NX.store.get('profile', NX.defaults.profile);
+      const e = NX.store.get('entitlements', {}) || {};
+      if(ev.payload.name) p.name = String(ev.payload.name).slice(0, 30);
+      if(ev.payload.avatar) p.avatar = ev.payload.avatar;
+      if(ev.payload.avatarImg){
+        p.avatarImg = ev.payload.avatarImg;
+        e.avatarImg = ev.payload.avatarImg;
+        NX.store.set('entitlements', e);
+      }
+      NX.store.set('profile', p);
+      if(NX.cloud && NX.cloud.sync && NX.cloud.sync.push){
+        NX.cloud.sync.push('profile', p).catch(()=>{});
+      }
+      NX.refreshSidebarUser && NX.refreshSidebarUser();
+      NX.toastOk('Profile Updated from Extension', 'Logo & name synced ✓');
+      return true;
+    }
   }catch(e){ console.error('[extsync]', e); }
   return false;
 }

@@ -303,4 +303,87 @@ NX.seg = function(opts, current, onPick){
   });
   return el;
 };
+/* client-side image compression to modern .webp format */
+NX.compressImageToWebP = function(input, opts = {}){
+  const maxW = opts.maxWidth || 1024;
+  const maxH = opts.maxHeight || 1024;
+  const quality = opts.quality != null ? opts.quality : 0.85;
+
+  return new Promise((resolve, reject) => {
+    function processImage(img){
+      let w = img.naturalWidth || img.width;
+      let h = img.naturalHeight || img.height;
+      if(!w || !h){ return reject(new Error('Invalid image dimensions')); }
+
+      let scale = 1;
+      if(w > maxW || h > maxH){
+        scale = Math.min(maxW / w, maxH / h);
+      }
+      const cw = Math.max(1, Math.round(w * scale));
+      const ch = Math.max(1, Math.round(h * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = cw;
+      canvas.height = ch;
+      const ctx = canvas.getContext('2d');
+      if(!ctx){ return reject(new Error('Canvas context not available')); }
+
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.drawImage(img, 0, 0, cw, ch);
+
+      let mimeType = 'image/webp';
+      let dataUrl = '';
+      try {
+        dataUrl = canvas.toDataURL(mimeType, quality);
+      } catch(e) {
+        dataUrl = '';
+      }
+      if(!dataUrl || !dataUrl.startsWith('data:image/webp')){
+        mimeType = 'image/png';
+        dataUrl = canvas.toDataURL(mimeType);
+      }
+
+      if(canvas.toBlob){
+        canvas.toBlob(blob => {
+          resolve({
+            dataUrl,
+            blob: blob || null,
+            width: cw,
+            height: ch,
+            format: mimeType === 'image/webp' ? 'webp' : 'png'
+          });
+        }, mimeType, quality);
+      } else {
+        resolve({
+          dataUrl,
+          blob: null,
+          width: cw,
+          height: ch,
+          format: mimeType === 'image/webp' ? 'webp' : 'png'
+        });
+      }
+    }
+
+    if(typeof input === 'string'){
+      const img = new Image();
+      img.onload = () => processImage(img);
+      img.onerror = () => reject(new Error('Failed to load image from URL'));
+      img.src = input;
+    } else if(input instanceof Blob || input instanceof File){
+      const url = URL.createObjectURL(input);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        processImage(img);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image file'));
+      };
+      img.src = url;
+    } else {
+      reject(new Error('Unsupported input type for image compression'));
+    }
+  });
+};
 })(window.NX);

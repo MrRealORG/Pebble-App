@@ -615,33 +615,52 @@ const clientIn = q('#gd-client', host);
             <div style="flex:1">
               <div class="field"><label>Display name</label><input class="input" id="pf-name" value="${U.esc(p.name)}" maxlength="24"></div>
               <div class="row gap-6" style="margin-top:8px">
-                <button class="btn btn-soft btn-sm" id="pf-up">${icon('camera')} Upload photo</button>
-                ${(NX.store.get('entitlements',{})||{}).avatarImg ? `<button class="btn btn-ghost btn-sm" id="pf-rm">Remove</button>` : ''}
+                <button class="btn btn-soft btn-sm" id="pf-up">${icon('camera')} Upload photo / logo</button>
+                ${((NX.store.get('entitlements',{})||{}).avatarImg || p.avatarImg) ? `<button class="btn btn-ghost btn-sm" id="pf-rm">Remove</button>` : ''}
               </div>
             </div></div>
           <div class="field"><label>Avatar colour</label><div class="row gap-6" id="pf-colors" style="flex-wrap:wrap">
             ${['#7CD56E','#5EB8FF','#E8853D','#8B5CF6','#E05C9C','#0FA3A3','#E25C4A','#D4A017'].map(c=>
               `<button data-c="${c}" style="width:30px;height:30px;border-radius:50%;background:${c};border:2.5px solid ${p.avatar===c?'var(--ink)':'transparent'}"></button>`).join('')}
           </div>
-          <span class="faint tiny">Location data is stripped from every upload on import.</span></div>
+          <span class="faint tiny">Images and logos are automatically compressed to high-efficiency .webp format with alpha transparency.</span></div>
           <div class="field"><label>Bio</label><input class="input" id="pf-bio" value="${U.esc(p.bio||'')}" maxlength="80"></div>
           <div class="row"><button class="btn btn-green" id="pf-save">${icon('check')} Save profile</button>
             <button class="btn btn-soft" id="pf-lock">${icon('logout')} Lock workspace (PIN)</button></div>
         </div></div>`;
       qa('#pf-colors [data-c]', host).forEach(b=>b.onclick = ()=>{ p.avatar = b.dataset.c; NX.store.set('profile', p); renderBody(); NX.refreshSidebarUser && NX.refreshSidebarUser(); });
       q('#pf-up', host).onclick = ()=>{
-        NX.media && NX.media.pick({ kind:'avatar' }).then(meta=>{
-          if(!meta) return;
-          const e = NX.store.get('entitlements', {}) || {};
-          const old = e.avatarImg;
-          e.avatarImg = meta.url;
-          NX.store.set('entitlements', e);
-          if(old && NX.media) NX.media.remove(old);
-          const av = q('#pf-av', host);
-          if(av) av.innerHTML = NX.avatarHtml(NX.store.get('profile', p), 'xl');
-          NX.toastOk('Photo saved', 'Stripped of location data, stored on this device.');
-          NX.refreshSidebarUser && NX.refreshSidebarUser();
-        });
+        const inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = 'image/*';
+        inp.onchange = async ()=>{
+          const file = inp.files && inp.files[0];
+          if(!file) return;
+          try {
+            NX.toastInfo('Compressing', 'Compressing logo to .webp format…');
+            const comp = await NX.compressImageToWebP(file, { maxWidth: 512, maxHeight: 512, quality: 0.86 });
+            const e = NX.store.get('entitlements', {}) || {};
+            e.avatarImg = comp.dataUrl;
+            NX.store.set('entitlements', e);
+            p.avatarImg = comp.dataUrl;
+            p.avatar = comp.dataUrl;
+            NX.store.set('profile', p);
+
+            if(NX.cloud && NX.cloud.sync && NX.cloud.sync.push){
+              NX.cloud.sync.push('profile', p).catch(()=>{});
+            }
+
+            const av = q('#pf-av', host);
+            if(av) av.innerHTML = NX.avatarHtml(p, 'xl');
+            NX.toastOk('Logo / Avatar Saved', 'Compressed to .webp format (' + comp.width + '×' + comp.height + ') and synced.');
+            NX.refreshSidebarUser && NX.refreshSidebarUser();
+            renderBody();
+          } catch(err) {
+            console.error('Logo compression error:', err);
+            NX.toastErr('Upload failed', String(err && err.message || err));
+          }
+        };
+        inp.click();
       };
       const rm = q('#pf-rm', host);
       if(rm) rm.onclick = ()=>{
@@ -649,6 +668,12 @@ const clientIn = q('#gd-client', host);
         const old = e.avatarImg;
         e.avatarImg = null;
         NX.store.set('entitlements', e);
+        p.avatarImg = null;
+        p.avatar = '#7CD56E';
+        NX.store.set('profile', p);
+        if(NX.cloud && NX.cloud.sync && NX.cloud.sync.push){
+          NX.cloud.sync.push('profile', p).catch(()=>{});
+        }
         if(old && NX.media) NX.media.remove(old);
         renderBody();
         NX.refreshSidebarUser && NX.refreshSidebarUser();
@@ -657,7 +682,11 @@ const clientIn = q('#gd-client', host);
         const nm = q('#pf-name', host).value.trim(); if(nm) p.name = nm;
         p.bio = q('#pf-bio', host).value.trim();
         NX.store.set('profile', p);
+        if(NX.cloud && NX.cloud.sync && NX.cloud.sync.push){
+          NX.cloud.sync.push('profile', p).catch(()=>{});
+        }
         NX.toastOk('Profile saved', 'Looking sharp, ' + p.name);
+        NX.refreshSidebarUser && NX.refreshSidebarUser();
         NX.router.go('settings');
       };
       q('#pf-lock', host).onclick = ()=>{

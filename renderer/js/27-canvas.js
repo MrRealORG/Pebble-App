@@ -60,6 +60,14 @@ NX.routeInShell('canvas', 'Canvas', 'brush', function(view){
 
   view.innerHTML = `
     <div class="canvas-page" id="canvas-page">
+      <!-- Top Multi-Canvas Tab Bar (Studio / Browser style) -->
+      <div class="canvas-tabs-bar" id="canvas-tabs-bar">
+        <div class="canvas-tabs-scroll" id="canvas-tabs-list"></div>
+        <button class="canvas-tab-add" id="canvas-tab-new" title="Open new canvas tab">
+          ${icon('plus', 13)} <span>New Canvas</span>
+        </button>
+      </div>
+
       <!-- Floating Top Bar with Board Switcher & Tools -->
       <div class="canvas-toolbar" id="canvas-toolbar">
         <!-- Board Switcher Capsule -->
@@ -239,6 +247,7 @@ function initCanvasEngine(root, initialBoard, allBoards){
     panX = 0; panY = 0; zoom = 1.0;
     updateZoomLabel();
     scheduleRender();
+    if(typeof renderTabs === 'function') renderTabs();
     NX.toastOk('Canvas loaded', curBoard.name);
     try{ NX.sfx.play('nav'); }catch(e){}
   }
@@ -925,21 +934,117 @@ function initCanvasEngine(root, initialBoard, allBoards){
     };
   }
 
-  function createNewBoard(){
-    const bName = prompt('New canvas board title:', 'Canvas ' + (boards.length + 1));
+  function createNewBoard(customName){
+    const bName = customName || prompt('New canvas board title:', 'Canvas ' + (boards.length + 1));
     if(bName && bName.trim()){
       const newB = {
-        id: 'board-' + Date.now().toString(36),
+        id: 'board-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         name: bName.trim(),
         elements: []
       };
       boards.push(newB);
       switchBoard(newB);
+      renderTabs();
+      NX.toastOk('New canvas tab created', newB.name);
+      try{ NX.sfx.play('action'); }catch(e){}
     }
   }
 
+  function renderTabs(){
+    const tabList = q('#canvas-tabs-list', root);
+    if(!tabList) return;
+    tabList.innerHTML = boards.map(b => `
+      <div class="canvas-tab ${b.id === curBoard.id ? 'active' : ''}" data-bid="${b.id}" title="${U.esc(b.name)} (Double click to rename)">
+        <span class="canvas-tab-icon">🎨</span>
+        <span class="canvas-tab-title">${U.esc(b.name)}</span>
+        ${boards.length > 1 ? `<button class="canvas-tab-close" data-close="${b.id}" title="Close tab">×</button>` : ''}
+      </div>
+    `).join('');
+
+    qa('.canvas-tab', tabList).forEach(tabEl => {
+      const bid = tabEl.dataset.bid;
+      tabEl.onclick = (e) => {
+        if(e.target.closest('.canvas-tab-close') || e.target.closest('.canvas-tab-rename-inp')) return;
+        const target = boards.find(b => b.id === bid);
+        if(target && target.id !== curBoard.id){
+          switchBoard(target);
+        }
+      };
+
+      const titleEl = q('.canvas-tab-title', tabEl);
+      if(titleEl){
+        titleEl.ondblclick = (e) => {
+          e.stopPropagation();
+          const target = boards.find(b => b.id === bid);
+          if(!target) return;
+          const oldName = target.name;
+          const inp = document.createElement('input');
+          inp.className = 'canvas-tab-rename-inp';
+          inp.value = oldName;
+          titleEl.replaceWith(inp);
+          inp.focus();
+          inp.select();
+
+          let saved = false;
+          const commit = () => {
+            if(saved) return;
+            saved = true;
+            const val = inp.value.trim();
+            if(val && val !== oldName){
+              target.name = val;
+              saveBoardState();
+              if(target.id === curBoard.id){
+                const nameEl = q('#cb-name-txt', root);
+                if(nameEl) nameEl.textContent = val;
+              }
+              NX.toastOk('Canvas renamed', val);
+            }
+            renderTabs();
+          };
+          inp.onblur = commit;
+          inp.onkeydown = (ev) => {
+            if(ev.key === 'Enter') commit();
+            if(ev.key === 'Escape'){ saved = true; renderTabs(); }
+          };
+        };
+      }
+    });
+
+    qa('.canvas-tab-close', tabList).forEach(closeBtn => {
+      closeBtn.onclick = (e) => {
+        e.stopPropagation();
+        const bid = closeBtn.dataset.close;
+        const target = boards.find(b => b.id === bid);
+        if(!target) return;
+        if(target.elements && target.elements.length > 0){
+          if(!confirm(`Close canvas "${target.name}"? Unsaved drawing on this board will be lost.`)) return;
+        }
+        const targetIdx = boards.findIndex(b => b.id === bid);
+        boards = boards.filter(b => b.id !== bid);
+        if(curBoard.id === bid){
+          const nextIdx = Math.max(0, targetIdx - 1);
+          switchBoard(boards[nextIdx] || boards[0]);
+        } else {
+          saveBoardState();
+          renderTabs();
+        }
+        NX.toastOk('Canvas closed', target.name);
+      };
+    });
+
+    const activeTabEl = q('.canvas-tab.active', tabList);
+    if(activeTabEl && activeTabEl.scrollIntoView){
+      activeTabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }
+
+  const tabNewBtn = q('#canvas-tab-new', root);
+  if(tabNewBtn){
+    tabNewBtn.onclick = () => createNewBoard();
+  }
+
   if(addBoardBtn){
-    addBoardBtn.onclick = createNewBoard;
+    addBoardBtn.onclick = () => createNewBoard();
   }
 
   // Toolbar events
@@ -1040,6 +1145,7 @@ function initCanvasEngine(root, initialBoard, allBoards){
     }
   });
 
+  renderTabs();
   scheduleRender();
 }
 

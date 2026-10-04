@@ -133,14 +133,14 @@ async function importFile(file, kind){
     return null;
   }
 
-  /* Downscale a monster photo before it ever crosses the IPC boundary —
-     a 12MB base64 string through Tauri invoke is slow and pointless. */
-  let workFile = file;
-  if(file.size > 2 * 1024 * 1024){
-    const small = await resize(file, 2000);
-    if(small) workFile = new File([small], file.name.replace(/\.\w+$/, '.jpg'), { type:'image/jpeg' });
+  /* Compress / downscale via client-side WebP compressor with full alpha preservation */
+  let dataUrl = '';
+  try {
+    const comp = await NX.compressImageToWebP(file, { maxWidth: (kind === 'avatar' ? 512 : 1920), maxHeight: (kind === 'avatar' ? 512 : 1920), quality: 0.88 });
+    dataUrl = comp.dataUrl;
+  } catch(e) {
+    dataUrl = await readFile(file);
   }
-  const dataUrl = await readFile(workFile);
 
   if(NX.native && NX.native.available){
     const r = await NX.native.invoke('asset_import', {
