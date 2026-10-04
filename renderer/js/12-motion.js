@@ -577,13 +577,15 @@ document.addEventListener('click', e=>{
     requestAnimationFrame(()=> M.syncNav());
   };
   const ro = new ResizeObserver(check);
+  let attached = false;
   const attach = ()=>{
+    if(attached) return;
     const sb = q('.sidebar');
-    if(sb && ro) { try{ ro.disconnect(); ro.observe(sb); }catch(e){} }
+    if(sb && ro) { try{ ro.observe(sb); attached = true; }catch(e){} }
   };
   document.addEventListener('DOMContentLoaded', attach);
   document.addEventListener('click', attach);
-  setInterval(attach, 1500);
+  setTimeout(attach, 300);
 })();
 
 /* boot */

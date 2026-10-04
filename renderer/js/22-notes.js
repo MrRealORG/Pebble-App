@@ -2570,7 +2570,14 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       title: 'Obsidian-Style Knowledge Graph',
       icon: 'activity',
       body,
-      footer: [{ label: 'Close', cls: 'btn-soft' }]
+      footer: [{
+        label: 'Close',
+        cls: 'btn-soft',
+        onClick: () => {
+          try { if(window.__nx_kg_animId) cancelAnimationFrame(window.__nx_kg_animId); }catch(e){}
+          NX.closeAllModals();
+        }
+      }]
     });
 
     setTimeout(() => {
@@ -2582,12 +2589,21 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       let H = canvas.height = canvas.parentElement.clientHeight || 490;
 
       let animId = null;
+      let animRunning = false;
       let draggedNode = null;
       let hoveredNode = null;
       let isPanning = false;
       let startPanX = 0, startPanY = 0;
       let panX = 0, panY = 0;
       let zoom = 1.0;
+
+      function wakeUpPhysics(){
+        if(!animRunning && canvas && canvas.isConnected){
+          animRunning = true;
+          animId = requestAnimationFrame(step);
+          window.__nx_kg_animId = animId;
+        }
+      }
 
       function getVisibleLinks(){
         if(currentFilterMode === 'wiki') return allLinks.filter(l => l.type === 'wiki');
@@ -2604,7 +2620,14 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
       // Physics and render step
       function step(){
+        if(!canvas || !canvas.isConnected){
+          animRunning = false;
+          if(animId) cancelAnimationFrame(animId);
+          return;
+        }
+
         const vLinks = getVisibleLinks();
+        let totalMovement = 0;
 
         // 1. Coulomb repulsion between all nodes
         for(let i=0; i<nodes.length; i++){
@@ -2649,6 +2672,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
             n.y += n.vy;
             n.vx *= 0.86;
             n.vy *= 0.86;
+            totalMovement += Math.abs(n.vx) + Math.abs(n.vy);
           }
         });
 
@@ -2714,10 +2738,16 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         });
 
         ctx.restore();
-        animId = requestAnimationFrame(step);
+        if(totalMovement > 0.04 || draggedNode || isPanning){
+          animRunning = true;
+          animId = requestAnimationFrame(step);
+          window.__nx_kg_animId = animId;
+        } else {
+          animRunning = false;
+        }
       }
 
-      animId = requestAnimationFrame(step);
+      wakeUpPhysics();
 
       function screenToWorld(sx, sy){
         return {
@@ -2728,6 +2758,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
 
       // Pointer interactions
       canvas.onmousedown = (e) => {
+        wakeUpPhysics();
         const rect = canvas.getBoundingClientRect();
         const sx = e.clientX - rect.left;
         const sy = e.clientY - rect.top;
@@ -2754,12 +2785,14 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           draggedNode.x = w.x;
           draggedNode.y = w.y;
           draggedNode.vx = draggedNode.vy = 0;
+          wakeUpPhysics();
           return;
         }
 
         if(isPanning){
           panX = sx - startPanX;
           panY = sy - startPanY;
+          wakeUpPhysics();
           return;
         }
 
@@ -2779,6 +2812,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
               <div style="font-size:10.5px;color:rgba(255,255,255,0.5)">🔗 ${hoveredNode.linkCount} connection(s) · Click to open</div>
             `;
           }
+          wakeUpPhysics();
         } else {
           canvas.style.cursor = 'grab';
           if(hoverCard) hoverCard.style.display = 'none';
@@ -2797,6 +2831,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         const newZoom = Math.max(0.3, Math.min(3.0, zoom * factor));
         if(newZoom !== zoom){
           zoom = newZoom;
+          wakeUpPhysics();
         }
       }, { passive: false });
 
@@ -2809,7 +2844,8 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         const clicked = nodes.find(n => Math.hypot(n.x - w.x, n.y - w.y) <= n.radius + 6);
         if(clicked){
           NX.closeAllModals();
-          cancelAnimationFrame(animId);
+          if(animId) cancelAnimationFrame(animId);
+          animRunning = false;
           selectNote(clicked.id);
           NX.toastOk('Opened note', clicked.title);
           try{ NX.sfx.play('pop'); }catch(err){}
@@ -2824,6 +2860,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           btn.classList.remove('btn-ghost');
           currentFilterMode = btn.dataset.mode;
           updateStatsText();
+          wakeUpPhysics();
           try{ NX.sfx.play('tick'); }catch(err){}
         };
       });
@@ -2833,6 +2870,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       if(searchInput){
         searchInput.oninput = (e) => {
           searchQuery = (e.target.value || '').trim().toLowerCase();
+          wakeUpPhysics();
         };
       }
 
@@ -2840,9 +2878,9 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       const btnIn = q('#kg-zoom-in', body);
       const btnOut = q('#kg-zoom-out', body);
       const btnFit = q('#kg-zoom-fit', body);
-      if(btnIn) btnIn.onclick = () => { zoom = Math.min(3.0, zoom * 1.25); };
-      if(btnOut) btnOut.onclick = () => { zoom = Math.max(0.3, zoom * 0.8); };
-      if(btnFit) btnFit.onclick = () => { zoom = 1.0; panX = 0; panY = 0; };
+      if(btnIn) btnIn.onclick = () => { zoom = Math.min(3.0, zoom * 1.25); wakeUpPhysics(); };
+      if(btnOut) btnOut.onclick = () => { zoom = Math.max(0.3, zoom * 0.8); wakeUpPhysics(); };
+      if(btnFit) btnFit.onclick = () => { zoom = 1.0; panX = 0; panY = 0; wakeUpPhysics(); };
     }, 60);
   }
 
@@ -3353,29 +3391,69 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   function moveNoteModal(n){
     if(!n) return;
     const all = folders();
-    const body = h(`<div>
-      <div class="field"><label>Folder name</label>
-        <input class="input" id="nf-name" list="nf-list" placeholder="e.g. Work, Ideas, Sprints" value="${U.esc(n.folder||'')}">
-        <datalist id="nf-list">${all.map(f=>`<option value="${U.esc(f)}">`).join('')}</datalist></div>
+    const curFld = n.folder || '';
+    const body = h(`<div class="folder-picker-modal" style="display:flex;flex-direction:column;gap:12px">
+      <div class="faint small">Choose folder for <b>"${U.esc(n.title || 'Untitled')}"</b>:</div>
+      <div class="folder-picker-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:8px;max-height:220px;overflow-y:auto;padding:2px">
+        <button class="btn ${!curFld ? 'btn-green' : 'btn-soft'} fld-pick-btn" data-f="" style="justify-content:flex-start;gap:6px;height:34px;font-size:12px">
+          <span>📄</span> <span class="ellipsis">No folder (Root)</span>
+        </button>
+        ${all.map(f => `
+          <button class="btn ${curFld === f ? 'btn-green' : 'btn-soft'} fld-pick-btn" data-f="${U.esc(f)}" style="justify-content:flex-start;gap:6px;height:34px;font-size:12px" title="${U.esc(f)}">
+            <span>📁</span> <span class="ellipsis">${U.esc(f)}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div style="border-top:1px solid var(--line);padding-top:10px;display:flex;align-items:center;gap:8px">
+        <input class="input sm" id="nf-new-name" placeholder="Or type new folder name…" style="flex:1;height:32px;font-size:12px">
+        <button class="btn btn-sm btn-soft" id="nf-create-move-btn" style="height:32px;font-size:12px;white-space:nowrap">${icon('plus', 12)} Create &amp; Move</button>
+      </div>
     </div>`);
+
+    const doMove = async (name) => {
+      const targetFolder = (name || '').trim();
+      if(targetFolder && !all.includes(targetFolder)){
+        vault.folders = vault.folders || [];
+        vault.folders.push(targetFolder);
+        NX.store.set('vault_folders', vault.folders);
+      }
+      const allNotes = notes();
+      const target = allNotes.find(x => x.id === n.id);
+      if(target){
+        target.folder = targetFolder;
+        target.trash = false;
+        target.updated = Date.now();
+        saveNotes(allNotes);
+        syncToDisk(target);
+      }
+      NX.closeAllModals();
+      renderFolders();
+      renderList();
+      loadEditor();
+      NX.toastOk(targetFolder ? 'Moved to ' + targetFolder : 'Moved to root', target ? target.title : '');
+      try{ NX.sfx.play('pop'); }catch(e){}
+    };
+
+    qa('.fld-pick-btn', body).forEach(b => {
+      b.onclick = () => doMove(b.dataset.f);
+    });
+
+    const createBtn = q('#nf-create-move-btn', body);
+    const newInp = q('#nf-new-name', body);
+    if(createBtn && newInp){
+      createBtn.onclick = () => {
+        if(newInp.value.trim()) doMove(newInp.value.trim());
+      };
+      newInp.onkeydown = (e) => {
+        if(e.key === 'Enter' && newInp.value.trim()) doMove(newInp.value.trim());
+      };
+    }
+
     NX.modal({
-      title: 'Move Note to Folder', icon: 'layers', body,
-      footer: [
-        { label:'Cancel', cls:'btn-soft' },
-        { label:'Move', cls:'btn-green', onClick: async () => {
-          const name = q('#nf-name', body).value.trim();
-          const all = notes();
-          const target = all.find(x => x.id === n.id);
-          if(target){
-            target.folder = name; target.trash = false; target.updated = Date.now();
-            saveNotes(all);
-            syncToDisk(target);
-          }
-          NX.closeAllModals();
-          renderFolders(); renderList(); loadEditor();
-          NX.toastOk(name ? 'Moved to ' + name : 'Moved to root');
-        }}
-      ]
+      title: 'Move Note to Folder',
+      icon: 'layers',
+      body,
+      footer: [{ label:'Cancel', cls:'btn-soft' }]
     });
   }
 

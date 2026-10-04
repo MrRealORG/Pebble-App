@@ -1438,7 +1438,8 @@ async fn widget_toggle(app: AppHandle, show: Option<bool>) -> Result<(), String>
             let _ = builder.build();
         });
     } else if let Some(w) = app.get_webview_window("widget") {
-        let _ = w.hide();
+        let _ = w.close();
+        let _ = w.destroy();
     }
     Ok(())
 }
@@ -1519,6 +1520,7 @@ let app_handle = app.clone();
         std::thread::sleep(Duration::from_millis(400));
         if let Some(login) = app_handle.get_webview_window("login") {
             let _ = login.close();
+            let _ = login.destroy();
         }
     });
     true
@@ -1632,7 +1634,8 @@ fn build_main_window(app: &tauri::App) -> Result<(), String> {
     .center()
     .visible(false)
     .maximized(false)
-    .resizable(true);
+    .resizable(true)
+    .transparent(true);
     /* Open on a screen that can actually hold the window. A fixed 1360x860 was
        larger than the work area on a small or high-DPI laptop, so the window
        opened clipped or off the bottom edge. Scale to ~88% of the primary

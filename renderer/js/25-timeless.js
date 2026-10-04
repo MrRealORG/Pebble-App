@@ -99,10 +99,13 @@ function letterTile(host){
   return `<span class="ar-ic tl-letter" style="background:var(--surface-3);color:var(--ink-2)">${letter}</span>`;
 }
 
-/** Markup for a site. Starts as a letter tile and upgrades in place
-    once a favicon is verified, so nothing ever sits empty. */
+/** Markup for a site. Renders high-res 128px icon with instant fallbacks. */
 function faviconHTML(host){
   const key = cleanHost(host);
+  if(!key) return letterTile('?');
+  if(NX.getWebsiteFaviconHtml){
+    return `<span class="ar-ic real" data-fav="${U.esc(key)}">${NX.getWebsiteFaviconHtml(key, 22)}</span>`;
+  }
   const cached = _favCache.get(key);
   if(cached){
     return `<span class="ar-ic real"><img class="ar-img" src="${U.esc(cached)}" alt="" referrerpolicy="no-referrer"></span>`;

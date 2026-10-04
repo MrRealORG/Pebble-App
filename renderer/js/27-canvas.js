@@ -195,11 +195,11 @@ function initCanvasEngine(root, initialBoard, allBoards){
   // Throttled RAF render scheduler
   let renderScheduled = false;
   function scheduleRender(){
-    if(!renderScheduled){
+    if(!renderScheduled && cvs.isConnected){
       renderScheduled = true;
       requestAnimationFrame(() => {
         renderScheduled = false;
-        render();
+        if(cvs.isConnected) render();
       });
     }
   }
@@ -258,6 +258,7 @@ function initCanvasEngine(root, initialBoard, allBoards){
   }
 
   function resizeCanvas(){
+    if(!cvs.isConnected) return;
     const rect = vp.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     cvs.width = Math.round(rect.width * dpr);
@@ -322,13 +323,14 @@ function initCanvasEngine(root, initialBoard, allBoards){
       const offsetX = ((panX % gap) + gap) % gap;
       const offsetY = ((panY % gap) + gap) % gap;
       const dotRadius = Math.max(1, 1.2 * Math.min(zoom, 1.5));
+      c.beginPath();
       for(let x = offsetX; x < w; x += gap){
         for(let y = offsetY; y < h; y += gap){
-          c.beginPath();
+          c.moveTo(x + dotRadius, y);
           c.arc(x, y, dotRadius, 0, Math.PI * 2);
-          c.fill();
         }
       }
+      c.fill();
     }
     c.restore();
   }
@@ -1132,6 +1134,7 @@ function initCanvasEngine(root, initialBoard, allBoards){
 
   // Hotkeys
   window.addEventListener('keydown', e => {
+    if(!cvs.isConnected) return;
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if(e.ctrlKey && e.key.toLowerCase() === 'z'){
       e.preventDefault();

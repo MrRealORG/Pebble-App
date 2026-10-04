@@ -681,6 +681,7 @@ const widget = {
     attachWidgetEvents(el);
     makeInAppDraggable(el);
     refreshWidget();
+    ensureWidgetTicker();
   },
 
   hideFloating(){
@@ -688,6 +689,7 @@ const widget = {
       this.floating.remove();
       this.floating = null;
     }
+    ensureWidgetTicker();
   }
 };
 
@@ -712,6 +714,7 @@ NX.router.register('widget', {
     }
     root.innerHTML = widgetHTML();
     attachWidgetEvents(root);
+    ensureWidgetTicker();
 
     if(isMini){
       try{
@@ -723,8 +726,21 @@ NX.router.register('widget', {
   }
 });
 
-const widgetIsMounted = () => !!(document.getElementById('pebble-widget-box') || widget.floating);
-setInterval(() => { if(widgetIsMounted()) refreshWidget(); }, 1000);
+const widgetIsMounted = () => !!(document.getElementById('pebble-widget-box') || (widget && widget.floating));
+let widgetTicker = null;
+function ensureWidgetTicker(){
+  if(widgetIsMounted()){
+    if(!widgetTicker){
+      widgetTicker = setInterval(() => {
+        if(widgetIsMounted()) refreshWidget();
+        else { clearInterval(widgetTicker); widgetTicker = null; }
+      }, 1000);
+    }
+  } else if(widgetTicker){
+    clearInterval(widgetTicker);
+    widgetTicker = null;
+  }
+}
 NX.events && NX.events.on && NX.events.on('notifs:changed', () => { if(widgetIsMounted()) refreshWidget(); });
 
 })(window.NX);

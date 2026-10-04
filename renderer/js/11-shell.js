@@ -578,6 +578,172 @@ NX.tabs = {
   }
 };
 
+/* ---------------- Glass Shade Tint Engine ---------------- */
+NX.setGlassShade = function(shade){
+  const clean = shade || 'emerald';
+  document.documentElement.setAttribute('data-glass-shade', clean);
+  try { NX.store.set('ui:glassShade', clean); }catch(e){}
+  NX.toastOk('Glass Shade', clean.charAt(0).toUpperCase() + clean.slice(1) + ' Acrylic');
+};
+
+NX.initGlassShade = function(){
+  try {
+    const saved = NX.store.get('ui:glassShade', 'emerald');
+    document.documentElement.setAttribute('data-glass-shade', saved);
+  }catch(e){}
+};
+
+NX.openGlassyHub = function(anchor){
+  const existing = document.getElementById('nx-glass-hub-dropdown');
+  if(existing){ existing.remove(); return; }
+
+  const curShade = (NX.store && NX.store.get('ui:glassShade', 'emerald')) || 'emerald';
+  const unread = NX.unreadNotifs();
+  const bal = sideBalText();
+  const curThemeObj = THEMES.find(t=>t.id === (NX.store.get('settings',{}).theme)) || THEMES[0];
+  const sfxOn = !(NX.store.get('settings',{}).muteSfx);
+
+  const rect = anchor ? anchor.getBoundingClientRect() : { right: window.innerWidth - 16, bottom: 44 };
+  const rightOffset = Math.max(12, window.innerWidth - rect.right);
+  const topOffset = rect.bottom + 6;
+
+  const menu = h(`<div id="nx-glass-hub-dropdown" class="glass-hub-card anim-in" style="position:fixed;top:${topOffset}px;right:${rightOffset}px;z-index:9500;width:300px">
+    <div class="gh-head">
+      <div class="row gap-8" style="align-items:center">
+        <span class="gh-bolt">⚡</span>
+        <div>
+          <div class="bold" style="font-size:13px;line-height:1.2">PebbleX Hub</div>
+          <div class="faint tiny">${bal || 'Quick Controls &amp; Shortcuts'}</div>
+        </div>
+      </div>
+      <button class="gh-close-btn" id="gh-close" title="Close Hub">&times;</button>
+    </div>
+
+    <div class="gh-section">
+      <div class="gh-sec-lbl">Quick Create</div>
+      <div class="gh-grid-3">
+        <button class="gh-grid-btn" id="gh-new-note">
+          <span class="gh-btn-ic">${icon('notes', 14)}</span>
+          <span>+ Note</span>
+        </button>
+        <button class="gh-grid-btn" id="gh-new-task">
+          <span class="gh-btn-ic">${icon('todo', 14)}</span>
+          <span>+ Task</span>
+        </button>
+        <button class="gh-grid-btn" id="gh-new-canvas">
+          <span class="gh-btn-ic">${icon('brush', 14)}</span>
+          <span>+ Canvas</span>
+        </button>
+        <button class="gh-grid-btn" id="gh-new-webtab">
+          <span class="gh-btn-ic">${icon('globe', 14)}</span>
+          <span>+ Web Tab</span>
+        </button>
+        <button class="gh-grid-btn" id="gh-new-rem">
+          <span class="gh-btn-ic">${icon('bell', 14)}</span>
+          <span>+ Alert</span>
+        </button>
+        <button class="gh-grid-btn" id="gh-new-prompt">
+          <span class="gh-btn-ic">${icon('star', 14)}</span>
+          <span>+ Prompt</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="gh-section">
+      <div class="gh-sec-lbl">Intelligence &amp; Alerts</div>
+      <div class="gh-action-list">
+        <button class="gh-act-row" id="gh-copilot">
+          <span class="gh-row-ic" style="color:var(--green)">${icon('robot', 15)}</span>
+          <span class="gh-row-txt">Pebble Copilot AI</span>
+          <span class="kbd">Ctrl+Shift+A</span>
+        </button>
+        <button class="gh-act-row" id="gh-notifs">
+          <span class="gh-row-ic" style="color:var(--orange)">${icon('bell', 15)}</span>
+          <span class="gh-row-txt">Notifications</span>
+          ${unread ? `<span class="pill red sm">${unread}</span>` : `<span class="faint tiny">0 new</span>`}
+        </button>
+        <button class="gh-act-row" id="gh-cycle-theme">
+          <span class="gh-row-ic" style="color:var(--purple, #8b5cf6)">${icon('palette', 15)}</span>
+          <span class="gh-row-txt">Theme: <b>${U.esc(curThemeObj.name)}</b></span>
+          <span class="faint tiny">Cycle (Ctrl+J)</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="gh-section">
+      <div class="gh-sec-lbl">Glass Colored Shade (Behind Window)</div>
+      <div class="gh-shade-row">
+        ${[
+          { id:'emerald', name:'Calm Emerald', color:'#7CD56E' },
+          { id:'ocean',   name:'Deep Ocean',   color:'#5EB8FF' },
+          { id:'sunset',  name:'Warm Sunset',  color:'#E8853D' },
+          { id:'violet',  name:'Royal Violet', color:'#8B5CF6' },
+          { id:'neon',    name:'Cyber Neon',   color:'#5EF38C' },
+          { id:'crystal', name:'Clear Mica',   color:'#E2E8F0' }
+        ].map(sh => `
+          <button class="gh-shade-dot ${curShade===sh.id?'active':''}" data-shade="${sh.id}" title="${sh.name}" style="background:${sh.color}">
+            ${curShade===sh.id ? '✓' : ''}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+
+    <div class="gh-foot">
+      <button class="gh-toggle-btn ${sfxOn?'on':''}" id="gh-sfx-toggle" title="Toggle audio feedback">
+        <span>${sfxOn ? '🔊 Sound: On' : '🔇 Sound: Off'}</span>
+      </button>
+      <button class="gh-toggle-btn" id="gh-widget-toggle" title="Toggle Desktop Floating Widget">
+        <span>🗔 Mini Widget</span>
+      </button>
+    </div>
+  </div>`);
+
+  document.body.appendChild(menu);
+
+  const close = () => { menu.remove(); document.removeEventListener('click', outsideClick); };
+  const outsideClick = (e) => {
+    if(!menu.contains(e.target) && (!anchor || !anchor.contains(e.target))) close();
+  };
+  setTimeout(() => document.addEventListener('click', outsideClick), 40);
+
+  q('#gh-close', menu).onclick = close;
+  q('#gh-new-note', menu).onclick = () => { close(); NX.router.go('notes'); setTimeout(()=>NX.newNote && NX.newNote(), 60); };
+  q('#gh-new-task', menu).onclick = () => { close(); NX.router.go('todo'); setTimeout(()=>NX.newTask && NX.newTask(), 60); };
+  q('#gh-new-canvas', menu).onclick = () => { close(); NX.router.go('canvas'); };
+  q('#gh-new-webtab', menu).onclick = () => { close(); openWebTabModal(); };
+  q('#gh-new-rem', menu).onclick = () => { close(); NX.router.go('reminders'); setTimeout(()=>NX.newReminder && NX.newReminder(), 60); };
+  q('#gh-new-prompt', menu).onclick = () => { close(); NX.router.go('prompts'); setTimeout(()=>NX.newPrompt && NX.newPrompt(), 60); };
+
+  q('#gh-copilot', menu).onclick = () => { close(); NX.openAskPebble && NX.openAskPebble(); };
+  q('#gh-notifs', menu).onclick = () => { close(); NX.openNotifCenter && NX.openNotifCenter(anchor); };
+  q('#gh-cycle-theme', menu).onclick = () => { NX.cycleTheme(); close(); };
+
+  qa('.gh-shade-dot', menu).forEach(dot => {
+    dot.onclick = () => {
+      const sh = dot.dataset.shade;
+      NX.setGlassShade(sh);
+      qa('.gh-shade-dot', menu).forEach(d => { d.classList.remove('active'); d.textContent = ''; });
+      dot.classList.add('active');
+      dot.textContent = '✓';
+      try{ NX.sfx.play('tick'); }catch(e){}
+    };
+  });
+
+  q('#gh-sfx-toggle', menu).onclick = (e) => {
+    const s = NX.store.get('settings', {});
+    s.muteSfx = !s.muteSfx;
+    NX.store.set('settings', s);
+    e.currentTarget.classList.toggle('on', !s.muteSfx);
+    e.currentTarget.querySelector('span').textContent = s.muteSfx ? '🔇 Sound: Off' : '🔊 Sound: On';
+    if(!s.muteSfx) try{ NX.sfx.play('pop'); }catch(err){}
+  };
+
+  q('#gh-widget-toggle', menu).onclick = () => {
+    close();
+    if(NX.widget && NX.widget.toggle) NX.widget.toggle();
+  };
+};
+
 function renderTopbar(host){
   const title = routeTitle();
   const unread = NX.unreadNotifs();
@@ -591,17 +757,26 @@ function renderTopbar(host){
       ${icon('search',13)}<input placeholder="Search notes, tasks, or enter URL…" readonly>
       <span class="kbd">Ctrl K</span>
     </div>
-    <div class="topbar-actions" style="display:flex;align-items:center;gap:5px">
-      <button class="icon-btn sm" data-tip="Switch Theme (Ctrl+J)" id="tp-theme" style="color:var(--ink-2)">${icon('palette', 14)}</button>
-      <button class="icon-btn sm" data-tip="Ask Pebble Copilot (Ctrl+Shift+A)" id="tp-copilot" style="color:var(--green)">${icon('robot', 15)}</button>
-      <span class="bell-wrap">
-        <button class="icon-btn sm" data-tip="Notifications" id="tp-bell">${icon('bell', 14)}</button>
-        ${unread? `<span class="bell-badge" id="tp-bell-badge">${unread>9?'9+':unread}</span>`:''}
-      </span>
-      ${pointsChip()}
-      <button class="btn btn-dark btn-sm" id="tp-new" style="height:30px;padding:0 12px;font-size:12px;gap:5px">${icon('plus',12)} New</button>
+    <div class="topbar-actions glassy-actions-cluster" style="display:flex;align-items:center;gap:6px">
+      <button class="topbar-hub-btn glassy-pill" id="tp-hub-btn" data-tip="Pebble Hub — Quick Actions, Copilot &amp; Glass Controls">
+        <span class="th-sparkle">⚡</span>
+        <span class="th-label">Hub</span>
+        ${unread? `<span class="th-badge red" id="tp-bell-badge">${unread>9?'9+':unread}</span>`:''}
+        <span class="th-arrow">▾</span>
+      </button>
+      <div style="display:none">
+        <button id="tp-theme"></button>
+        <button id="tp-copilot"></button>
+        <button id="tp-bell"></button>
+        <button id="tp-points"></button>
+        <button id="tp-new"></button>
+      </div>
     </div>
   </header>`);
+
+  const hubBtn = bar.querySelector('#tp-hub-btn');
+  if(hubBtn) hubBtn.onclick = (e) => NX.openGlassyHub(e.currentTarget);
+
   const themeBtn = bar.querySelector('#tp-theme');
   if(themeBtn) themeBtn.onclick = () => NX.cycleTheme();
   bar.querySelector('#tp-search').onclick = ()=> (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette());
@@ -610,16 +785,9 @@ function renderTopbar(host){
   bar.querySelector('#tp-bell').onclick = (e)=>NX.openNotifCenter(e.currentTarget);
   const ptsBtn = bar.querySelector('#tp-points');
   if(ptsBtn) ptsBtn.onclick = ()=>NX.router.go('store');
-  bar.querySelector('#tp-new').onclick = (e)=>NX.menu(e.currentTarget, [
-    { label:'New note', icon:'notes', onClick:()=>{ NX.router.go('notes'); setTimeout(()=>NX.newNote && NX.newNote(), 60); } },
-    { label:'New task', icon:'todo', onClick:()=>{ NX.router.go('todo'); setTimeout(()=>NX.newTask && NX.newTask(), 60); } },
-    { label:'New canvas board', icon:'grid', onClick:()=>{ NX.router.go('canvas'); } },
-    { label:'New reminder', icon:'bell', onClick:()=>{ NX.router.go('reminders'); setTimeout(()=>NX.newReminder && NX.newReminder(), 60); } },
-    '-',
-    { label:'New chat message', icon:'chat', onClick:()=>{ NX.router.go('chat'); setTimeout(()=>q('#ci-input') && q('#ci-input').focus(), 120); } },
-    { label:'Save a prompt', icon:'star', onClick:()=>{ NX.router.go('prompts'); setTimeout(()=>NX.newPrompt && NX.newPrompt(), 60); } },
-  ], { align:'right' });
+  bar.querySelector('#tp-new').onclick = (e)=>NX.openGlassyHub(e.currentTarget);
   host.appendChild(bar);
+  NX.initGlassShade();
   NX.tabs.render();
 }
 

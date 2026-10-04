@@ -713,3 +713,271 @@ body.login-mode{
   vertical-align:middle;
   margin-right:4px;
 }
+
+/* ================= GLASS HUB & ACRYLIC STYLING ================= */
+.glass-hub-card {
+  background: rgba(18, 22, 30, 0.88);
+  backdrop-filter: blur(36px) saturate(200%);
+  -webkit-backdrop-filter: blur(36px) saturate(200%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 14px;
+  color: var(--ink);
+  overflow: hidden;
+}
+.light .glass-hub-card {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.16);
+}
+.gh-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+.gh-bolt {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 13px;
+}
+.gh-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--ink-3);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.gh-section {
+  margin-bottom: 10px;
+}
+.gh-sec-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+.gh-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.gh-grid-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 52px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all .14s ease;
+}
+.light .gh-grid-btn {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.07);
+}
+.gh-grid-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--green);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+.light .gh-grid-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+.gh-action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.gh-act-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  color: var(--ink-2);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all .14s ease;
+}
+.light .gh-act-row {
+  background: rgba(0, 0, 0, 0.02);
+}
+.gh-act-row:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--ink);
+}
+.light .gh-act-row:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+.gh-row-txt {
+  flex: 1;
+  font-weight: 500;
+}
+.gh-shade-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.gh-shade-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 900;
+  color: #fff;
+  transition: all .16s ease;
+}
+.gh-shade-dot.active, .gh-shade-dot:hover {
+  transform: scale(1.15);
+  border-color: #fff;
+  box-shadow: 0 0 10px rgba(255,255,255,0.4);
+}
+.gh-foot {
+  display: flex;
+  gap: 6px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+.gh-toggle-btn {
+  flex: 1;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: all .14s ease;
+}
+.light .gh-toggle-btn {
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.07);
+}
+.gh-toggle-btn.on, .gh-toggle-btn:hover {
+  background: rgba(124, 213, 110, 0.14);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+/* Glass Hub Trigger Pill */
+.topbar-hub-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  transition: all .16s cubic-bezier(.2,0,0,1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  flex: none;
+}
+.light .topbar-hub-btn {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+.topbar-hub-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--green);
+  box-shadow: 0 0 14px rgba(124, 213, 110, 0.25);
+  transform: translateY(-1px);
+}
+.th-sparkle {
+  color: var(--green);
+  font-size: 13px;
+}
+.th-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 99px;
+  background: var(--red);
+  color: #fff;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.th-arrow {
+  font-size: 9px;
+  opacity: 0.6;
+}
+
+/* Glass Shades (Windows 11 / Apple Acrylic Themes on Sidebar & Behind) */
+[data-glass-shade="emerald"] .sidebar {
+  background: linear-gradient(180deg, rgba(124, 213, 110, 0.12) 0%, rgba(18, 24, 22, 0.76) 100%) !important;
+}
+[data-glass-shade="ocean"] .sidebar {
+  background: linear-gradient(180deg, rgba(94, 184, 255, 0.14) 0%, rgba(14, 20, 32, 0.78) 100%) !important;
+}
+[data-glass-shade="sunset"] .sidebar {
+  background: linear-gradient(180deg, rgba(232, 133, 61, 0.13) 0%, rgba(26, 18, 16, 0.78) 100%) !important;
+}
+[data-glass-shade="violet"] .sidebar {
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.14) 0%, rgba(22, 16, 34, 0.78) 100%) !important;
+}
+[data-glass-shade="neon"] .sidebar {
+  background: linear-gradient(180deg, rgba(94, 243, 140, 0.15) 0%, rgba(12, 22, 16, 0.8) 100%) !important;
+}
+[data-glass-shade="crystal"] .sidebar {
+  background: rgba(20, 24, 30, 0.7) !important;
+}
+
+/* Semi-transparent body and app-shell for desktop wallpaper see-through */
+html, body {
+  background: transparent !important;
+}
+.app-shell {
+  background: var(--window-bg, rgba(20, 22, 27, 0.92)) !important;
+}
+.sidebar {
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.topbar {
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}

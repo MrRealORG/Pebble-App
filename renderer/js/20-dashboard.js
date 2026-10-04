@@ -169,7 +169,7 @@ NX.routeInShell('dashboard', 'Dashboard', 'dashboard', function(view){
   /* activity table */
   const acts = [];
   Object.entries(NX.store.get('timeless', {})[today] || {}).forEach(([k,a])=>{
-    if(a.sec > 60) acts.push({ ic:'clock', c:a.cat, name:a.name, detail:U.fmtTime(a.sec), ts:Date.now()-1000 });
+    if(a && a.sec > 60) acts.push({ ic:'clock', c:a.cat, name:a.name || k, isSite:!!a.isSite, host:k, detail:U.fmtTime(a.sec), ts:Date.now()-1000 });
   });
   NX.store.get('tasks', []).slice(0,4).forEach(t=>acts.push({ ic:'todo', c:'task', name:t.name, detail: t.done?'completed':'open', ts:t.created }));
   NX.store.get('notes', []).slice(0,3).forEach(n=>acts.push({ ic:'notes', c:'note', name:n.title, detail:'note', ts:n.updated }));
@@ -181,31 +181,39 @@ NX.routeInShell('dashboard', 'Dashboard', 'dashboard', function(view){
     tbl.outerHTML = `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="${NX.ICON_PATHS.activity}"/></svg><div class="e-sub">Activity from Timeless, Tasks and Notes will appear here.</div></div>`;
   } else {
     tbl.innerHTML = `<thead><tr><th>What</th><th>Kind</th><th style="text-align:right">Detail</th></tr></thead><tbody>${
-      show.map(a=>`<tr>
-        <td style="display:flex;align-items:center;gap:10px"><span class="avatar sm" style="background:${U.colorFor(a.name)}">${icon(a.ic)}</span><b class="ellipsis" style="max-width:280px">${U.esc(a.name)}</b></td>
-        <td><span class="pill ${a.c==='prod'?'green':a.c==='distr'?'red':a.c==='task'?'blue':a.c==='note'?'purple':'gray'}">${U.esc(a.c)}</span></td>
-        <td style="text-align:right" class="mono-num">${U.esc(a.detail)}</td></tr>`).join('')
+      show.map(a => {
+        let iconMarkup = '';
+        if(a.isSite && NX.getWebsiteFaviconHtml){
+          iconMarkup = `<span class="ar-ic real" style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center">${NX.getWebsiteFaviconHtml(a.host || a.name, 20)}</span>`;
+        } else if((a.c==='prod' || a.c==='distr') && String(a.name).includes('.') && NX.getWebsiteFaviconHtml){
+          iconMarkup = `<span class="ar-ic real" style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center">${NX.getWebsiteFaviconHtml(a.name, 20)}</span>`;
+        } else {
+          iconMarkup = `<span class="avatar sm" style="background:${U.colorFor(a.name)}">${icon(a.ic)}</span>`;
+        }
+        return `<tr>
+          <td style="display:flex;align-items:center;gap:10px">${iconMarkup}<b class="ellipsis" style="max-width:280px">${U.esc(a.name)}</b></td>
+          <td><span class="pill ${a.c==='prod'?'green':a.c==='distr'?'red':a.c==='task'?'blue':a.c==='note'?'purple':'gray'}">${U.esc(a.c)}</span></td>
+          <td style="text-align:right" class="mono-num">${U.esc(a.detail)}</td></tr>`;
+      }).join('')
     }</tbody>`;
   }
 
-  /* peak hours chart */
+  /* peak hours chart — 100% real live data */
   const hours = new Array(15).fill(0).map((_,i)=>({ h:i+8, v:0 })); // 8am..10pm
   const tlToday = NX.store.get('timeless', {})[today] || {};
   const slots = (tlToday.__hours) || {};
   Object.entries(slots).forEach(([h1,v])=>{ const idx = +h1 - 8; if(idx>=0 && idx<hours.length) hours[idx].v += v; });
   const max = Math.max(60, ...hours.map(x=>x.v));
   const peak = q('#db-peak', view);
-  if(tlToday.__hours && Object.keys(tlToday.__hours).length){
-    peak.innerHTML = hours.map(x=>`<div class="bar-col" data-tip="${x.h>12?x.h-12+' pm':x.h+' am'}">
-      <div class="bar ${x.v===Math.max(...hours.map(y=>y.v)) && x.v>0?'hot':''}" style="height:${Math.max(4, x.v/max*100)}%"></div>
-      <div class="bar-label">${x.h%12===0?12:x.h%12}${x.h<12?'a':'p'}</div></div>`).join('');
-  } else {
-    // demo silhouette until Timeless collects data
-    const demo = [8,20,35,22,48,30,90,45,60,26,38,18,30,12,22];
-    peak.innerHTML = demo.map((v,i)=>`<div class="bar-col" data-tip="Waiting for live data">
-      <div class="bar ${v===90?'hot':''}" style="height:${v}%;opacity:.55"></div>
-      <div class="bar-label">${(i+8)%12===0?12:(i+8)%12}${(i+8)<12?'a':'p'}</div></div>`).join('');
-  }
+  const hasRealHours = hours.some(x => x.v > 0);
+  peak.innerHTML = hours.map(x => {
+    const isHot = hasRealHours && x.v === Math.max(...hours.map(y=>y.v)) && x.v > 0;
+    const heightPct = x.v > 0 ? Math.max(8, Math.round(x.v/max*100)) : 4;
+    const tipText = `${x.h>12?x.h-12+' pm':x.h+' am'} — ${x.v>0 ? U.fmtTime(x.v) : '0m focus'}`;
+    return `<div class="bar-col" data-tip="${tipText}">
+      <div class="bar ${isHot?'hot':''}" style="height:${heightPct}%;opacity:${x.v>0?1:0.35}"></div>
+      <div class="bar-label">${x.h%12===0?12:x.h%12}${x.h<12?'a':'p'}</div></div>`;
+  }).join('');
 
   /* reminders */
   const rems = NX.store.get('reminders', []).filter(r=>!r.fired).sort((a,b)=>a.when-b.when).slice(0,3);
@@ -217,7 +225,7 @@ NX.routeInShell('dashboard', 'Dashboard', 'dashboard', function(view){
     : `<div class="empty" style="padding:18px"><div class="e-sub">No upcoming reminders — add one in Reminders.</div></div>`;
   q('#db-all-rem', view).onclick = ()=>NX.router.go('reminders');
 
-  /* heatmap (this month, demo-seeded until data exists) */
+  /* heatmap (this month, 100% genuine tracked activity) */
   const heat = q('#db-heat', view);
   const tlAll = NX.store.get('timeless', {});
   const now = new Date(), y = now.getFullYear(), mo = now.getMonth();
@@ -226,9 +234,10 @@ NX.routeInShell('dashboard', 'Dashboard', 'dashboard', function(view){
   for(let d=1; d<=days; d++){
     const key = `${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const rec = tlAll[key];
-    const activeMin = rec ? Math.round(Object.values(rec).reduce((s,a)=>s+(a.sec||0),0)/60) : (d<now.getDate()? 40 + (d*37)%120 : 0);
+    const activeMin = rec ? Math.round(Object.values(rec).reduce((s,a)=>s+(a.sec||0),0)/60) : 0;
     const hot = activeMin >= 60;
-    heatHtml += `<i class="${hot?'hot':''} ${d===now.getDate()?'today':''}" data-tip="${key} · ${activeMin} min">${d}</i>`;
+    const hasData = activeMin > 0;
+    heatHtml += `<i class="${hot?'hot':''} ${d===now.getDate()?'today':''} ${!hasData?'empty-day':''}" data-tip="${key} · ${activeMin} min" style="${hasData?'opacity:1':'opacity:0.3'}">${d}</i>`;
   }
   heat.innerHTML = heatHtml;
 
