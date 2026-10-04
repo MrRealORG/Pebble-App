@@ -15,7 +15,17 @@
 'use strict';
 const { h, q, qa, util:U, icon } = NX;
 let curNoteId = null, listQuery = '', curFolder = '', curTag = 'all', viewMode = 'split'; // 'split', 'edit', 'preview'
-let vault = { root:'', files:[], folders:[] };
+let vault = {
+  root:'',
+  files:[],
+  folders: (function(){
+    try {
+      const saved = NX.store.get('vault_folders', null);
+      if(Array.isArray(saved) && saved.length) return saved;
+    }catch(e){}
+    return ['Work', 'Projects', 'Personal', 'Ideas'];
+  })()
+};
 
 /* ---------------- Enhanced Markdown -> HTML Renderer ---------------- */
 function highlightCode(code, lang){
@@ -290,8 +300,13 @@ function current(){
   return notes().find(n=>n.id === curNoteId && !n.trash) || notes().find(n=>!n.trash) || notes()[0];
 }
 function folders(){
-  const set = new Set(notes().filter(n=>!n.trash).map(n=>n.folder || '').filter(Boolean));
-  (vault.folders||[]).forEach(f=>set.add(f));
+  let saved = null;
+  try { saved = NX.store.get('vault_folders', null); }catch(e){}
+  const base = (Array.isArray(saved) && saved.length) ? saved : (vault.folders && vault.folders.length ? vault.folders : ['Work', 'Projects', 'Personal', 'Ideas']);
+  const set = new Set(base.filter(Boolean));
+  notes().filter(n=>!n.trash).forEach(n => {
+    if(n.folder && n.folder.trim()) set.add(n.folder.trim());
+  });
   return Array.from(set).sort();
 }
 function tags(){
@@ -740,16 +755,16 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       <!-- Left sidebar: Search, Folders, Notes list -->
       <div class="notes-list-col">
         <div class="row gap-8">
-          <button class="btn btn-soft btn-sm" id="nt-back-to-apps" data-tip="Back to Main Apps (Dashboard)" style="display:inline-flex;align-items:center;gap:4px;flex:none;font-weight:600;padding:6px 10px;border-radius:var(--r-sm);color:var(--ink-2);background:var(--bg-card);border:1px solid var(--line);cursor:pointer">${icon('chevL',14)} <span>Apps</span></button>
-          <div class="search-box" style="flex:1 1 auto;min-width:0;width:auto">${icon('search')}<input id="nt-search" placeholder="Search notes…"></div>
+          <button class="btn btn-soft btn-sm" id="nt-back-to-apps" data-tip="Back to Main Apps (Dashboard)" style="display:inline-flex;align-items:center;gap:4px;flex:none;font-weight:600;padding:6px 9px;border-radius:var(--r-sm);color:var(--ink-2);background:var(--bg-card);border:1px solid var(--line);cursor:pointer">${icon('chevL',14)} <span>Apps</span></button>
+          <div class="search-box" style="flex:1 1 auto;min-width:70px;width:auto">${icon('search')}<input id="nt-search" placeholder="Search…"></div>
           <button class="btn btn-dark nt-new-btn" id="nt-new" data-tip="New note">${icon('plus')} New</button>
           <button class="icon-btn sm" id="nt-collapse-sidebar" data-tip="Hide notes list" style="flex:none">${icon('chevL',14)}</button>
         </div>
         <div class="nt-folders" id="nt-folders"></div>
         <div class="notes-scroll" id="nt-list"></div>
         <div class="row gap-6" style="margin-top:8px">
-          <button class="btn btn-soft btn-sm" id="nt-import" style="flex:1">${icon('download')} Import .md</button>
-          <button class="btn btn-soft btn-sm" id="nt-template">${icon('folder')} Templates</button>
+          <button class="btn btn-soft btn-sm" id="nt-import" style="flex:1" data-tip="Import markdown files">${icon('download')} Import</button>
+          <button class="btn btn-soft btn-sm" id="nt-template" data-tip="Note templates">${icon('folder')} Templates</button>
           <button class="btn btn-soft btn-sm" id="nt-graph" data-tip="Knowledge Graph View">${icon('activity',13)} Graph</button>
           <button class="icon-btn sm" id="nt-open-vault" data-tip="Open real notes folder on disk">${icon('folder')}</button>
         </div>
@@ -927,39 +942,35 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     const counts = {};
     activeNotes.forEach(n => { const f = n.folder || ''; counts[f] = (counts[f]||0) + 1; });
 
-    let startersHtml = '';
-    if(!allFolders.length){
-      const suggestions = ['Work', 'Projects', 'Personal', 'Ideas'];
-      startersHtml = `
-        <div class="nt-starters-box" style="padding:6px 6px 8px;margin:5px 0;background:rgba(255,255,255,0.02);border-radius:8px;border:1px dashed var(--line)">
-          <div class="faint tiny bold" style="margin-bottom:5px;display:flex;align-items:center;gap:4px">${icon('layers',11)} Starter folders:</div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px">
-            ${suggestions.map(s => `<button type="button" class="chip sm nt-starter-chip" data-name="${s}" style="font-size:10.5px;padding:2px 7px;cursor:pointer;border-radius:99px">+ ${s}</button>`).join('')}
-          </div>
-        </div>`;
-    }
-
     host.innerHTML = `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 4px 6px">
-        <span class="faint tiny bold" style="text-transform:uppercase;letter-spacing:.05em">Folders</span>
-        <button class="icon-btn sm" id="nt-add-folder" data-tip="New folder" style="width:22px;height:22px">${icon('plus',12)}</button>
-      </div>
-      <button class="nt-folder ${curFolder===''?'on':''}" data-f="">${icon('notes',14)} All notes <span class="n">${activeNotes.length}</span></button>
-      <button class="nt-folder ${curFolder==='__fav'?'on':''}" data-f="__fav">
-        <span style="font-size:13px">⭐</span> Favorites <span class="n" style="${favCount>0?'font-weight:700;color:var(--orange)':''}">${favCount}</span>
-      </button>
-      ${startersHtml}
-      ${allFolders.map(f=>`
-        <button class="nt-folder ${curFolder===f?'on':''}" data-f="${U.esc(f)}" data-folder-name="${U.esc(f)}">
-          <span class="fld-ic">${icon('layers',14)}</span> <span class="ellipsis" style="flex:1">${U.esc(f)}</span>
-          <span class="n">${counts[f]||0}</span>
+      <div class="nt-folders-bar">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span class="faint tiny bold" style="text-transform:uppercase;letter-spacing:.05em">Folders</span>
+          <span class="faint tiny">(${allFolders.length})</span>
+        </div>
+        <button class="btn btn-soft btn-sm" id="nt-add-folder" data-tip="Create new folder" style="padding:2px 8px;font-size:11px;gap:3px;height:22px;border-radius:6px">
+          ${icon('plus',11)} New
         </button>
-      `).join('')}
-      ${curTag !== 'all' ? `<div style="padding:4px 2px"><button class="chip active" id="nt-clear-tag" style="height:24px;font-size:11px">Filter: #${U.esc(curTag)} <span style="font-weight:900;margin-left:4px">&times;</span></button></div>` : ''}
-      <div style="height:1px;background:var(--line);margin:6px 0"></div>
-      <button class="nt-folder ${curFolder==='__trash'?'on':''}" data-f="__trash" style="color:${trashCount>0?'var(--red)':'var(--ink-3)'}">
-        ${icon('trash',14)} Trash <span class="n" style="${trashCount>0?'color:var(--red);font-weight:700':''}">${trashCount}</span>
-      </button>
+      </div>
+      <div class="nt-folders-list">
+        <button class="nt-folder ${curFolder===''?'on':''}" data-f="">
+          ${icon('notes',12)} All notes <span class="n">${activeNotes.length}</span>
+        </button>
+        <button class="nt-folder ${curFolder==='__fav'?'on':''}" data-f="__fav">
+          ⭐ Favorites <span class="n" style="${favCount>0?'font-weight:700;color:var(--orange)':''}">${favCount}</span>
+        </button>
+        ${allFolders.map(f=>`
+          <button class="nt-folder ${curFolder===f?'on':''}" data-f="${U.esc(f)}" data-folder-name="${U.esc(f)}" title="Folder: ${U.esc(f)}">
+            <span class="fld-ic">📁</span>
+            <span class="ellipsis" style="max-width:115px">${U.esc(f)}</span>
+            <span class="n">${counts[f]||0}</span>
+          </button>
+        `).join('')}
+        <button class="nt-folder ${curFolder==='__trash'?'on':''}" data-f="__trash" style="color:${trashCount>0?'var(--red)':'var(--ink-3)'}">
+          ${icon('trash',12)} Trash <span class="n" style="${trashCount>0?'color:var(--red);font-weight:700':''}">${trashCount}</span>
+        </button>
+      </div>
+      ${curTag !== 'all' ? `<div style="padding:2px 2px"><button class="chip active" id="nt-clear-tag" style="height:22px;font-size:10.5px">Filter: #${U.esc(curTag)} <span style="font-weight:900;margin-left:4px">&times;</span></button></div>` : ''}
     `;
 
     qa('.nt-starter-chip', host).forEach(b => {
@@ -2722,9 +2733,9 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         };
 
         speechRec.onerror = (e) => {
-          const errCode = (e && e.error) ? e.error : 'speech-error';
-          console.warn('[Dictation WebSpeech]', errCode);
-          if(errCode !== 'no-speech'){
+          const errCode = (e && typeof e.error === 'string') ? e.error : (e && e.message ? String(e.message) : '');
+          console.warn('[Dictation WebSpeech]', errCode || 'event');
+          if(errCode && errCode !== 'no-speech' && errCode !== 'aborted'){
             stopDictation();
             fallbackNativeASR();
           }

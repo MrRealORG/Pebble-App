@@ -1283,33 +1283,94 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
 
   const quickMicBtn = q('#mstodo-quick-mic', view);
   if(quickMicBtn){
-    quickMicBtn.onclick = async () => {
-      const SpeechClass = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if(SpeechClass){
-        try {
-          const rec = new SpeechClass();
-          rec.lang = navigator.language || 'en-US';
-          quickMicBtn.style.color = '#fff';
-          quickMicBtn.style.background = 'var(--red,#ef4444)';
-          NX.sfx.play('pop');
-          NX.toastInfo('🎙️ Listening…', 'Speak your task name.');
-          rec.onresult = (e) => {
-            const val = e.results[0][0].transcript;
-            if(val && val.trim()){
-              inputEl.value = val.trim();
-              submitQuickAdd();
-            }
-          };
-          rec.onerror = () => { fallbackNativeTaskMic(); };
-          rec.onend = () => {
-            quickMicBtn.style.color = 'var(--red,#ef4444)';
-            quickMicBtn.style.background = '';
-          };
-          rec.start();
-          return;
-        } catch(e){}
+    let activeRec = null;
+    let isListening = false;
+    let baseText = '';
+
+    function stopQuickMic(){
+      if(activeRec){
+        try{ activeRec.stop(); }catch(e){}
+        activeRec = null;
       }
-      fallbackNativeTaskMic();
+      isListening = false;
+      quickMicBtn.style.color = 'var(--red,#ef4444)';
+      quickMicBtn.style.background = '';
+      quickMicBtn.style.transform = '';
+      inputEl.placeholder = 'Add a task (press Enter)';
+    }
+
+    quickMicBtn.onclick = () => {
+      if(isListening){
+        stopQuickMic();
+        if(inputEl.value.trim()){
+          NX.toastOk('🎙️ Dictated', inputEl.value.trim());
+          inputEl.focus();
+        }
+        return;
+      }
+
+      const SpeechClass = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if(!SpeechClass){
+        fallbackNativeTaskMic();
+        return;
+      }
+
+      try {
+        const rec = new SpeechClass();
+        activeRec = rec;
+        isListening = true;
+        baseText = inputEl.value ? inputEl.value.trim() + ' ' : '';
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = navigator.language || 'en-US';
+
+        quickMicBtn.style.color = '#fff';
+        quickMicBtn.style.background = 'var(--red,#ef4444)';
+        quickMicBtn.style.borderRadius = '99px';
+        inputEl.placeholder = '🎙️ Listening… Speak your task';
+        inputEl.focus();
+        NX.sfx.play('pop');
+        NX.toastInfo('🎙️ Listening…', 'Speak your task. Click mic again or press Enter when done.');
+
+        rec.onresult = (e) => {
+          let finalSpoken = '';
+          let interimSpoken = '';
+          for (let i = 0; i < e.results.length; ++i) {
+            if (e.results[i].isFinal) {
+              finalSpoken += e.results[i][0].transcript.trim() + ' ';
+            } else {
+              interimSpoken += e.results[i][0].transcript;
+            }
+          }
+          // Accumulate into input in real-time WITHOUT prematurely submitting
+          inputEl.value = (baseText + finalSpoken + interimSpoken).trim();
+        };
+
+        rec.onerror = (e) => {
+          const err = (e && typeof e.error === 'string') ? e.error : '';
+          console.warn('[Todo Speech]', err || 'aborted');
+          stopQuickMic();
+          if(err && err !== 'no-speech' && err !== 'aborted'){
+            fallbackNativeTaskMic();
+          }
+        };
+
+        rec.onend = () => {
+          if(isListening){
+            stopQuickMic();
+            if(inputEl.value.trim()){
+              NX.toastOk('🎙️ Task captured', inputEl.value.trim());
+              inputEl.focus();
+            }
+          }
+        };
+
+        rec.start();
+      } catch(err){
+        console.warn('SpeechRecognition failed to start', err);
+        stopQuickMic();
+        fallbackNativeTaskMic();
+      }
     };
 
     async function fallbackNativeTaskMic(){
@@ -1322,8 +1383,9 @@ NX.routeInShell('todo', 'Tasks', 'todo', function(view){
         quickMicBtn.style.color = 'var(--red,#ef4444)';
         quickMicBtn.style.background = '';
         if(text && text.trim()){
-          inputEl.value = text.trim();
-          submitQuickAdd();
+          inputEl.value = (inputEl.value ? inputEl.value.trim() + ' ' : '') + text.trim();
+          NX.toastOk('🎙️ Task captured', text.trim());
+          inputEl.focus();
         }
       } catch(e){
         quickMicBtn.style.color = 'var(--red,#ef4444)';

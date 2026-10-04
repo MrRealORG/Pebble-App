@@ -212,3 +212,130 @@
   .cs-side { max-height: 210px; }
   .cs-bub { max-width: 86%; }
 }
+
+/* ---------- status & actions ---------- */
+.cs-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green, #22c55e);
+  display: inline-block;
+  flex: none;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--green, #22c55e) 60%, transparent);
+}
+
+.cs-bub { position: relative; }
+.cs-actions-hover {
+  position: absolute;
+  top: -12px;
+  right: 8px;
+  display: none;
+  align-items: center;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 2px 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.15);
+  z-index: 10;
+}
+.cs-bub:hover .cs-actions-hover { display: flex; }
+.cs-act-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1;
+  transition: transform .1s;
+}
+.cs-act-btn:hover {
+  transform: scale(1.2);
+  background: var(--surface-2);
+}
+
+/* ---------- welcome hero ---------- */
+.cs-welcome-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px 20px;
+  margin: auto;
+  max-width: 520px;
+}
+.cs-welcome-avatar {
+  font-size: 42px;
+  margin-bottom: 12px;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,.1));
+}
+.cs-welcome-title {
+  font-size: 18px;
+  font-weight: 750;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.cs-welcome-sub {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-bottom: 24px;
+  line-height: 1.5;
+}
+.cs-welcome-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.cs-welcome-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: all .15s ease;
+  font: inherit;
+  color: var(--ink);
+}
+.cs-welcome-card:hover {
+  background: var(--surface-3);
+  border-color: var(--green);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+}
+.cs-wc-ic {
+  font-size: 20px;
+  flex: none;
+}
+.cs-wc-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.cs-wc-txt strong {
+  font-size: 12.5px;
+  font-weight: 650;
+}
+.cs-wc-txt span {
+  font-size: 10.5px;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#cs-mic.active {
+  animation: cs-pulse 1.2s infinite;
+}
+@keyframes cs-pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  70% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}

@@ -476,17 +476,21 @@
 .resume-banner .rb-acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 
 /* ---------- notes 2.0 ---------- */
-.nt-folders{display:flex;gap:6px;overflow-x:auto;padding:10px 0 4px;scrollbar-width:none}
-.nt-folders::-webkit-scrollbar{display:none}
+.nt-folders{display:flex;flex-direction:column;gap:6px;padding:6px 0 2px;min-width:0}
+.nt-folders-bar{display:flex;align-items:center;justify-content:space-between;padding:0 2px;flex:none}
+.nt-folders-list{display:flex;flex-wrap:wrap;gap:5px;max-height:160px;overflow-y:auto;padding:2px 0}
+.nt-folders-list::-webkit-scrollbar{width:4px}
+.nt-folders-list::-webkit-scrollbar-thumb{background:var(--line);border-radius:99px}
 .nt-folder{
-  display:inline-flex;align-items:center;gap:6px;flex:none;
-  background:var(--surface-2);border:1px solid transparent;color:var(--ink-2);
-  border-radius:999px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;
+  display:inline-flex;align-items:center;gap:5px;flex:none;
+  background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:999px;padding:4px 9px;font-size:11.5px;font-weight:550;cursor:pointer;transition:all .15s;
 }
-.nt-folder:hover{border-color:var(--line-strong)}
-.nt-folder.on{background:var(--green-soft);color:var(--green);border-color:color-mix(in srgb, var(--green) 30%, transparent)}
-.nt-folder .fld-ic{display:inline-flex;color:currentColor}
-.nt-folder .n{background:var(--surface);border-radius:999px;padding:0 7px;font-size:10.5px;color:var(--ink-3)}
+.nt-folder:hover{background:var(--surface-3);border-color:var(--line-strong);color:var(--ink)}
+.nt-folder.on{background:var(--green-soft);color:var(--green);border-color:color-mix(in srgb, var(--green) 35%, transparent);font-weight:700}
+.nt-folder .fld-ic{display:inline-flex;color:currentColor;font-size:12px}
+.nt-folder .n{background:var(--surface);border-radius:999px;padding:0 6px;font-size:10px;color:var(--ink-3);font-weight:600}
+.nt-folder.on .n{background:color-mix(in srgb, var(--green) 18%, transparent);color:var(--green)}
 .fld-chip{display:inline-flex;align-items:center;gap:3px;background:var(--surface-3);color:var(--ink-2);border-radius:6px;padding:1px 6px;font-size:10px;font-weight:700;margin-right:4px}
 .disk-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:5px;box-shadow:0 0 6px color-mix(in srgb, var(--green) 60%, transparent)}
 .nt-tools{display:flex;gap:4px;align-items:center}
