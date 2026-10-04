@@ -848,20 +848,29 @@ function initCanvasEngine(root, initialBoard, allBoards){
   }, { passive: false });
 
   // Paste image directly onto canvas
-  window.addEventListener('paste', e => {
+  window.addEventListener('paste', async e => {
     if(!document.body.contains(vp)) return;
     if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     if(e.clipboardData && e.clipboardData.files && e.clipboardData.files.length){
       const file = Array.from(e.clipboardData.files).find(f => f.type.startsWith('image/'));
       if(file){
         e.preventDefault();
-        const rd = new FileReader();
-        rd.onload = () => {
+        try {
+          let dataUrl = '';
+          if(NX.compressImageToWebP){
+            const comp = await NX.compressImageToWebP(file, { maxWidth: 800, maxHeight: 800, quality: 0.84 });
+            dataUrl = comp.dataUrl;
+          }
+          if(!dataUrl){
+            const rd = new FileReader();
+            dataUrl = await new Promise(res => { rd.onload = () => res(rd.result); rd.readAsDataURL(file); });
+          }
           const rect = vp.getBoundingClientRect();
           const center = toWorld(rect.width / 2, rect.height / 2);
-          insertImageFromDataUrl(rd.result, center.x, center.y);
-        };
-        rd.readAsDataURL(file);
+          insertImageFromDataUrl(dataUrl, center.x, center.y);
+        } catch(err){
+          console.error('Canvas paste image error:', err);
+        }
       }
     }
   });
@@ -871,17 +880,26 @@ function initCanvasEngine(root, initialBoard, allBoards){
   const fileInput = q('#ct-file-input', root);
   if(imgBtn && fileInput){
     imgBtn.onclick = () => fileInput.click();
-    fileInput.onchange = () => {
+    fileInput.onchange = async () => {
       const file = fileInput.files && fileInput.files[0];
       if(!file) return;
-      const rd = new FileReader();
-      rd.onload = () => {
+      try {
+        let dataUrl = '';
+        if(NX.compressImageToWebP){
+          const comp = await NX.compressImageToWebP(file, { maxWidth: 800, maxHeight: 800, quality: 0.84 });
+          dataUrl = comp.dataUrl;
+        }
+        if(!dataUrl){
+          const rd = new FileReader();
+          dataUrl = await new Promise(res => { rd.onload = () => res(rd.result); rd.readAsDataURL(file); });
+        }
         const rect = vp.getBoundingClientRect();
         const center = toWorld(rect.width / 2, rect.height / 2);
-        insertImageFromDataUrl(rd.result, center.x, center.y);
-        fileInput.value = '';
-      };
-      rd.readAsDataURL(file);
+        insertImageFromDataUrl(dataUrl, center.x, center.y);
+      } catch(err){
+        console.error('Canvas upload image error:', err);
+      }
+      fileInput.value = '';
     };
   }
 

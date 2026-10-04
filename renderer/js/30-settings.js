@@ -212,6 +212,14 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
             <div class="faint tiny" style="margin-top:8px">A larger UI needs more room — if something looks clipped, drop a step.</div>
           </div>
         </div>
+        <div class="card"><div class="card-h"><div class="tile sm">${icon('eye')}</div>
+          <div><div class="c-title">Desktop Glass (Behind Window)</div>
+          <div class="c-sub">See-through acrylic glass behind the window. Keep OFF for crisp solid background, zero CPU lag and maximum contrast.</div></div>
+          <div class="spacer"></div>
+          <button class="btn ${NX.isWindowTransparent && NX.isWindowTransparent() ? 'btn-green' : 'btn-soft'} btn-sm" id="sc-glass-btn">
+            ${NX.isWindowTransparent && NX.isWindowTransparent() ? 'Glass: ON' : 'Solid: OFF'}
+          </button>
+        </div></div>
         <div class="card"><div class="card-h"><div class="tile sm">${icon('list')}</div>
           <div><div class="c-title">Categories</div>
           <div class="c-sub">Fold a category away, hide it entirely, or drag rows between them in the sidebar.</div></div>
@@ -227,6 +235,13 @@ NX.routeInShell('settings', 'Settings', 'settings', function(view){
       const rr = q('#sc-reset', host); if(rr) rr.onclick = ()=> set(1);
       if(range) range.oninput = ()=> set(Number(range.value) / 100);
       qa('[data-sc-preset]', host).forEach(b => b.onclick = ()=> set(Number(b.dataset.scPreset)));
+
+      const gb = q('#sc-glass-btn', host);
+      if(gb) gb.onclick = () => {
+        const next = !(NX.isWindowTransparent && NX.isWindowTransparent());
+        if(NX.setWindowTransparency) NX.setWindowTransparency(next);
+        renderBody();
+      };
 
       /* 56-sidebar.js owns the category list */
       const ch = q('#side-cfg-host', host);
@@ -611,7 +626,7 @@ const clientIn = q('#gd-client', host);
       host.innerHTML = `<div class="card"><div class="card-h"><div class="tile sm">${icon('user')}</div>
         <div><div class="c-title">Profile</div><div class="c-sub">How you appear in chat & across the workspace</div></div></div>
         <div class="card-b" style="display:flex;flex-direction:column;gap:14px;max-width:440px">
-          <div class="row gap-12"><span id="pf-av">${NX.avatarHtml ? NX.avatarHtml(p,'xl') : `<span class="avatar xl" style="background:${U.esc(p.avatar)}">${U.initials(p.name)}</span>`}</span>
+          <div class="row gap-12"><span id="pf-av" style="display:inline-flex;align-items:center;justify-content:center;width:72px;height:72px;flex-shrink:0;overflow:hidden;border-radius:50%">${NX.avatarHtml ? NX.avatarHtml(p,'xl') : `<span class="avatar xl" style="background:${U.esc(p.avatar)}">${U.initials(p.name)}</span>`}</span>
             <div style="flex:1">
               <div class="field"><label>Display name</label><input class="input" id="pf-name" value="${U.esc(p.name)}" maxlength="24"></div>
               <div class="row gap-6" style="margin-top:8px">
@@ -638,7 +653,7 @@ const clientIn = q('#gd-client', host);
           if(!file) return;
           try {
             NX.toastInfo('Compressing', 'Compressing logo to .webp format…');
-            const comp = await NX.compressImageToWebP(file, { maxWidth: 512, maxHeight: 512, quality: 0.86 });
+            const comp = await NX.compressImageToWebP(file, { maxWidth: 256, maxHeight: 256, quality: 0.88 });
             const e = NX.store.get('entitlements', {}) || {};
             e.avatarImg = comp.dataUrl;
             NX.store.set('entitlements', e);

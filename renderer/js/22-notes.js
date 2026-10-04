@@ -66,6 +66,12 @@ function mdRender(src){
           return cur.assets[u].data || cur.assets[u];
         }
       } catch(e){}
+      try {
+        const all = (typeof notes === 'function') ? notes() : [];
+        for(let k=0; k<all.length; k++){
+          if(all[k].assets && all[k].assets[u]) return all[k].assets[u].data || all[k].assets[u];
+        }
+      } catch(e){}
     }
     return u;
   };
@@ -491,49 +497,77 @@ function insertTextAtCursor(textarea, text){
   textarea.dispatchEvent(new Event('input'));
 }
 
-function handleFilesAttachment(fileList, textarea, onDone){
+async function handleFilesAttachment(fileList, textarea, onDone){
   const files = Array.from(fileList || []);
   if(!files.length) return;
   NX.toastInfo(`Attaching ${files.length} file(s)…`, 'Reading files');
   let done = 0;
-  files.forEach(f => {
-    const rd = new FileReader();
-    rd.onload = () => {
-      const dataUrl = rd.result;
-      const isImg = f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f.name);
-      // Generate short clean asset identifier
-      const cleanExt = (f.name.split('.').pop() || 'bin').toLowerCase();
-      const assetKey = 'asset:' + (isImg ? 'img_' : 'file_') + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7) + '.' + cleanExt;
-      
-      // Store in memory and persistent cache
-      if(!window.NX) window.NX = {};
-      NX.assetStore = NX.assetStore || {};
-      NX.assetStore[assetKey] = dataUrl;
-      try {
-        const savedAssets = NX.store.get('note_assets', {}) || {};
-        savedAssets[assetKey] = dataUrl;
-        NX.store.set('note_assets', savedAssets);
-      } catch(e){}
+  for(const f of files){
+    const isImg = f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f.name);
+    let dataUrl = '';
+    try {
+      if(isImg && NX.compressImageToWebP){
+        const comp = await NX.compressImageToWebP(f, { maxWidth: 1200, maxHeight: 1200, quality: 0.84 });
+        dataUrl = comp.dataUrl;
+      }
+    } catch(err){ dataUrl = ''; }
 
-      let ins = '';
-      if(isImg){
-        ins = `\n![${f.name}](${assetKey})\n`;
-      } else {
-        ins = `\n[📎 ${f.name} (${formatFileSize(f.size)})](${assetKey})\n`;
+    if(!dataUrl){
+      try {
+        dataUrl = await new Promise((resolve, reject) => {
+          const rd = new FileReader();
+          rd.onload = () => resolve(rd.result);
+          rd.onerror = reject;
+          rd.readAsDataURL(f);
+        });
+      } catch(e){
+        NX.toastErr('Failed to read file', f.name);
+        continue;
       }
-      insertTextAtCursor(textarea, ins);
-      done++;
-      if(done === files.length){
-        if(typeof onDone === 'function') onDone();
-        try{ NX.sfx.play('pop'); }catch(e){}
-        NX.toastOk('Files attached cleanly', `${files.length} item(s) inserted`);
+    }
+
+    // Generate short clean asset identifier
+    const cleanExt = (f.name.split('.').pop() || 'bin').toLowerCase();
+    const assetKey = 'asset:' + (isImg ? 'img_' : 'file_') + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7) + '.' + cleanExt;
+    
+    // Store in memory and persistent cache
+    if(!window.NX) window.NX = {};
+    NX.assetStore = NX.assetStore || {};
+    NX.assetStore[assetKey] = dataUrl;
+    try {
+      const savedAssets = NX.store.get('note_assets', {}) || {};
+      savedAssets[assetKey] = dataUrl;
+      NX.store.set('note_assets', savedAssets);
+    } catch(e){}
+
+    try {
+      const cur = (typeof current === 'function') ? current() : null;
+      if(cur){
+        cur.assets = cur.assets || {};
+        cur.assets[assetKey] = dataUrl;
+        const allNotes = notes();
+        const idx = allNotes.findIndex(x => x.id === cur.id);
+        if(idx !== -1){
+          allNotes[idx].assets = cur.assets;
+          saveNotes(allNotes);
+        }
       }
-    };
-    rd.onerror = () => {
-      NX.toastErr('Failed to read file', f.name);
-    };
-    rd.readAsDataURL(f);
-  });
+    } catch(e){}
+
+    let ins = '';
+    if(isImg){
+      ins = `\n![${f.name}](${assetKey})\n`;
+    } else {
+      ins = `\n[📎 ${f.name} (${formatFileSize(f.size)})](${assetKey})\n`;
+    }
+    insertTextAtCursor(textarea, ins);
+    done++;
+    if(done === files.length){
+      if(typeof onDone === 'function') onDone();
+      try{ NX.sfx.play('pop'); }catch(e){}
+      NX.toastOk('Files attached cleanly', `${files.length} item(s) inserted`);
+    }
+  }
 }
 
 function pickAndAttachFiles(textarea, accept, onDone){

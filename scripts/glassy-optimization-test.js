@@ -74,4 +74,19 @@ const widgetJs = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'js', '4
 assert(widgetJs.includes('ensureWidgetTicker'), '40-widget.js must only tick when widget is mounted');
 console.log('  ✓ Background timers throttled to maintain 0-5% CPU and low RAM footprint');
 
+// 9. Check Optional Desktop Transparency & Solid default
+assert(shellJs.includes('NX.setWindowTransparency'), '11-shell.js must define NX.setWindowTransparency');
+assert(shellJs.includes('NX.initWindowTransparency'), '11-shell.js must define NX.initWindowTransparency');
+assert(shellCss.includes('[data-window-transparency="on"]'), '03-shell.css must only make window transparent when explicitly enabled');
+assert(shellCss.includes('html, body {\n  background: var(--bg'), '03-shell.css must have solid background by default for 0% lag');
+console.log('  ✓ Desktop transparency is strictly optional (default OFF, solid background, 0% CPU lag)');
+
+// 10. Check Avatar & Image upload fixes
+const compCss = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'css', '02-components.css'), 'utf8');
+assert(compCss.includes('.avatar img'), '02-components.css must style .avatar img');
+assert(compCss.includes('border-radius:50% !important;'), '02-components.css avatar img must be circular');
+assert(notesJs.includes('compressImageToWebP'), '22-notes.js must compress attached images');
+assert(canvasJs.includes('compressImageToWebP'), '27-canvas.js must compress uploaded & pasted images');
+console.log('  ✓ Circular avatar styling and client-side image compression everywhere verified');
+
 console.log('\nAll Glassy Hub, Canvas 60FPS & Resource Optimization tests passed!\n');

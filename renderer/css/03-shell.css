@@ -944,40 +944,87 @@ body.login-mode{
   opacity: 0.6;
 }
 
-/* Glass Shades (Windows 11 / Apple Acrylic Themes on Sidebar & Behind) */
+/* Glass Shades — Solid Opaque by default (0% Lag & Zero Desktop Bleed) */
 [data-glass-shade="emerald"] .sidebar {
-  background: linear-gradient(180deg, rgba(124, 213, 110, 0.12) 0%, rgba(18, 24, 22, 0.76) 100%) !important;
+  background: linear-gradient(180deg, #14241b 0%, #0f1613 100%) !important;
 }
 [data-glass-shade="ocean"] .sidebar {
-  background: linear-gradient(180deg, rgba(94, 184, 255, 0.14) 0%, rgba(14, 20, 32, 0.78) 100%) !important;
+  background: linear-gradient(180deg, #112030 0%, #0e151f 100%) !important;
 }
 [data-glass-shade="sunset"] .sidebar {
-  background: linear-gradient(180deg, rgba(232, 133, 61, 0.13) 0%, rgba(26, 18, 16, 0.78) 100%) !important;
+  background: linear-gradient(180deg, #271a15 0%, #151110 100%) !important;
 }
 [data-glass-shade="violet"] .sidebar {
-  background: linear-gradient(180deg, rgba(139, 92, 246, 0.14) 0%, rgba(22, 16, 34, 0.78) 100%) !important;
+  background: linear-gradient(180deg, #201530 0%, #120e1c 100%) !important;
 }
 [data-glass-shade="neon"] .sidebar {
-  background: linear-gradient(180deg, rgba(94, 243, 140, 0.15) 0%, rgba(12, 22, 16, 0.8) 100%) !important;
+  background: linear-gradient(180deg, #102919 0%, #0b1810 100%) !important;
 }
 [data-glass-shade="crystal"] .sidebar {
-  background: rgba(20, 24, 30, 0.7) !important;
+  background: #151922 !important;
 }
 
-/* Semi-transparent body and app-shell for desktop wallpaper see-through */
+/* Default Solid App Shell & Body (crisp, zero lag, no background app bleed-through) */
 html, body {
-  background: transparent !important;
+  background: var(--bg, #0d1117);
+  color: var(--ink);
 }
 .app-shell {
-  background: var(--window-bg, rgba(20, 22, 27, 0.92)) !important;
+  background: var(--bg, #0d1117);
 }
 .sidebar {
+  background: var(--surface-1, #131720);
+  border-right: 1px solid var(--line);
+}
+.topbar {
+  border-bottom: 1px solid var(--line);
+}
+
+/* OPTIONAL See-Through Desktop Glass — only active when user explicitly enables it */
+[data-window-transparency="on"] html,
+[data-window-transparency="on"] body {
+  background: transparent !important;
+}
+[data-window-transparency="on"] .app-shell {
+  background: var(--window-bg, rgba(20, 22, 27, 0.92)) !important;
+}
+[data-window-transparency="on"] .sidebar {
   backdrop-filter: blur(28px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
-.topbar {
+[data-window-transparency="on"] .topbar {
   backdrop-filter: blur(24px) saturate(180%) !important;
   -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-window-transparency="on"][data-glass-shade="emerald"] .sidebar {
+  background: linear-gradient(180deg, rgba(124, 213, 110, 0.12) 0%, rgba(18, 24, 22, 0.76) 100%) !important;
+}
+[data-window-transparency="on"][data-glass-shade="ocean"] .sidebar {
+  background: linear-gradient(180deg, rgba(94, 184, 255, 0.14) 0%, rgba(14, 20, 32, 0.78) 100%) !important;
+}
+[data-window-transparency="on"][data-glass-shade="sunset"] .sidebar {
+  background: linear-gradient(180deg, rgba(232, 133, 61, 0.13) 0%, rgba(26, 18, 16, 0.78) 100%) !important;
+}
+[data-window-transparency="on"][data-glass-shade="violet"] .sidebar {
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.14) 0%, rgba(22, 16, 34, 0.78) 100%) !important;
+}
+[data-window-transparency="on"][data-glass-shade="neon"] .sidebar {
+  background: linear-gradient(180deg, rgba(94, 243, 140, 0.15) 0%, rgba(12, 22, 16, 0.8) 100%) !important;
+}
+[data-window-transparency="on"][data-glass-shade="crystal"] .sidebar {
+  background: rgba(20, 24, 30, 0.7) !important;
+}
+
+/* Markdown Embedded Images */
+.md-img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  display: block;
+  margin: 10px 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--line);
 }

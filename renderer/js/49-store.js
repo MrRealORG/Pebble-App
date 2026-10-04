@@ -185,7 +185,7 @@ NX.avatarHtml = function(profile, size){
 
   if(imgSrc){
     const frame = e.frame && e.frame !== 'none' ? ' avatar-frame-' + e.frame : '';
-    return `<span class="${cls}${frame}"><img src="${U.esc(imgSrc)}" alt="" loading="lazy"></span>`;
+    return `<span class="${cls}${frame}" style="background:${U.esc(color)};overflow:hidden"><img src="${U.esc(imgSrc)}" alt="${U.esc(initials)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block" onerror="this.style.display='none';if(this.nextElementSibling)this.nextElementSibling.style.display='flex'"><span class="avatar-fallback" style="display:none;width:100%;height:100%;align-items:center;justify-content:center">${U.esc(initials)}</span></span>`;
   }
   const frame = e.frame && e.frame !== 'none' ? ' avatar-frame-' + e.frame : '';
   return `<span class="${cls}${frame}" style="background:${U.esc(color)}">${U.esc(initials)}</span>`;

@@ -593,11 +593,31 @@ NX.initGlassShade = function(){
   }catch(e){}
 };
 
+/* ---------------- Optional Window Transparency ---------------- */
+NX.isWindowTransparent = function(){
+  return Boolean(NX.store && NX.store.get('ui:windowTransparency', false));
+};
+
+NX.setWindowTransparency = function(on){
+  const v = Boolean(on);
+  document.documentElement.setAttribute('data-window-transparency', v ? 'on' : 'off');
+  try { NX.store.set('ui:windowTransparency', v); }catch(e){}
+  NX.toastOk('Desktop Glass', v ? 'See-Through Acrylic Enabled' : 'Solid Opaque Mode (0% Lag)');
+};
+
+NX.initWindowTransparency = function(){
+  try {
+    const v = NX.isWindowTransparent();
+    document.documentElement.setAttribute('data-window-transparency', v ? 'on' : 'off');
+  }catch(e){}
+};
+
 NX.openGlassyHub = function(anchor){
   const existing = document.getElementById('nx-glass-hub-dropdown');
   if(existing){ existing.remove(); return; }
 
   const curShade = (NX.store && NX.store.get('ui:glassShade', 'emerald')) || 'emerald';
+  const isTrans = NX.isWindowTransparent();
   const unread = NX.unreadNotifs();
   const bal = sideBalText();
   const curThemeObj = THEMES.find(t=>t.id === (NX.store.get('settings',{}).theme)) || THEMES[0];
@@ -671,8 +691,14 @@ NX.openGlassyHub = function(anchor){
     </div>
 
     <div class="gh-section">
-      <div class="gh-sec-lbl">Glass Colored Shade (Behind Window)</div>
-      <div class="gh-shade-row">
+      <div class="gh-sec-lbl" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Desktop Glass (See-Through)</span>
+        <button class="btn btn-sm ${isTrans?'btn-green':'btn-soft'}" id="gh-trans-toggle" style="padding:2px 8px;font-size:11px;font-weight:700;line-height:1.2;cursor:pointer">
+          ${isTrans ? 'Glass: ON' : 'Solid: OFF'}
+        </button>
+      </div>
+      <div class="faint tiny" style="margin:4px 0 8px">Keep OFF for solid opaque background &amp; 0% lag.</div>
+      <div class="gh-shade-row" style="${isTrans ? '' : 'opacity:0.6'}">
         ${[
           { id:'emerald', name:'Calm Emerald', color:'#7CD56E' },
           { id:'ocean',   name:'Deep Ocean',   color:'#5EB8FF' },
@@ -717,6 +743,18 @@ NX.openGlassyHub = function(anchor){
   q('#gh-copilot', menu).onclick = () => { close(); NX.openAskPebble && NX.openAskPebble(); };
   q('#gh-notifs', menu).onclick = () => { close(); NX.openNotifCenter && NX.openNotifCenter(anchor); };
   q('#gh-cycle-theme', menu).onclick = () => { NX.cycleTheme(); close(); };
+
+  const transBtn = q('#gh-trans-toggle', menu);
+  if(transBtn){
+    transBtn.onclick = () => {
+      const next = !NX.isWindowTransparent();
+      NX.setWindowTransparency(next);
+      transBtn.className = `btn btn-sm ${next ? 'btn-green' : 'btn-soft'}`;
+      transBtn.textContent = next ? 'Glass: ON' : 'Solid: OFF';
+      const shadeRow = menu.querySelector('.gh-shade-row');
+      if(shadeRow) shadeRow.style.opacity = next ? '1' : '0.6';
+    };
+  }
 
   qa('.gh-shade-dot', menu).forEach(dot => {
     dot.onclick = () => {
@@ -787,6 +825,7 @@ function renderTopbar(host){
   if(ptsBtn) ptsBtn.onclick = ()=>NX.router.go('store');
   bar.querySelector('#tp-new').onclick = (e)=>NX.openGlassyHub(e.currentTarget);
   host.appendChild(bar);
+  NX.initWindowTransparency();
   NX.initGlassShade();
   NX.tabs.render();
 }
