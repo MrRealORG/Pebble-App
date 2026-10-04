@@ -22,15 +22,17 @@ window.NX = window.NX || {};
         return JSON.parse(raw);
       }catch(e){ return fallback; }
     },
-    set(key, val){
+    set(key, val, skipMirror){
       mem[key] = val;
       try{ localStorage.setItem(LS_PREFIX + key, JSON.stringify(val)); }catch(e){}
       NX.events.emit('store:'+key, val);
-      // auto-backup every 20 changes
-      changeCount++;
-      if(changeCount % 20 === 0) Store.autoBackup();
-      // mirror to desktop backend (fire & forget, debounced per key)
-      scheduleMirror(key);
+      // auto-backup every 20 real changes (skip high-frequency background ticks)
+      if(!skipMirror){
+        changeCount++;
+        if(changeCount % 20 === 0) Store.autoBackup();
+        // mirror to desktop backend (fire & forget, debounced per key)
+        scheduleMirror(key);
+      }
       return val;
     },
     del(key){

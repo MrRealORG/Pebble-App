@@ -794,7 +794,14 @@ NX.openNoteById = function(id, highlight){
 };
 
 /* ---------------- Notes Module View ---------------- */
-NX.routeInShell('notes', 'Notes', 'notes', function(view){
+NX.routeInShell('notes', 'Notes', 'notes', function(view, params){
+  if(params && params.noteId){
+    curNoteId = params.noteId;
+  } else if(window.__nx_pendingNoteId){
+    curNoteId = window.__nx_pendingNoteId;
+    window.__nx_pendingNoteId = null;
+  }
+
   if(!notes().length){
     saveNotes([{
       id: U.uid('nt'),
@@ -1584,7 +1591,12 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   }
 
   function refreshPreview(){
-    previewBox.innerHTML = mdRender(ta.value);
+    try {
+      previewBox.innerHTML = mdRender(ta.value);
+    } catch(err){
+      console.warn('mdRender error:', err);
+      previewBox.innerHTML = `<pre class="md-error" style="white-space:pre-wrap;font-family:inherit">${U.esc(ta.value)}</pre>`;
+    }
     // Wire up interactive task checkboxes in preview!
     qa('.md-task-cb', previewBox).forEach(cb => {
       cb.onclick = (e) => {
@@ -3502,18 +3514,20 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     });
   }
 
-  q('#ne-pin', view).onclick = () => {
+  const onClk = (sel, fn) => { const el = q(sel, view); if(el) el.onclick = fn; };
+
+  onClk('#ne-pin', () => {
     const all = notes();
     const target = all.find(x => x.id === curNoteId);
     if(target){ target.pinned = !target.pinned; saveNotes(all); renderList(); loadEditor(); NX.sfx.play('pop'); }
-  };
-  q('#ne-copy', view).onclick = () => {
+  });
+  onClk('#ne-copy', () => {
     const n = current();
     if(n) NX.native.clipboardWrite(n.title + '\n\n' + n.body).then(()=>NX.toastOk('Copied to clipboard',''));
-  };
-  q('#ne-dup', view).onclick = () => duplicateNote(current());
-  q('#ne-export', view).onclick = () => openExportModal(current());
-  q('#ne-del', view).onclick = () => {
+  });
+  onClk('#ne-dup', () => duplicateNote(current()));
+  onClk('#ne-export', () => openExportModal(current()));
+  onClk('#ne-del', () => {
     const n = current();
     if(!n) return;
     if(n.trash){
@@ -3521,21 +3535,14 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     } else {
       trashNote(n);
     }
-  };
+  });
 
-  const fBadgeEl = q('#ne-folder-badge', view);
-  if(fBadgeEl) fBadgeEl.onclick = () => moveNoteModal(current());
-  q('#ne-folder', view).onclick = () => moveNoteModal(current());
-
-  const iconBtn = q('#ne-icon', view);
-  if(iconBtn) iconBtn.onclick = () => openEmojiPicker(current(), iconBtn);
-
-  const addCoverBtn = q('#ne-add-cover-btn', view);
-  if(addCoverBtn) addCoverBtn.onclick = openCoverPickerModal;
-  const changeCoverBtn = q('#ne-change-cover-btn', view);
-  if(changeCoverBtn) changeCoverBtn.onclick = openCoverPickerModal;
-  const removeCoverBtn = q('#ne-remove-cover-btn', view);
-  if(removeCoverBtn) removeCoverBtn.onclick = () => {
+  onClk('#ne-folder-badge', () => moveNoteModal(current()));
+  onClk('#ne-folder', () => moveNoteModal(current()));
+  onClk('#ne-icon', () => openEmojiPicker(current(), q('#ne-icon', view)));
+  onClk('#ne-add-cover-btn', openCoverPickerModal);
+  onClk('#ne-change-cover-btn', openCoverPickerModal);
+  onClk('#ne-remove-cover-btn', () => {
     const n = current();
     if(n){
       delete n.cover;
@@ -3544,32 +3551,27 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       NX.sfx.play('pop');
       NX.toastOk('Cover removed', '');
     }
-  };
+  });
 
-  const starBtn = q('#ne-star', view);
-  if(starBtn) starBtn.onclick = () => {
+  onClk('#ne-star', () => {
     const n = current();
     if(n){
       n.starred = !n.starred;
-      starBtn.style.color = n.starred ? 'var(--orange)' : '';
+      const starBtn = q('#ne-star', view);
+      if(starBtn) starBtn.style.color = n.starred ? 'var(--orange)' : '';
       persist();
       renderFolders();
       renderList();
       NX.sfx.play('pop');
       NX.toastOk(n.starred ? 'Added to Favorites ⭐' : 'Removed from Favorites');
     }
-  };
+  });
 
-  const tocBtn = q('#ne-toc-btn', view);
-  if(tocBtn) tocBtn.onclick = toggleOutline;
+  onClk('#ne-toc-btn', toggleOutline);
+  onClk('#ne-zen-btn', toggleZenMode);
+  onClk('#ne-history', () => openVersionHistory(current()));
 
-  const zenBtn = q('#ne-zen-btn', view);
-  if(zenBtn) zenBtn.onclick = toggleZenMode;
-
-  const historyBtn = q('#ne-history', view);
-  if(historyBtn) historyBtn.onclick = () => openVersionHistory(current());
-
-  q('#nt-import', view).onclick = async () => {
+  onClk('#nt-import', async () => {
     if(NX.native.available && NX.native.mode === 'tauri'){
       const picked = await NX.native.invoke('pick_text_files');
       const files = (picked && picked.ok && picked.data) || [];
@@ -3605,9 +3607,9 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       inp.remove();
     };
     inp.click();
-  };
+  });
 
-  q('#nt-open-vault', view).onclick = async () => {
+  onClk('#nt-open-vault', async () => {
     if(NX.native.available && NX.native.mode === 'tauri'){
       const r = await NX.native.invoke('note_vault_status');
       if(r && r.ok && r.data && r.data.root){
@@ -3617,13 +3619,14 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       }
     }
     NX.toastInfo('Vault', 'Notes are stored locally on your machine.');
-  };
+  });
 
-  const graphBtn = q('#nt-graph', view);
-  if(graphBtn) graphBtn.onclick = openNotesGraphModal;
+  onClk('#nt-graph', openNotesGraphModal);
   NX.openNotesGraph = openNotesGraphModal;
 
-  window.__nx_refreshNotesView = () => { renderFolders(); renderList(); loadEditor(); };
+  window.__nx_refreshNotesView = () => {
+    try { renderFolders(); renderList(); loadEditor(); } catch(e){}
+  };
   window.__nx_selectNote = (id) => {
     const target = notes().find(n => n.id === id);
     if(target){
@@ -3633,9 +3636,13 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       selectNote(id);
     }
   };
-  renderFolders();
-  renderList();
-  loadEditor();
+  try {
+    renderFolders();
+    renderList();
+    loadEditor();
+  } catch(e){
+    console.error('Notes render error:', e);
+  }
 });
 
 NX.events.on('notes:changed', () => {

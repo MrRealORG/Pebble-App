@@ -205,11 +205,11 @@ function initCanvasEngine(root, initialBoard, allBoards){
   // Throttled RAF render scheduler
   let renderScheduled = false;
   function scheduleRender(){
-    if(!renderScheduled && cvs.isConnected){
+    if(!renderScheduled && cvs.isConnected && view.style.display !== 'none' && !document.hidden){
       renderScheduled = true;
       requestAnimationFrame(() => {
         renderScheduled = false;
-        if(cvs.isConnected) render();
+        if(cvs.isConnected && view.style.display !== 'none' && !document.hidden) render();
       });
     }
   }
@@ -346,6 +346,7 @@ function initCanvasEngine(root, initialBoard, allBoards){
   }
 
   function render(){
+    if(!cvs.isConnected || view.style.display === 'none' || document.hidden) return;
     const rect = vp.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
     ctx.setTransform(1, 0, 0, 1, 0, 0);

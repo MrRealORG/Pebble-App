@@ -38,6 +38,9 @@ NX.applyTheme = function(id, opts){
     }
   }
   document.documentElement.setAttribute('data-theme', t.id);
+  const isLight = !t.dark;
+  document.documentElement.classList.toggle('light', isLight);
+  if(document.body) document.body.classList.toggle('light', isLight);
   const s = NX.store.get('settings'); s.theme = t.id; NX.store.set('settings', s);
   return true;
 };
@@ -935,10 +938,14 @@ NX.routeInShell = function(name, title, ic, renderFn, onMount){
       qa('.sidebar .nav-item').forEach(el=>el.classList.toggle('on', el.dataset.route === name));
       NX.refreshBadges();
       if(NX.tabs && NX.tabs.syncFromRoute) NX.tabs.syncFromRoute(name);
+      if(view._cleanup){
+        try{ view._cleanup(); }catch(e){}
+        view._cleanup = null;
+      }
       view.classList.remove('full');
       view.innerHTML = '';
       view.scrollTop = 0;
-      try{ renderFn(view); }
+      try{ renderFn(view, params); }
       catch(e){
         console.error('['+name+']', e);
         view.innerHTML = `<div class="empty"><div class="e-title">This view stumbled</div><div class="e-sub">${U.esc(e.message)}</div></div>`;

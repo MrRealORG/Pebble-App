@@ -70,7 +70,6 @@
   color:#fff; font-size:10px; font-weight:800;
   font-variant-numeric:tabular-nums;
   border-radius:0 0 var(--r-sm) var(--r-sm);
-  backdrop-filter:blur(2px);
 }
 .ts-lock svg{ width:11px; height:11px }
 
@@ -78,10 +77,10 @@
   position:absolute; top:8px; right:8px;
   display:inline-flex; align-items:center; gap:3px;
   padding:3px 7px; border-radius:var(--r-pill);
-  background:rgba(0,0,0,.6); color:#fff;
+  background:rgba(0,0,0,.75); color:#fff;
   font-size:9.5px; font-weight:800;
   font-variant-numeric:tabular-nums;
-  backdrop-filter:blur(2px); z-index:2;
+  z-index:2;
 }
 .g-lock svg{ width:10px; height:10px }
 
@@ -292,8 +291,7 @@
 }
 .media-cell:hover .media-acts{ opacity:1 }
 .media-acts .icon-btn{
-  background:rgba(0,0,0,.62); color:#fff;
-  backdrop-filter:blur(3px);
+  background:rgba(0,0,0,.75); color:#fff;
 }
 .media-acts .icon-btn:hover{ background:rgba(0,0,0,.82) }
 

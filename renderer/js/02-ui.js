@@ -404,8 +404,8 @@ NX.getWebsiteFaviconUrl = function(urlOrDomain, sz = 64){
 
 NX.getWebsiteFaviconHtml = function(urlOrDomain, opts = {}){
   const host = NX.cleanHost(urlOrDomain);
-  const size = opts.size || 18;
-  const cls = opts.cls || '';
+  const size = typeof opts === 'number' ? opts : (opts && opts.size ? opts.size : 18);
+  const cls = (opts && typeof opts === 'object' && opts.cls) ? opts.cls : '';
   if(!host || host.indexOf('.') < 0){
     const letter = (host ? host.charAt(0) : '?').toUpperCase();
     const bg = U.colorFor ? U.colorFor(host || 'web') : '#3b82f6';

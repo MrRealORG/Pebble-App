@@ -89,6 +89,7 @@ NX.renderShell = function(routeName){
 };
 
 function syncStatus(){
+  if(window.NX && NX.login && !NX.login.isAuthed()) return;
   const saved = q('#nx-saved-t');
   if(saved) saved.textContent = Save.ago();
   const netT = q('#nx-net-t');

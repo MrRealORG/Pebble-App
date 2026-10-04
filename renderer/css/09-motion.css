@@ -135,27 +135,18 @@
   to{opacity:1;transform:none}
 }
 
-/* empty-state icon breathes a little */
-.empty svg{animation:nx-float 4.6s ease-in-out infinite}
-@keyframes nx-float{
-  0%,100%{transform:translateY(0)}
-  50%{transform:translateY(-5px)}
-}
+/* empty-state icon — calm static presentation */
+.empty svg{transform:none}
 
 /* live dot on the current page */
-.tl-live .pulse-dot{box-shadow:0 0 0 0 var(--green-ring);animation:nx-pulse-ring 1.9s ease-out infinite}
-@keyframes nx-pulse-ring{
-  0%{box-shadow:0 0 0 0 var(--green-ring)}
-  70%{box-shadow:0 0 0 9px rgba(124,213,110,0)}
-  100%{box-shadow:0 0 0 0 rgba(124,213,110,0)}
-}
+.tl-live .pulse-dot{box-shadow:0 0 0 2px var(--green-ring)}
 
 /* ============================================================
    6. QUICK SWITCHER
    ============================================================ */
 .qs-backdrop{
   position:fixed;inset:0;z-index:1070;display:flex;align-items:center;justify-content:center;padding:24px;
-  background:rgba(20,20,18,.42);backdrop-filter:blur(7px);animation:nx-fade .18s ease both;
+  background:rgba(14,16,20,.72);animation:nx-fade .18s ease both;
 }
 .qs-panel{
   width:min(760px,94vw);max-height:76vh;display:flex;flex-direction:column;overflow:hidden;
@@ -194,7 +185,7 @@
    ============================================================ */
 .gs-backdrop{
   position:fixed;inset:0;z-index:1075;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;
-  background:rgba(20,20,18,.42);backdrop-filter:blur(7px);animation:nx-fade .18s ease both;
+  background:rgba(14,16,20,.72);animation:nx-fade .18s ease both;
 }
 .gs-panel{
   width:min(680px,94vw);max-height:70vh;display:flex;flex-direction:column;overflow:hidden;

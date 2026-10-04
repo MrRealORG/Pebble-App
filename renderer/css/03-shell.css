@@ -712,9 +712,9 @@ body.login-mode{
 
 /* ================= GLASS HUB & ACRYLIC STYLING ================= */
 .glass-hub-card {
-  background: rgba(18, 22, 30, 0.92);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  background: #181d26;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06);
   border-radius: 16px;
@@ -909,15 +909,16 @@ body.login-mode{
   font-weight: 700;
   cursor: pointer;
   user-select: none;
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   transition: all .16s cubic-bezier(.2,0,0,1);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   flex: none;
 }
 .light .topbar-hub-btn {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.1);
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 .topbar-hub-btn:hover {
   background: rgba(255, 255, 255, 0.12);
@@ -943,24 +944,44 @@ body.login-mode{
   opacity: 0.6;
 }
 
-/* Glass Shades — Solid Opaque by default (0% Lag & Zero Desktop Bleed) */
-[data-glass-shade="emerald"] .sidebar {
+/* Glass Shades — Dark acrylic tints (default dark) */
+:not(.light)[data-glass-shade="emerald"] .sidebar, [data-glass-shade="emerald"]:not(.light) .sidebar {
   background: linear-gradient(180deg, #14241b 0%, #0f1613 100%) !important;
 }
-[data-glass-shade="ocean"] .sidebar {
+:not(.light)[data-glass-shade="ocean"] .sidebar, [data-glass-shade="ocean"]:not(.light) .sidebar {
   background: linear-gradient(180deg, #112030 0%, #0e151f 100%) !important;
 }
-[data-glass-shade="sunset"] .sidebar {
+:not(.light)[data-glass-shade="sunset"] .sidebar, [data-glass-shade="sunset"]:not(.light) .sidebar {
   background: linear-gradient(180deg, #271a15 0%, #151110 100%) !important;
 }
-[data-glass-shade="violet"] .sidebar {
+:not(.light)[data-glass-shade="violet"] .sidebar, [data-glass-shade="violet"]:not(.light) .sidebar {
   background: linear-gradient(180deg, #201530 0%, #120e1c 100%) !important;
 }
-[data-glass-shade="neon"] .sidebar {
+:not(.light)[data-glass-shade="neon"] .sidebar, [data-glass-shade="neon"]:not(.light) .sidebar {
   background: linear-gradient(180deg, #102919 0%, #0b1810 100%) !important;
 }
-[data-glass-shade="crystal"] .sidebar {
+:not(.light)[data-glass-shade="crystal"] .sidebar, [data-glass-shade="crystal"]:not(.light) .sidebar {
   background: #151922 !important;
+}
+
+/* Glass Shades — Clean light pastel tints (light themes) */
+.light[data-glass-shade="emerald"] .sidebar, [data-glass-shade="emerald"].light .sidebar {
+  background: #f0fdf4 !important;
+}
+.light[data-glass-shade="ocean"] .sidebar, [data-glass-shade="ocean"].light .sidebar {
+  background: #f0f9ff !important;
+}
+.light[data-glass-shade="sunset"] .sidebar, [data-glass-shade="sunset"].light .sidebar {
+  background: #fff7ed !important;
+}
+.light[data-glass-shade="violet"] .sidebar, [data-glass-shade="violet"].light .sidebar {
+  background: #faf5ff !important;
+}
+.light[data-glass-shade="neon"] .sidebar, [data-glass-shade="neon"].light .sidebar {
+  background: #f0fdf4 !important;
+}
+.light[data-glass-shade="crystal"] .sidebar, [data-glass-shade="crystal"].light .sidebar {
+  background: #f8fafc !important;
 }
 
 /* Default Solid App Shell & Body (crisp, zero lag, no background app bleed-through) */
@@ -984,39 +1005,102 @@ html, body {
 }
 .light .sidebar,
 body.light .sidebar,
-[data-theme="light"] .sidebar {
+[data-theme="light"] .sidebar,
+[data-theme="elera"] .sidebar,
+[data-theme="rose"] .sidebar,
+[data-theme="ocean"] .sidebar,
+[data-theme="mono"] .sidebar,
+[data-theme="sunset"] .sidebar,
+[data-theme="candy"] .sidebar,
+[data-theme="coffee"] .sidebar {
   background: #f8fafc !important;
   border-right: 1px solid #e2e8f0 !important;
   box-shadow: 1px 0 0 rgba(0, 0, 0, 0.05) !important;
 }
 .light .sidebar .brand .brand-name,
-body.light .sidebar .brand .brand-name {
+body.light .sidebar .brand .brand-name,
+[data-theme="light"] .sidebar .brand .brand-name,
+[data-theme="elera"] .sidebar .brand .brand-name,
+[data-theme="rose"] .sidebar .brand .brand-name,
+[data-theme="ocean"] .sidebar .brand .brand-name,
+[data-theme="mono"] .sidebar .brand .brand-name,
+[data-theme="sunset"] .sidebar .brand .brand-name,
+[data-theme="candy"] .sidebar .brand .brand-name,
+[data-theme="coffee"] .sidebar .brand .brand-name {
   color: #0f172a !important;
 }
 .light .sidebar .brand .collapse-btn,
-body.light .sidebar .brand .collapse-btn {
+body.light .sidebar .brand .collapse-btn,
+[data-theme="light"] .sidebar .brand .collapse-btn,
+[data-theme="elera"] .sidebar .brand .collapse-btn,
+[data-theme="rose"] .sidebar .brand .collapse-btn,
+[data-theme="ocean"] .sidebar .brand .collapse-btn,
+[data-theme="mono"] .sidebar .brand .collapse-btn,
+[data-theme="sunset"] .sidebar .brand .collapse-btn,
+[data-theme="candy"] .sidebar .brand .collapse-btn,
+[data-theme="coffee"] .sidebar .brand .collapse-btn {
   color: #64748b !important;
 }
 .light .sidebar .brand .collapse-btn:hover,
-body.light .sidebar .brand .collapse-btn:hover {
+body.light .sidebar .brand .collapse-btn:hover,
+[data-theme="light"] .sidebar .brand .collapse-btn:hover,
+[data-theme="elera"] .sidebar .brand .collapse-btn:hover,
+[data-theme="rose"] .sidebar .brand .collapse-btn:hover,
+[data-theme="ocean"] .sidebar .brand .collapse-btn:hover,
+[data-theme="mono"] .sidebar .brand .collapse-btn:hover,
+[data-theme="sunset"] .sidebar .brand .collapse-btn:hover,
+[data-theme="candy"] .sidebar .brand .collapse-btn:hover,
+[data-theme="coffee"] .sidebar .brand .collapse-btn:hover {
   background: rgba(0, 0, 0, 0.06) !important;
   color: #0f172a !important;
 }
 .light .sidebar .nav-label,
-body.light .sidebar .nav-label {
+body.light .sidebar .nav-label,
+[data-theme="light"] .sidebar .nav-label,
+[data-theme="elera"] .sidebar .nav-label,
+[data-theme="rose"] .sidebar .nav-label,
+[data-theme="ocean"] .sidebar .nav-label,
+[data-theme="mono"] .sidebar .nav-label,
+[data-theme="sunset"] .sidebar .nav-label,
+[data-theme="candy"] .sidebar .nav-label,
+[data-theme="coffee"] .sidebar .nav-label {
   color: #64748b !important;
 }
 .light .sidebar .nav-item,
-body.light .sidebar .nav-item {
+body.light .sidebar .nav-item,
+[data-theme="light"] .sidebar .nav-item,
+[data-theme="elera"] .sidebar .nav-item,
+[data-theme="rose"] .sidebar .nav-item,
+[data-theme="ocean"] .sidebar .nav-item,
+[data-theme="mono"] .sidebar .nav-item,
+[data-theme="sunset"] .sidebar .nav-item,
+[data-theme="candy"] .sidebar .nav-item,
+[data-theme="coffee"] .sidebar .nav-item {
   color: #334155 !important;
 }
 .light .sidebar .nav-item:hover,
-body.light .sidebar .nav-item:hover {
+body.light .sidebar .nav-item:hover,
+[data-theme="light"] .sidebar .nav-item:hover,
+[data-theme="elera"] .sidebar .nav-item:hover,
+[data-theme="rose"] .sidebar .nav-item:hover,
+[data-theme="ocean"] .sidebar .nav-item:hover,
+[data-theme="mono"] .sidebar .nav-item:hover,
+[data-theme="sunset"] .sidebar .nav-item:hover,
+[data-theme="candy"] .sidebar .nav-item:hover,
+[data-theme="coffee"] .sidebar .nav-item:hover {
   background: rgba(0, 0, 0, 0.05) !important;
   color: #0f172a !important;
 }
 .light .sidebar .nav-item.on,
-body.light .sidebar .nav-item.on {
+body.light .sidebar .nav-item.on,
+[data-theme="light"] .sidebar .nav-item.on,
+[data-theme="elera"] .sidebar .nav-item.on,
+[data-theme="rose"] .sidebar .nav-item.on,
+[data-theme="ocean"] .sidebar .nav-item.on,
+[data-theme="mono"] .sidebar .nav-item.on,
+[data-theme="sunset"] .sidebar .nav-item.on,
+[data-theme="candy"] .sidebar .nav-item.on,
+[data-theme="coffee"] .sidebar .nav-item.on {
   background: linear-gradient(135deg, #7CD56E 0%, #5ec74e 100%) !important;
   color: #072005 !important;
   font-weight: 700 !important;
@@ -1024,30 +1108,80 @@ body.light .sidebar .nav-item.on {
 }
 .light .sidebar .nav-item.on .ni-name,
 .light .sidebar .nav-item.on .nav-label,
-.light .sidebar .nav-item.on svg {
+.light .sidebar .nav-item.on svg,
+body.light .sidebar .nav-item.on svg,
+[data-theme="light"] .sidebar .nav-item.on svg,
+[data-theme="elera"] .sidebar .nav-item.on svg,
+[data-theme="rose"] .sidebar .nav-item.on svg,
+[data-theme="ocean"] .sidebar .nav-item.on svg,
+[data-theme="mono"] .sidebar .nav-item.on svg,
+[data-theme="sunset"] .sidebar .nav-item.on svg,
+[data-theme="candy"] .sidebar .nav-item.on svg,
+[data-theme="coffee"] .sidebar .nav-item.on svg {
   color: #072005 !important;
   stroke: #072005 !important;
 }
 .light .sidebar .side-foot,
-body.light .sidebar .side-foot {
+body.light .sidebar .side-foot,
+[data-theme="light"] .sidebar .side-foot,
+[data-theme="elera"] .sidebar .side-foot,
+[data-theme="rose"] .sidebar .side-foot,
+[data-theme="ocean"] .sidebar .side-foot,
+[data-theme="mono"] .sidebar .side-foot,
+[data-theme="sunset"] .sidebar .side-foot,
+[data-theme="candy"] .sidebar .side-foot,
+[data-theme="coffee"] .sidebar .side-foot {
   border-top-color: #e2e8f0 !important;
 }
 .light .sidebar .side-user .su-name,
-body.light .sidebar .side-user .su-name {
+body.light .sidebar .side-user .su-name,
+[data-theme="light"] .sidebar .side-user .su-name,
+[data-theme="elera"] .sidebar .side-user .su-name,
+[data-theme="rose"] .sidebar .side-user .su-name,
+[data-theme="ocean"] .sidebar .side-user .su-name,
+[data-theme="mono"] .sidebar .side-user .su-name,
+[data-theme="sunset"] .sidebar .side-user .su-name,
+[data-theme="candy"] .sidebar .side-user .su-name,
+[data-theme="coffee"] .sidebar .side-user .su-name {
   color: #0f172a !important;
 }
 .light .sidebar .side-user .su-sub,
-body.light .sidebar .side-user .su-sub {
+body.light .sidebar .side-user .su-sub,
+[data-theme="light"] .sidebar .side-user .su-sub,
+[data-theme="elera"] .sidebar .side-user .su-sub,
+[data-theme="rose"] .sidebar .side-user .su-sub,
+[data-theme="ocean"] .sidebar .side-user .su-sub,
+[data-theme="mono"] .sidebar .side-user .su-sub,
+[data-theme="sunset"] .sidebar .side-user .su-sub,
+[data-theme="candy"] .sidebar .side-user .su-sub,
+[data-theme="coffee"] .sidebar .side-user .su-sub {
   color: #64748b !important;
 }
 .light .sidebar .side-user:hover,
-body.light .sidebar .side-user:hover {
+body.light .sidebar .side-user:hover,
+[data-theme="light"] .sidebar .side-user:hover,
+[data-theme="elera"] .sidebar .side-user:hover,
+[data-theme="rose"] .sidebar .side-user:hover,
+[data-theme="ocean"] .sidebar .side-user:hover,
+[data-theme="mono"] .sidebar .side-user:hover,
+[data-theme="sunset"] .sidebar .side-user:hover,
+[data-theme="candy"] .sidebar .side-user:hover,
+[data-theme="coffee"] .sidebar .side-user:hover {
   background: rgba(0, 0, 0, 0.05) !important;
 }
 .light .topbar,
-body.light .topbar {
+body.light .topbar,
+[data-theme="light"] .topbar,
+[data-theme="elera"] .topbar,
+[data-theme="rose"] .topbar,
+[data-theme="ocean"] .topbar,
+[data-theme="mono"] .topbar,
+[data-theme="sunset"] .topbar,
+[data-theme="candy"] .topbar,
+[data-theme="coffee"] .topbar {
   background: #ffffff !important;
   border-bottom: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
 }
 
 /* OPTIONAL See-Through Desktop Glass — only active when user explicitly enables it */
@@ -1056,16 +1190,16 @@ body.light .topbar {
   background: transparent !important;
 }
 [data-window-transparency="on"] .app-shell {
-  background: var(--window-bg, rgba(20, 22, 27, 0.92)) !important;
+  background: var(--window-bg, rgba(20, 22, 27, 0.94)) !important;
 }
 [data-window-transparency="on"] .sidebar {
-  backdrop-filter: blur(28px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 [data-window-transparency="on"] .topbar {
-  backdrop-filter: blur(24px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
 }
 

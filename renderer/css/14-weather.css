@@ -90,22 +90,22 @@
 
 /* rotating rays — animate only on hover to prevent continuous CPU repaints on systems without dedicated GPU */
 .wx-icon:hover[data-wx="clear"] .wx-rays,
-.wx-icon:hover[data-wx="mostly-clear"] .wx-rays { animation: wx-spin 14s linear infinite; }
-.wx-icon:hover[data-wx="clear"] .wx-sun-core      { animation: wx-pulse 4s ease-in-out infinite; transform-origin: 32px 32px; }
+.wx-icon:hover[data-wx="mostly-clear"] .wx-rays { animation: wx-spin 14s linear 2; }
+.wx-icon:hover[data-wx="clear"] .wx-sun-core      { animation: wx-pulse 4s ease-in-out 2; transform-origin: 32px 32px; }
 
 /* drifting clouds — calm by default */
-.wx-icon:hover .wx-drift-a { animation: wx-drift 5.5s ease-in-out infinite; }
-.wx-icon:hover .wx-drift-b { animation: wx-drift 7s ease-in-out infinite reverse; }
+.wx-icon:hover .wx-drift-a { animation: wx-drift 5.5s ease-in-out 2; }
+.wx-icon:hover .wx-drift-b { animation: wx-drift 7s ease-in-out 2 reverse; }
 
 /* precipitation, staggered per drop/flake via --i */
 .wx-icon:hover .wx-fall line,
 .wx-icon:hover .wx-fall circle {
-  animation: wx-fall 1.15s linear infinite;
+  animation: wx-fall 1.15s linear 3;
   animation-delay: calc(var(--i, 0) * .19s);
 }
 .wx-icon:hover .wx-fall-slow line,
 .wx-icon:hover .wx-fall-slow circle {
-  animation: wx-fall-slow 1.9s linear infinite;
+  animation: wx-fall-slow 1.9s linear 3;
   animation-delay: calc(var(--i, 0) * .28s);
 }
 .wx-icon:hover[data-wx="snow"] .wx-fall-slow circle { animation-name: wx-flake; }
@@ -114,12 +114,12 @@
 
 /* fog bars */
 .wx-icon:hover .wx-fog-bars .wx-fog {
-  animation: wx-fog-slide 3.4s ease-in-out infinite;
+  animation: wx-fog-slide 3.4s ease-in-out 2;
   animation-delay: calc(var(--i, 0) * .35s);
 }
 
 /* lightning */
-.wx-icon:hover .wx-bolt { animation: wx-flash 3.2s ease-in-out infinite; transform-origin: 32px 52px; }
+.wx-icon:hover .wx-bolt { animation: wx-flash 3.2s ease-in-out 2; transform-origin: 32px 52px; }
 
 /* the dashboard headline icon is larger */
 #db-wx-ic .wx-icon { width: 42px; height: 42px; }

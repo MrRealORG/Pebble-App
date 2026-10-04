@@ -26,10 +26,11 @@
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
+    display: none !important;
   }
   .nx-splash-box {
     display: flex; flex-direction: column; align-items: center; gap: 14px;
-    animation: nx-splash-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: nx-splash-enter 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .nx-splash-mark {
     width: 68px; height: 68px; border-radius: 22px;
@@ -38,7 +39,6 @@
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(124, 213, 110, 0.15);
     display: flex; align-items: center; justify-content: center;
     color: #7cd56e;
-    animation: nx-splash-pulse 2s ease-in-out infinite alternate;
   }
   .nx-splash-mark svg { width: 36px; height: 36px; }
   .nx-splash-title {
@@ -57,22 +57,13 @@
     border-radius: 99px; overflow: hidden; margin-top: 8px; position: relative;
   }
   .nx-splash-loader-bar {
-    position: absolute; top: 0; left: 0; bottom: 0; width: 40%;
-    background: linear-gradient(90deg, transparent, #7cd56e, transparent);
+    position: absolute; top: 0; left: 0; bottom: 0; width: 60%;
+    background: #7cd56e;
     border-radius: 99px;
-    animation: nx-splash-slide 1.2s ease-in-out infinite;
   }
   @keyframes nx-splash-enter {
-    from { opacity: 0; transform: scale(0.92) translateY(8px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-  }
-  @keyframes nx-splash-pulse {
-    from { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(124, 213, 110, 0.1); }
-    to { box-shadow: 0 12px 35px rgba(0, 0, 0, 0.6), 0 0 30px rgba(124, 213, 110, 0.35); }
-  }
-  @keyframes nx-splash-slide {
-    0% { left: -40%; }
-    100% { left: 100%; }
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
   }
   body.widget-mode #nx-splash { display: none !important; }
 </style>

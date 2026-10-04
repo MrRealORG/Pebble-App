@@ -143,7 +143,7 @@ const focusShield = {
   showOverlay(appName, timeLeft){
     if(this.activeOverlay) return;
 
-    const overlay = h(`<div class="cmdk-backdrop anim-fade" style="backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);background:rgba(20,10,10,0.75);z-index:3000;display:flex;align-items:center;justify-content:center;contain:strict;will-change:opacity">
+    const overlay = h(`<div class="cmdk-backdrop anim-fade" style="backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(20,10,10,0.85);z-index:3000;display:flex;align-items:center;justify-content:center;contain:strict;will-change:opacity">
       <div class="card anim-pop" style="width:min(480px,90vw);text-align:center;padding:28px 24px;border-radius:22px;border:1.5px solid var(--red);box-shadow:0 24px 60px rgba(226,92,74,0.3);background:var(--surface);transform:translate3d(0,0,0);will-change:transform,opacity;contain:layout style">
         <div style="width:60px;height:60px;border-radius:20px;background:var(--red-soft);color:var(--red);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">
           ${icon('eye', 30)}
@@ -612,6 +612,7 @@ NX.routeInShell('focus', 'Focus', 'target', function(view){
   const offPomo = NX.events.on('pomo:changed', renderTimer);
   const offTot = NX.events.on('timeless:tick', ()=>{ renderToday(); renderWeek(); });
   dispose = ()=>{ offPomo(); offTot(); clearT(); };
+  view._cleanup = dispose;
 });
 
 /* run the previous visit's cleanup when navigating away from Focus */

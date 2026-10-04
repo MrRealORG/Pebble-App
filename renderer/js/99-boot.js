@@ -128,7 +128,12 @@ async function start(){
 
   /* theme before first paint */
   const s = NX.store.get('settings', {});
-  document.documentElement.setAttribute('data-theme', s.theme || 'elera');
+  const themeId = s.theme || 'elera';
+  const t = (NX.THEMES || []).find(x => x.id === themeId) || { dark: (themeId === 'pebble-dark' || themeId === 'midnight' || themeId === 'nord' || themeId === 'forest' || themeId === 'slate' || themeId === 'neon') };
+  document.documentElement.setAttribute('data-theme', themeId);
+  const isLight = !t.dark;
+  document.documentElement.classList.toggle('light', isLight);
+  if(document.body) document.body.classList.toggle('light', isLight);
   if(s.compactMode) document.documentElement.style.setProperty('font-size','13px');
 
   /* restore desktop backend mirror (local storage backend) */
@@ -181,6 +186,9 @@ async function start(){
 }
 
 function startEngines(){
+  if(window.NX && NX.login && !NX.login.isAuthed() && !WIDGET_WINDOW){
+    return;
+  }
   /* Respect the module switches. A module that is OFF must not start its
      engine, or "disabled" would only mean hidden while it kept polling in
      the background. setEnabled() is idempotent, so this is safe to call
@@ -209,6 +217,7 @@ function startEngines(){
           NX.events.emit('profile:updated', p);
           NX.refreshSidebarUser && NX.refreshSidebarUser();
           NX.refreshBadges && NX.refreshBadges();
+          startEngines();
           /* only re-route if we are still sitting on a dead route */
           try{
             const cur = NX.router.currentName;

@@ -207,7 +207,7 @@ function bindScrollMemory(route, view){
   view.addEventListener('scroll', ()=>{
     clearTimeout(scrollTimers[route]);
     scrollTimers[route] = setTimeout(()=>{
-      try{ NX.store.set('scroll:' + route, view.scrollTop); }catch(e){}
+      try{ NX.store.set('scroll:' + route, view.scrollTop, true); }catch(e){}
     }, 400);
   }, { passive:true });
 }

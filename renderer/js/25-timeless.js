@@ -251,7 +251,19 @@ const tracker = {
     const hr = new Date().getHours();
     day.__hours = day.__hours || {};
     day.__hours[hr] = (day.__hours[hr] || 0) + sec;
-    NX.store.set('timeless', all);   // sync write keeps totals/live UI exact
+    
+    // Throttle heavy whole-document disk serialisation: update in-memory/localStorage
+    // live, but only invoke native save_workspace when switching active apps or every 45s
+    const now = Date.now();
+    if(!this._lastFlushAt) this._lastFlushAt = now;
+    const shouldFlushDisk = (label !== this._lastAppName) || (now - this._lastFlushAt >= 45000);
+    if(shouldFlushDisk){
+      this._lastFlushAt = now;
+      this._lastAppName = label;
+      NX.store.set('timeless', all);
+    } else {
+      NX.store.set('timeless', all, true);
+    }
 
     /* Mirror the same seconds to Cloudflare D1. bump() is the single choke
        point for tracked time, so this stays one line — 55-usage-sync.js only
@@ -284,6 +296,7 @@ const tracker = {
     this._timers = [];
     this._timers.push(setInterval(()=> this.hourlyBeacon(), 30000));
     this._timers.push(setInterval(async ()=>{
+      if(window.NX && NX.login && !NX.login.isAuthed()) return;
       const now = Date.now();
       const dt = Math.min(10, Math.round((now - this.lastTick)/1000));
       this.lastTick = now;

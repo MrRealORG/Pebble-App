@@ -6,7 +6,7 @@
 }
 .live-session .ls-ic{
   width:44px;height:44px;border-radius:14px;background:var(--tile);color:var(--tile-ink);
-  display:flex;align-items:center;justify-content:center;flex:none;animation:nx-pulse 2.4s infinite;
+  display:flex;align-items:center;justify-content:center;flex:none;
 }
 .live-session .ls-ic svg{width:20px;height:20px}
 .live-session .ls-name{font-weight:800;font-size:14.5px}

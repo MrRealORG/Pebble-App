@@ -34,9 +34,9 @@ body.widget-mode #nx-app {
 .widget {
   width: 100%;
   height: 100%;
-  background: rgba(18, 21, 26, 0.94);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
+  background: #12151a;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-radius: 20px;
   box-shadow: 0 16px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.08);
   padding: 13px 14px;
