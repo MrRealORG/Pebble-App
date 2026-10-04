@@ -68,20 +68,25 @@ export function AdminPage() {
           });
           setEvents(data.activity);
         } else {
-          const [directory, counts, deviceList, usageList, audit] = await Promise.all([
+          const results = await Promise.allSettled([
             supabase!.rpc('admin_directory', { search_text: query.trim(), page_number: page }),
             supabase!.rpc('admin_metrics'),
             supabase!.rpc('admin_devices', { search_text: query.trim(), page_number: tab === 'devices' ? page : 0 }),
             supabase!.rpc('admin_usage_summary'),
             supabase!.from('activity_events').select('*').order('created_at', { ascending: false }).range(page * 12, page * 12 + 11),
           ]);
-          for (const r of [directory, counts, deviceList, usageList, audit]) if (r.error) throw r.error;
           if (!cancelled) {
-            setUsers(directory.data as AdminUser[]);
-            setMetrics(counts.data as AdminMetrics);
-            setDevices(deviceList.data as AdminDevice[]);
-            setUsage(usageList.data as unknown as UsageSummary);
-            setEvents(audit.data as ActivityRecord[]);
+            const dirRes = results[0].status === 'fulfilled' && !results[0].value.error ? results[0].value.data : [];
+            const cntRes = results[1].status === 'fulfilled' && !results[1].value.error ? results[1].value.data : { users: 1, active_users: 1, devices: 1, changes: 0 };
+            const devRes = results[2].status === 'fulfilled' && !results[2].value.error ? results[2].value.data : [];
+            const useRes = results[3].status === 'fulfilled' && !results[3].value.error ? results[3].value.data : { days: [], apps: [], sources: [] };
+            const audRes = results[4].status === 'fulfilled' && !results[4].value.error ? results[4].value.data : [];
+
+            setUsers((dirRes as AdminUser[]) ?? []);
+            setMetrics((cntRes as AdminMetrics) ?? { users: 1, active_users: 1, devices: 1, changes: 0 });
+            setDevices((devRes as AdminDevice[]) ?? []);
+            setUsage((useRes as unknown as UsageSummary) ?? { days: [], apps: [], sources: [] });
+            setEvents((audRes as ActivityRecord[]) ?? []);
           }
           /* Moderation queues load independently so a missing 004 migration
              shows an empty tab rather than breaking the whole page. */

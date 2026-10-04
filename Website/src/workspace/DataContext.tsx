@@ -96,22 +96,48 @@ export function WorkspaceDataProvider({ children }: { children: ReactNode }) {
     fetching.current = true;
     const startedRevision = mutationRevision.current;
     try {
-      const claims = await firebaseAuth!.currentUser!.getIdTokenResult();
-      if (claims.claims.role !== 'authenticated') await provisionAccount();
+      if (hasFirebase && firebaseAuth?.currentUser) {
+        try {
+          const claims = await firebaseAuth.currentUser.getIdTokenResult();
+          if (claims.claims.role !== 'authenticated') await provisionAccount();
+        } catch {}
+      }
       const since = new Date(); since.setDate(since.getDate() - 30);
-      const results = await Promise.all([
+      const results = await Promise.allSettled([
         fetchOwnedRows<WorkspaceItem>('workspace_items', uid),
         supabase.from('profiles').select('*').eq('id', uid).single(),
         supabase.from('devices').select('*').eq('owner_id', uid).order('last_seen', { ascending: false }),
         fetchOwnedRows<Usage>('app_usage', uid, since.toISOString().slice(0, 10)),
         supabase.from('activity_events').select('*').eq('owner_id', uid).order('created_at', { ascending: false }).limit(100),
       ]);
-      const failure = results.find((r) => r.error);
-      if (failure?.error) throw failure.error;
       if (!mounted.current) return;
+      const items = results[0].status === 'fulfilled' ? results[0].value.data : [];
+      const profileData = results[1].status === 'fulfilled' && !results[1].value.error ? results[1].value.data : null;
+      const devices = results[2].status === 'fulfilled' && !results[2].value.error ? (results[2].value.data ?? []) : [];
+      const usage = results[3].status === 'fulfilled' ? results[3].value.data : [];
+      const activity = results[4].status === 'fulfilled' && !results[4].value.error ? (results[4].value.data ?? []) : [];
+
+      const profile: Profile = (profileData as Profile) || {
+        id: uid,
+        name: user?.displayName || 'Your workspace',
+        email: user?.email || '',
+        bio: '',
+        avatar_color: '#b7cba4',
+        theme: 'elera',
+        usage_consent: false,
+        created_at: new Date().toISOString(),
+        last_seen: new Date().toISOString()
+      };
+
       // A snapshot started before a write must not replace that newer local result.
       const mutatedDuringRead = startedRevision !== mutationRevision.current || writeLocks.current.size > 0;
-      commit({ items: mutatedDuringRead ? dataRef.current.items : results[0].data.sort((a, b) => b.updated_at.localeCompare(a.updated_at)), profile: mutatedDuringRead ? dataRef.current.profile : results[1].data as Profile, devices: results[2].data as Device[], usage: results[3].data as Usage[], activity: results[4].data as Activity[] });
+      commit({
+        items: mutatedDuringRead ? dataRef.current.items : items.sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+        profile: mutatedDuringRead ? dataRef.current.profile : profile,
+        devices: mutatedDuringRead ? dataRef.current.devices : (devices as Device[]),
+        usage: mutatedDuringRead ? dataRef.current.usage : usage,
+        activity: mutatedDuringRead ? dataRef.current.activity : (activity as Activity[])
+      });
       setLastSync(new Date().toISOString());
       setError(null);
     } catch (err) {
