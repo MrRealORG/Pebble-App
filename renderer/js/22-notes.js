@@ -51,9 +51,31 @@ function mdRender(src){
   };
   const flushToggle = ()=>{ if(inToggle){ html += '</div></details>'; inToggle = false; } };
 
+  const resolveAsset = url => {
+    if(!url) return '';
+    const u = String(url).trim();
+    if(u.startsWith('asset:')){
+      if(window.NX && NX.assetStore && NX.assetStore[u]) return NX.assetStore[u];
+      try {
+        const stored = NX.store.get('note_assets', {});
+        if(stored && stored[u]) return stored[u];
+      } catch(e){}
+      try {
+        const cur = (typeof current === 'function') ? current() : null;
+        if(cur && cur.assets && cur.assets[u]){
+          return cur.assets[u].data || cur.assets[u];
+        }
+      } catch(e){}
+    }
+    return u;
+  };
+
   const inline = s => {
     let out = U.esc(s);
-    out = out.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" class="md-img" loading="lazy">');
+    out = out.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (m, alt, rawUrl) => {
+      const realUrl = resolveAsset(rawUrl);
+      return `<img src="${realUrl}" alt="${alt}" class="md-img" loading="lazy">`;
+    });
     out = out.replace(/`([^`]+)`/g, '<code class="md-code">$1</code>');
     out = out.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
     out = out.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>');
@@ -73,7 +95,8 @@ function mdRender(src){
       return `<span class="md-todo-chip ${isDone?'done':''}" data-task-id="${U.esc(taskId)}"><input type="checkbox" class="md-todo-cb" data-task-id="${U.esc(taskId)}" ${isDone?'checked':''}><span class="md-todo-text">${U.esc(taskTitle)}</span>${dueStr}</span>`;
     });
     // File Attachment Cards: [📎 filename (size)](url) or [file: filename (size)](url) or files ending in common formats
-    out = out.replace(/\[(?:📎|file:)?\s*([^\]]+?\.(pdf|docx?|xlsx?|pptx?|csv|txt|zip|tar|gz|7z|rar|mp3|wav|mp4))\s*(?:\(([^)]+)\))?\]\(([^)]+)\)/gi, (m0, fileName, ext, sizeStr, url) => {
+    out = out.replace(/\[(?:📎|file:)?\s*([^\]]+?\.(pdf|docx?|xlsx?|pptx?|csv|txt|zip|tar|gz|7z|rar|mp3|wav|mp4))\s*(?:\(([^)]+)\))?\]\(([^)]+)\)/gi, (m0, fileName, ext, sizeStr, rawUrl) => {
+      const url = resolveAsset(rawUrl);
       const fName = (fileName || 'file.' + ext).trim();
       const fExt = (ext || 'file').toLowerCase();
       const fSize = (sizeStr || '').trim();
@@ -473,18 +496,32 @@ function handleFilesAttachment(fileList, textarea, onDone){
     rd.onload = () => {
       const dataUrl = rd.result;
       const isImg = f.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(f.name);
+      // Generate short clean asset identifier
+      const cleanExt = (f.name.split('.').pop() || 'bin').toLowerCase();
+      const assetKey = 'asset:' + (isImg ? 'img_' : 'file_') + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7) + '.' + cleanExt;
+      
+      // Store in memory and persistent cache
+      if(!window.NX) window.NX = {};
+      NX.assetStore = NX.assetStore || {};
+      NX.assetStore[assetKey] = dataUrl;
+      try {
+        const savedAssets = NX.store.get('note_assets', {}) || {};
+        savedAssets[assetKey] = dataUrl;
+        NX.store.set('note_assets', savedAssets);
+      } catch(e){}
+
       let ins = '';
       if(isImg){
-        ins = `\n![${f.name}](${dataUrl})\n`;
+        ins = `\n![${f.name}](${assetKey})\n`;
       } else {
-        ins = `\n[📎 ${f.name} (${formatFileSize(f.size)})](${dataUrl})\n`;
+        ins = `\n[📎 ${f.name} (${formatFileSize(f.size)})](${assetKey})\n`;
       }
       insertTextAtCursor(textarea, ins);
       done++;
       if(done === files.length){
         if(typeof onDone === 'function') onDone();
         try{ NX.sfx.play('pop'); }catch(e){}
-        NX.toastOk('Files attached', `${files.length} item(s) added to note`);
+        NX.toastOk('Files attached cleanly', `${files.length} item(s) inserted`);
       }
     };
     rd.onerror = () => {
@@ -1215,7 +1252,23 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   function openCoverPickerModal(){
     const n = current();
     if(!n) return;
-    const PRESETS = [
+
+    const AESTHETIC_PHOTOS = [
+      { name:'Cyberpunk Neon Alley', cat:'Cyber', url:'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=320&q=70' },
+      { name:'Synthwave Grid Glow', cat:'Cyber', url:'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=320&q=70' },
+      { name:'Alpine Peaks & Mist', cat:'Nature', url:'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=320&q=70' },
+      { name:'Deep Aurora Starlight', cat:'Space', url:'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?auto=format&fit=crop&w=320&q=70' },
+      { name:'Emerald Forest Fog', cat:'Nature', url:'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1448375240586-882707db888b?auto=format&fit=crop&w=320&q=70' },
+      { name:'3D Glass Prism Silk', cat:'Minimal', url:'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=320&q=70' },
+      { name:'Brutalist Architecture', cat:'Minimal', url:'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=320&q=70' },
+      { name:'Kyoto Shrine Garden', cat:'Vibe', url:'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=320&q=70' },
+      { name:'Calm Ocean Sunset', cat:'Nature', url:'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=320&q=70' },
+      { name:'Cozy Midnight Study', cat:'Vibe', url:'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=320&q=70' },
+      { name:'Golden Sand Dunes', cat:'Nature', url:'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1509316975850-ff9c5deb0cd9?auto=format&fit=crop&w=320&q=70' },
+      { name:'Abstract Hologram Flow', cat:'Minimal', url:'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=1200&q=80', thumb:'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?auto=format&fit=crop&w=320&q=70' }
+    ];
+
+    const GRADIENTS = [
       { name:'Aurora', val:'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' },
       { name:'Sunset', val:'linear-gradient(135deg, #fa709a 0%, #fee140 100%)' },
       { name:'Deep Space', val:'linear-gradient(135deg, #30cfd0 0%, #330867 100%)' },
@@ -1226,36 +1279,151 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       { name:'Slate Horizon', val:'linear-gradient(135deg, #2c3e50 0%, #3498db 100%)' }
     ];
 
+    let activeTab = 'photos';
+
     const modal = h(`<div class="modal-backdrop anim-in" id="cover-modal">
-      <div class="modal-card" style="max-width:440px">
-        <div class="modal-h">
+      <div class="modal-card" style="max-width:540px;width:94vw;max-height:88vh;display:flex;flex-direction:column">
+        <div class="modal-h" style="padding-bottom:10px">
           <div class="modal-title"><span>🎨 Choose Note Cover</span></div>
           <button class="modal-x icon-btn sm" id="cm-x">${icon('x')}</button>
         </div>
-        <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin:8px 0 6px">Gradient Banners</div>
-        <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:8px;margin-bottom:14px">
-          ${PRESETS.map(p => `
-            <div class="cm-preset" data-val="${U.esc(p.val)}" style="height:54px;border-radius:8px;background:${p.val};cursor:pointer;border:2px solid transparent;transition:transform 0.15s" title="${p.name}"></div>
-          `).join('')}
+
+        <!-- Direct Upload Box -->
+        <div style="background:var(--surface-2);border-radius:12px;padding:12px 14px;border:1px dashed var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:24px">🖼️</span>
+            <div>
+              <div style="font-size:13px;font-weight:700">Custom Photo Cover</div>
+              <div class="faint tiny">Upload any high-res wallpaper or photo from your PC</div>
+            </div>
+          </div>
+          <input type="file" id="cm-file-input" accept="image/*" style="display:none">
+          <button class="btn btn-primary btn-sm" id="cm-upload-btn" style="flex:none;gap:6px">${icon('upload',12)} Upload Image</button>
         </div>
-        <div style="font-size:12px;font-weight:700;color:var(--ink-2);margin-bottom:6px">Or Image URL</div>
-        <div class="row gap-8">
-          <input class="input" id="cm-url" placeholder="https://images.unsplash.com/..." style="flex:1" value="${n.cover && !n.cover.startsWith('linear-gradient') ? U.esc(n.cover) : ''}">
-          <button class="btn btn-dark btn-sm" id="cm-apply-url">Apply</button>
+
+        <!-- Tabs -->
+        <div class="row gap-6" style="margin-bottom:12px;border-bottom:1px solid var(--line);padding-bottom:8px">
+          <button class="btn btn-sm ${activeTab==='photos'?'btn-soft font-bold':'btn-ghost'}" id="cm-tab-photos">✨ Curated Photos</button>
+          <button class="btn btn-sm ${activeTab==='gradients'?'btn-soft font-bold':'btn-ghost'}" id="cm-tab-gradients">🌈 Gradients</button>
+          <button class="btn btn-sm ${activeTab==='url'?'btn-soft font-bold':'btn-ghost'}" id="cm-tab-url">🔗 Web URL</button>
         </div>
-        ${n.cover ? `<div style="margin-top:14px"><button class="btn btn-soft btn-sm" id="cm-remove" style="color:var(--red,#ef4444);width:100%">${icon('trash', 12)} Remove Cover</button></div>` : ''}
+
+        <!-- Scrollable Tab Content Host -->
+        <div style="overflow-y:auto;flex:1;min-height:220px;padding-right:2px" id="cm-content-host">
+          <!-- Curated Photos Pane -->
+          <div id="cm-pane-photos" style="display:grid;grid-template-columns:repeat(3, 1fr);gap:10px">
+            ${AESTHETIC_PHOTOS.map(p => `
+              <div class="cm-photo-card" data-url="${U.esc(p.url)}" style="border-radius:10px;overflow:hidden;position:relative;height:78px;cursor:pointer;border:2px solid transparent;background:var(--surface-3);transition:transform 0.16s, border-color 0.16s" title="${p.name}">
+                <img src="${p.thumb}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover;display:block" loading="lazy">
+                <div style="position:absolute;bottom:0;left:0;right:0;padding:4px 6px;background:linear-gradient(transparent, rgba(0,0,0,0.8));color:#fff;font-size:10.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Gradients Pane -->
+          <div id="cm-pane-gradients" style="display:none;grid-template-columns:repeat(4, 1fr);gap:10px">
+            ${GRADIENTS.map(p => `
+              <div class="cm-grad-card" data-val="${U.esc(p.val)}" style="height:64px;border-radius:10px;background:${p.val};cursor:pointer;border:2px solid transparent;transition:transform 0.16s;display:flex;align-items:flex-end;padding:6px;box-shadow:0 2px 8px rgba(0,0,0,0.1)" title="${p.name}">
+                <span style="font-size:10px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.6)">${p.name}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- URL Pane -->
+          <div id="cm-pane-url" style="display:none;flex-direction:column;gap:10px;padding:8px 0">
+            <div class="faint tiny">Paste any direct image link (Unsplash, Imgur, CDN):</div>
+            <div class="row gap-8">
+              <input class="input" id="cm-url" placeholder="https://images.unsplash.com/photo-..." style="flex:1" value="${n.cover && !n.cover.startsWith('linear-gradient') && !n.cover.startsWith('data:') ? U.esc(n.cover) : ''}">
+              <button class="btn btn-dark btn-sm" id="cm-apply-url">Apply</button>
+            </div>
+            <div style="font-size:11px;color:var(--ink-3);margin-top:4px">Or select quick Unsplash aesthetic categories:</div>
+            <div class="row gap-6 wrap">
+              <button class="btn btn-soft btn-sm cm-quick-kw" data-kw="cyberpunk">Cyberpunk</button>
+              <button class="btn btn-soft btn-sm cm-quick-kw" data-kw="mountains">Mountains</button>
+              <button class="btn btn-soft btn-sm cm-quick-kw" data-kw="minimalist-architecture">Architecture</button>
+              <button class="btn btn-soft btn-sm cm-quick-kw" data-kw="dark-aesthetic">Dark Aesthetic</button>
+              <button class="btn btn-soft btn-sm cm-quick-kw" data-kw="abstract-glass">Abstract Glass</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:10px;border-top:1px solid var(--line)">
+          ${n.cover ? `<button class="btn btn-soft btn-sm" id="cm-remove" style="color:var(--red,#ef4444);gap:5px">${icon('trash', 12)} Remove Cover</button>` : '<div></div>'}
+          <button class="btn btn-ghost btn-sm" id="cm-cancel">Cancel</button>
+        </div>
       </div>
     </div>`);
 
     document.body.appendChild(modal);
     const close = () => modal.remove();
     q('#cm-x', modal).onclick = close;
+    const cancelBtn = q('#cm-cancel', modal);
+    if(cancelBtn) cancelBtn.onclick = close;
 
-    qa('.cm-preset', modal).forEach(p => {
-      p.onmouseenter = () => p.style.transform = 'scale(1.05)';
-      p.onmouseleave = () => p.style.transform = 'scale(1)';
-      p.onclick = () => {
-        n.cover = p.dataset.val;
+    // Tabs switching
+    const pPhotos = q('#cm-pane-photos', modal);
+    const pGradients = q('#cm-pane-gradients', modal);
+    const pUrl = q('#cm-pane-url', modal);
+    const tPhotos = q('#cm-tab-photos', modal);
+    const tGradients = q('#cm-tab-gradients', modal);
+    const tUrl = q('#cm-tab-url', modal);
+
+    function setTab(tab){
+      tPhotos.className = `btn btn-sm ${tab==='photos'?'btn-soft font-bold':'btn-ghost'}`;
+      tGradients.className = `btn btn-sm ${tab==='gradients'?'btn-soft font-bold':'btn-ghost'}`;
+      tUrl.className = `btn btn-sm ${tab==='url'?'btn-soft font-bold':'btn-ghost'}`;
+      pPhotos.style.display = tab==='photos' ? 'grid' : 'none';
+      pGradients.style.display = tab==='gradients' ? 'grid' : 'none';
+      pUrl.style.display = tab==='url' ? 'flex' : 'none';
+    }
+
+    tPhotos.onclick = () => setTab('photos');
+    tGradients.onclick = () => setTab('gradients');
+    tUrl.onclick = () => setTab('url');
+
+    // Local file upload from computer
+    const fileInput = q('#cm-file-input', modal);
+    const uploadBtn = q('#cm-upload-btn', modal);
+    if(uploadBtn && fileInput){
+      uploadBtn.onclick = () => fileInput.click();
+      fileInput.onchange = () => {
+        const file = fileInput.files && fileInput.files[0];
+        if(!file) return;
+        const rd = new FileReader();
+        rd.onload = () => {
+          n.cover = rd.result;
+          saveNotes(notes());
+          updateCoverHero(n);
+          close();
+          NX.toastOk('Cover updated', 'Your custom photo was applied!');
+          try{ NX.sfx.play('pop'); }catch(e){}
+        };
+        rd.onerror = () => NX.toastErr('Could not read image file');
+        rd.readAsDataURL(file);
+      };
+    }
+
+    // Photo cards click
+    qa('.cm-photo-card', modal).forEach(card => {
+      card.onmouseenter = () => { card.style.transform = 'scale(1.03)'; card.style.borderColor = 'var(--green,#7cd56e)'; };
+      card.onmouseleave = () => { card.style.transform = 'scale(1)'; card.style.borderColor = 'transparent'; };
+      card.onclick = () => {
+        n.cover = card.dataset.url;
+        saveNotes(notes());
+        updateCoverHero(n);
+        close();
+        NX.toastOk('Cover applied', card.title);
+        try{ NX.sfx.play('pop'); }catch(e){}
+      };
+    });
+
+    // Gradient cards click
+    qa('.cm-grad-card', modal).forEach(card => {
+      card.onmouseenter = () => { card.style.transform = 'scale(1.04)'; card.style.borderColor = 'var(--ink)'; };
+      card.onmouseleave = () => { card.style.transform = 'scale(1)'; card.style.borderColor = 'transparent'; };
+      card.onclick = () => {
+        n.cover = card.dataset.val;
         saveNotes(notes());
         updateCoverHero(n);
         close();
@@ -1263,16 +1431,37 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       };
     });
 
-    q('#cm-apply-url', modal).onclick = () => {
-      const u = (q('#cm-url', modal).value || '').trim();
-      if(u){
-        n.cover = u;
+    // Apply URL
+    const applyUrlBtn = q('#cm-apply-url', modal);
+    if(applyUrlBtn){
+      applyUrlBtn.onclick = () => {
+        const u = (q('#cm-url', modal).value || '').trim();
+        if(u){
+          n.cover = u;
+          saveNotes(notes());
+          updateCoverHero(n);
+          close();
+          NX.toastOk('Cover updated');
+          try{ NX.sfx.play('pop'); }catch(e){}
+        }
+      };
+    }
+
+    // Quick keyword preset buttons
+    qa('.cm-quick-kw', modal).forEach(btn => {
+      btn.onclick = () => {
+        const kw = btn.dataset.kw;
+        const randomUrl = `https://images.unsplash.com/featured/?${kw}&auto=format&fit=crop&w=1200&q=80&sig=${Date.now()}`;
+        const input = q('#cm-url', modal);
+        if(input) input.value = randomUrl;
+        n.cover = randomUrl;
         saveNotes(notes());
         updateCoverHero(n);
         close();
+        NX.toastOk('Cover applied', `${btn.textContent} theme`);
         try{ NX.sfx.play('pop'); }catch(e){}
-      }
-    };
+      };
+    });
 
     const remBtn = q('#cm-remove', modal);
     if(remBtn){
@@ -1281,6 +1470,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
         saveNotes(notes());
         updateCoverHero(n);
         close();
+        NX.toastOk('Cover removed');
         try{ NX.sfx.play('pop'); }catch(e){}
       };
     }
@@ -2218,7 +2408,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     };
   }
 
-  /* ---------------- Knowledge Graph Modal ---------------- */
+  /* ---------------- Real Interactive Knowledge Graph Modal ---------------- */
   function openNotesGraphModal(){
     const activeNotes = notes().filter(n => !n.trash);
     if(!activeNotes.length){
@@ -2227,75 +2417,185 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     }
 
     const titleToId = new Map();
-    activeNotes.forEach(n => titleToId.set((n.title||'').trim().toLowerCase(), n.id));
-
-    const nodes = activeNotes.map((n, i) => {
-      const angle = (i / activeNotes.length) * Math.PI * 2;
-      const dist = 120 + Math.random() * 80;
-      return {
-        id: n.id,
-        title: n.title || 'Untitled',
-        folder: n.folder || 'root',
-        tags: n.tags || [],
-        color: U.colorFor(n.folder || n.title),
-        x: 350 + Math.cos(angle) * dist,
-        y: 220 + Math.sin(angle) * dist,
-        vx: 0,
-        vy: 0,
-        radius: 12 + Math.min(10, (n.body||'').length / 200)
-      };
+    activeNotes.forEach(n => {
+      const t = (n.title || '').trim().toLowerCase();
+      if(t) titleToId.set(t, n.id);
     });
 
-    const links = [];
+    // Build raw multi-type links
+    const allLinks = [];
+    const linkSet = new Set();
+    const addLink = (sId, tId, type, color) => {
+      if(!sId || !tId || sId === tId) return;
+      const key = sId < tId ? `${sId}|${tId}|${type}` : `${tId}|${sId}|${type}`;
+      if(!linkSet.has(key)){
+        linkSet.add(key);
+        allLinks.push({ source: sId, target: tId, type, color });
+      }
+    };
+
     activeNotes.forEach(n => {
       const body = n.body || '';
-      const matches = Array.from(body.matchAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g));
-      matches.forEach(m => {
+      // 1. Direct wikilinks [[Title]]
+      const wlMatches = Array.from(body.matchAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g));
+      wlMatches.forEach(m => {
         const targetTitle = (m[1]||'').trim().toLowerCase();
         const targetId = titleToId.get(targetTitle);
-        if(targetId && targetId !== n.id){
-          links.push({ source: n.id, target: targetId });
+        if(targetId) addLink(n.id, targetId, 'wiki', '#7CD56E');
+      });
+
+      // 2. Title mentions (if note body mentions another note's exact title)
+      titleToId.forEach((tId, tTitle) => {
+        if(tId !== n.id && tTitle.length >= 4 && body.toLowerCase().includes(tTitle)){
+          addLink(n.id, tId, 'mention', '#5EB8FF');
         }
       });
     });
 
-    const body = h(`<div>
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <span class="faint small"><b>${nodes.length}</b> notes · <b>${links.length}</b> connections · Drag nodes to explore</span>
-        <span class="faint tiny">Click any node to open note</span>
+    // 3. Shared Folder links
+    const byFolder = new Map();
+    activeNotes.forEach(n => {
+      if(n.folder && n.folder !== 'root'){
+        if(!byFolder.has(n.folder)) byFolder.set(n.folder, []);
+        byFolder.get(n.folder).push(n.id);
+      }
+    });
+    byFolder.forEach(ids => {
+      for(let i=0; i<ids.length; i++){
+        for(let j=i+1; j<ids.length; j++){
+          addLink(ids[i], ids[j], 'folder', '#F59E0B');
+        }
+      }
+    });
+
+    // 4. Shared Tag links
+    const byTag = new Map();
+    activeNotes.forEach(n => {
+      (n.tags || []).forEach(tg => {
+        const clean = tg.trim().toLowerCase();
+        if(clean){
+          if(!byTag.has(clean)) byTag.set(clean, []);
+          byTag.get(clean).push(n.id);
+        }
+      });
+    });
+    byTag.forEach(ids => {
+      for(let i=0; i<ids.length; i++){
+        for(let j=i+1; j<ids.length; j++){
+          addLink(ids[i], ids[j], 'tag', '#A78BFA');
+        }
+      }
+    });
+
+    // Initialize node physics positions
+    const nodes = activeNotes.map((n, i) => {
+      const angle = (i / activeNotes.length) * Math.PI * 2;
+      const dist = 140 + Math.random() * 110;
+      const noteLinks = allLinks.filter(l => l.source === n.id || l.target === n.id);
+      return {
+        id: n.id,
+        title: n.title || 'Untitled',
+        folder: n.folder || '',
+        tags: n.tags || [],
+        body: (n.body || '').slice(0, 140),
+        icon: n.icon || '📝',
+        color: U.colorFor(n.folder || n.title),
+        linkCount: noteLinks.length,
+        x: 400 + Math.cos(angle) * dist,
+        y: 260 + Math.sin(angle) * dist,
+        vx: 0,
+        vy: 0,
+        radius: Math.max(11, Math.min(26, 11 + noteLinks.length * 2))
+      };
+    });
+
+    let currentFilterMode = 'all'; // 'all', 'wiki', 'folder', 'tag'
+    let searchQuery = '';
+
+    const body = h(`<div style="display:flex;flex-direction:column;gap:10px">
+      <!-- Graph Top Controls Bar -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div class="row gap-6">
+          <input class="input sm" id="kg-search" placeholder="🔍 Search graph notes…" style="width:190px;height:30px;font-size:12px">
+          <div class="segmented-wrap row gap-4" style="background:var(--surface-2);padding:3px;border-radius:8px;border:1px solid var(--line)">
+            <button class="btn btn-sm btn-soft kg-mode-btn active" data-mode="all" style="height:24px;padding:0 8px;font-size:11px">All Links</button>
+            <button class="btn btn-sm btn-ghost kg-mode-btn" data-mode="wiki" style="height:24px;padding:0 8px;font-size:11px">Wikilinks</button>
+            <button class="btn btn-sm btn-ghost kg-mode-btn" data-mode="folder" style="height:24px;padding:0 8px;font-size:11px">Folders</button>
+            <button class="btn btn-sm btn-ghost kg-mode-btn" data-mode="tag" style="height:24px;padding:0 8px;font-size:11px">Tags</button>
+          </div>
+        </div>
+        <div class="row gap-6" style="align-items:center">
+          <span class="faint tiny" id="kg-stats-txt"><b>${nodes.length}</b> notes · <b>${allLinks.length}</b> connections</span>
+          <button class="icon-btn sm" id="kg-zoom-out" title="Zoom Out (-)">${icon('minus', 12)}</button>
+          <button class="icon-btn sm" id="kg-zoom-in" title="Zoom In (+)">${icon('plus', 12)}</button>
+          <button class="btn btn-sm btn-soft" id="kg-zoom-fit" style="height:26px;padding:0 8px;font-size:11px">Fit View</button>
+        </div>
       </div>
-      <div style="position:relative;width:100%;height:440px;background:var(--surface-2);border-radius:12px;overflow:hidden;border:1px solid var(--line)">
-        <canvas id="graph-canvas" width="680" height="440" style="display:block;width:100%;height:100%;cursor:grab"></canvas>
+
+      <!-- Graph Viewport Canvas & Tooltip Container -->
+      <div style="position:relative;width:100%;height:490px;background:var(--surface-2);border-radius:14px;overflow:hidden;border:1px solid var(--line)">
+        <canvas id="graph-canvas" width="760" height="490" style="display:block;width:100%;height:100%;cursor:grab"></canvas>
+        <div id="kg-hover-card" style="display:none;position:absolute;pointer-events:none;z-index:20;background:rgba(20,24,33,0.92);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,0.12);box-shadow:0 8px 32px rgba(0,0,0,0.35);border-radius:10px;padding:10px 14px;width:240px;color:var(--ink)"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--ink-3)">
+        <span>💡 Drag empty space to pan · Scroll to zoom · Click node to open note</span>
+        <span class="row gap-8" style="font-size:11px">
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#7CD56E"></span> Wikilink</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#5EB8FF"></span> Mention</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#F59E0B"></span> Folder</span>
+          <span style="display:flex;align-items:center;gap:4px"><span style="width:8px;height:8px;border-radius:50%;background:#A78BFA"></span> Tag</span>
+        </span>
       </div>
     </div>`);
 
     NX.modal({
-      title: 'Knowledge Graph View',
+      title: 'Obsidian-Style Knowledge Graph',
       icon: 'activity',
       body,
-      footer: [
-        { label: 'Close', cls: 'btn-soft' }
-      ]
+      footer: [{ label: 'Close', cls: 'btn-soft' }]
     });
 
     setTimeout(() => {
       const canvas = q('#graph-canvas', body);
+      const hoverCard = q('#kg-hover-card', body);
       if(!canvas) return;
       const ctx = canvas.getContext('2d');
-      let W = canvas.width = canvas.parentElement.clientWidth || 680;
-      let H = canvas.height = 440;
+      let W = canvas.width = canvas.parentElement.clientWidth || 760;
+      let H = canvas.height = canvas.parentElement.clientHeight || 490;
+
       let animId = null;
       let draggedNode = null;
       let hoveredNode = null;
+      let isPanning = false;
+      let startPanX = 0, startPanY = 0;
+      let panX = 0, panY = 0;
+      let zoom = 1.0;
 
+      function getVisibleLinks(){
+        if(currentFilterMode === 'wiki') return allLinks.filter(l => l.type === 'wiki');
+        if(currentFilterMode === 'folder') return allLinks.filter(l => l.type === 'folder');
+        if(currentFilterMode === 'tag') return allLinks.filter(l => l.type === 'tag');
+        return allLinks;
+      }
+
+      function updateStatsText(){
+        const vLinks = getVisibleLinks();
+        const statTxt = q('#kg-stats-txt', body);
+        if(statTxt) statTxt.innerHTML = `<b>${nodes.length}</b> notes · <b>${vLinks.length}</b> connections`;
+      }
+
+      // Physics and render step
       function step(){
+        const vLinks = getVisibleLinks();
+
+        // 1. Coulomb repulsion between all nodes
         for(let i=0; i<nodes.length; i++){
           for(let j=i+1; j<nodes.length; j++){
             const dx = nodes[j].x - nodes[i].x;
             const dy = nodes[j].y - nodes[i].y;
             const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-            if(dist < 180){
-              const force = (180 - dist) / dist * 0.12;
+            if(dist < 260){
+              const force = (260 - dist) / dist * 0.14;
               nodes[i].vx -= dx * force;
               nodes[i].vy -= dy * force;
               nodes[j].vx += dx * force;
@@ -2304,14 +2604,16 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           }
         }
 
-        links.forEach(l => {
+        // 2. Hooke spring attraction along active links
+        vLinks.forEach(l => {
           const s = nodes.find(n => n.id === l.source);
           const t = nodes.find(n => n.id === l.target);
           if(s && t){
             const dx = t.x - s.x;
             const dy = t.y - s.y;
             const dist = Math.sqrt(dx*dx + dy*dy) || 1;
-            const force = (dist - 100) * 0.005;
+            const targetDist = l.type === 'wiki' ? 90 : 130;
+            const force = (dist - targetDist) * 0.007;
             s.vx += dx * force;
             s.vy += dy * force;
             t.vx -= dx * force;
@@ -2319,91 +2621,210 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
           }
         });
 
+        // 3. Center gravity & damping
         const cx = W / 2, cy = H / 2;
         nodes.forEach(n => {
           if(n !== draggedNode){
-            n.vx += (cx - n.x) * 0.0015;
-            n.vy += (cy - n.y) * 0.0015;
+            n.vx += (cx - n.x) * 0.0016;
+            n.vy += (cy - n.y) * 0.0016;
             n.x += n.vx;
             n.y += n.vy;
-            n.vx *= 0.85;
-            n.vy *= 0.85;
-            n.x = Math.max(n.radius, Math.min(W - n.radius, n.x));
-            n.y = Math.max(n.radius, Math.min(H - n.radius, n.y));
+            n.vx *= 0.86;
+            n.vy *= 0.86;
           }
         });
 
+        // 4. Draw canvas
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.clearRect(0, 0, W, H);
 
-        ctx.lineWidth = 1.5;
-        links.forEach(l => {
+        ctx.save();
+        ctx.translate(panX + W/2, panY + H/2);
+        ctx.scale(zoom, zoom);
+        ctx.translate(-W/2, -H/2);
+
+        // Draw Links
+        vLinks.forEach(l => {
           const s = nodes.find(n => n.id === l.source);
           const t = nodes.find(n => n.id === l.target);
           if(s && t){
+            const isHighlight = hoveredNode && (hoveredNode.id === s.id || hoveredNode.id === t.id);
             ctx.beginPath();
             ctx.moveTo(s.x, s.y);
             ctx.lineTo(t.x, t.y);
-            ctx.strokeStyle = 'rgba(124, 213, 110, 0.4)';
+            ctx.strokeStyle = isHighlight ? '#ffffff' : (l.color || 'rgba(124, 213, 110, 0.35)');
+            ctx.globalAlpha = isHighlight ? 0.9 : 0.32;
+            ctx.lineWidth = isHighlight ? 2.5 : 1.4;
             ctx.stroke();
           }
         });
+        ctx.globalAlpha = 1.0;
 
+        // Draw Nodes
         nodes.forEach(n => {
           const isHover = n === hoveredNode;
+          const isMatchSearch = !searchQuery || n.title.toLowerCase().includes(searchQuery) || (n.folder && n.folder.toLowerCase().includes(searchQuery));
+          const isFaded = (!isMatchSearch) || (hoveredNode && !isHover && !vLinks.some(l => (l.source === hoveredNode.id && l.target === n.id) || (l.target === hoveredNode.id && l.source === n.id)));
+
+          ctx.save();
+          ctx.globalAlpha = isFaded ? 0.22 : 1.0;
+
+          // Glowing pulse for search match
+          if(searchQuery && isMatchSearch){
+            ctx.beginPath();
+            ctx.arc(n.x, n.y, n.radius + 6, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(124, 213, 110, 0.3)';
+            ctx.fill();
+          }
+
+          // Main circle
           ctx.beginPath();
           ctx.arc(n.x, n.y, n.radius + (isHover ? 3 : 0), 0, Math.PI * 2);
           ctx.fillStyle = n.color;
           ctx.fill();
-          ctx.strokeStyle = isHover ? '#fff' : 'rgba(255,255,255,0.4)';
+          ctx.strokeStyle = isHover ? '#ffffff' : 'rgba(255,255,255,0.45)';
           ctx.lineWidth = isHover ? 3 : 1.5;
           ctx.stroke();
 
-          ctx.font = isHover ? 'bold 12px sans-serif' : '11px sans-serif';
-          ctx.fillStyle = isHover ? 'var(--ink)' : 'var(--ink-2)';
+          // Title label below node
+          ctx.font = isHover ? 'bold 12px Inter, sans-serif' : '11px Inter, sans-serif';
+          ctx.fillStyle = isHover ? '#ffffff' : (isFaded ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)');
           ctx.textAlign = 'center';
-          ctx.fillText(n.title.slice(0, 16), n.x, n.y + n.radius + 14);
+          ctx.fillText(n.title.slice(0, 18), n.x, n.y + n.radius + 14);
+
+          ctx.restore();
         });
 
+        ctx.restore();
         animId = requestAnimationFrame(step);
       }
 
       animId = requestAnimationFrame(step);
 
+      function screenToWorld(sx, sy){
+        return {
+          x: (sx - (panX + W/2)) / zoom + W/2,
+          y: (sy - (panY + H/2)) / zoom + H/2
+        };
+      }
+
+      // Pointer interactions
       canvas.onmousedown = (e) => {
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-        draggedNode = nodes.find(n => Math.hypot(n.x - mx, n.y - my) <= n.radius + 4);
-        if(draggedNode) canvas.style.cursor = 'grabbing';
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const w = screenToWorld(sx, sy);
+
+        draggedNode = nodes.find(n => Math.hypot(n.x - w.x, n.y - w.y) <= n.radius + 6);
+        if(draggedNode){
+          canvas.style.cursor = 'grabbing';
+        } else {
+          isPanning = true;
+          startPanX = sx - panX;
+          startPanY = sy - panY;
+          canvas.style.cursor = 'move';
+        }
       };
 
       canvas.onmousemove = (e) => {
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const w = screenToWorld(sx, sy);
+
         if(draggedNode){
-          draggedNode.x = mx;
-          draggedNode.y = my;
+          draggedNode.x = w.x;
+          draggedNode.y = w.y;
           draggedNode.vx = draggedNode.vy = 0;
+          return;
+        }
+
+        if(isPanning){
+          panX = sx - startPanX;
+          panY = sy - startPanY;
+          return;
+        }
+
+        hoveredNode = nodes.find(n => Math.hypot(n.x - w.x, n.y - w.y) <= n.radius + 6);
+        if(hoveredNode){
+          canvas.style.cursor = 'pointer';
+          if(hoverCard){
+            hoverCard.style.display = 'block';
+            hoverCard.style.left = Math.min(W - 250, sx + 14) + 'px';
+            hoverCard.style.top = Math.min(H - 120, sy + 14) + 'px';
+            hoverCard.innerHTML = `
+              <div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:13px;margin-bottom:4px">
+                <span>${hoveredNode.icon}</span> <span>${U.esc(hoveredNode.title)}</span>
+              </div>
+              ${hoveredNode.folder ? `<div style="font-size:10.5px;color:var(--green,#7cd56e);margin-bottom:4px">📁 ${U.esc(hoveredNode.folder)}</div>` : ''}
+              <div style="font-size:11.5px;color:rgba(255,255,255,0.7);line-height:1.4;margin-bottom:6px">${U.esc(hoveredNode.body.slice(0, 80) || 'No content')}...</div>
+              <div style="font-size:10.5px;color:rgba(255,255,255,0.5)">🔗 ${hoveredNode.linkCount} connection(s) · Click to open</div>
+            `;
+          }
         } else {
-          hoveredNode = nodes.find(n => Math.hypot(n.x - mx, n.y - my) <= n.radius + 4);
-          canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+          canvas.style.cursor = 'grab';
+          if(hoverCard) hoverCard.style.display = 'none';
         }
       };
 
       window.addEventListener('mouseup', () => {
         if(draggedNode){ draggedNode = null; canvas.style.cursor = 'grab'; }
+        if(isPanning){ isPanning = false; canvas.style.cursor = 'grab'; }
       });
 
+      // Mouse wheel zoom towards pointer
+      canvas.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const factor = e.deltaY < 0 ? 1.15 : 0.88;
+        const newZoom = Math.max(0.3, Math.min(3.0, zoom * factor));
+        if(newZoom !== zoom){
+          zoom = newZoom;
+        }
+      }, { passive: false });
+
+      // Click node to open
       canvas.onclick = (e) => {
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-        const clicked = nodes.find(n => Math.hypot(n.x - mx, n.y - my) <= n.radius + 4);
+        const sx = e.clientX - rect.left;
+        const sy = e.clientY - rect.top;
+        const w = screenToWorld(sx, sy);
+        const clicked = nodes.find(n => Math.hypot(n.x - w.x, n.y - w.y) <= n.radius + 6);
         if(clicked){
           NX.closeAllModals();
           cancelAnimationFrame(animId);
           selectNote(clicked.id);
           NX.toastOk('Opened note', clicked.title);
+          try{ NX.sfx.play('pop'); }catch(err){}
         }
       };
+
+      // Filter modes
+      qa('.kg-mode-btn', body).forEach(btn => {
+        btn.onclick = () => {
+          qa('.kg-mode-btn', body).forEach(b => { b.classList.remove('active', 'btn-soft'); b.classList.add('btn-ghost'); });
+          btn.classList.add('active', 'btn-soft');
+          btn.classList.remove('btn-ghost');
+          currentFilterMode = btn.dataset.mode;
+          updateStatsText();
+          try{ NX.sfx.play('tick'); }catch(err){}
+        };
+      });
+
+      // Search
+      const searchInput = q('#kg-search', body);
+      if(searchInput){
+        searchInput.oninput = (e) => {
+          searchQuery = (e.target.value || '').trim().toLowerCase();
+        };
+      }
+
+      // Zoom buttons
+      const btnIn = q('#kg-zoom-in', body);
+      const btnOut = q('#kg-zoom-out', body);
+      const btnFit = q('#kg-zoom-fit', body);
+      if(btnIn) btnIn.onclick = () => { zoom = Math.min(3.0, zoom * 1.25); };
+      if(btnOut) btnOut.onclick = () => { zoom = Math.max(0.3, zoom * 0.8); };
+      if(btnFit) btnFit.onclick = () => { zoom = 1.0; panX = 0; panY = 0; };
     }, 60);
   }
 

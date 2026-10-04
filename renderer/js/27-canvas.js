@@ -1,13 +1,17 @@
 /* ============================================================
    PebbleX v0.1 — 27-canvas.js
-   Interactive Whiteboard & Canvas (inspired by tldraw)
-   - Freehand pen with smooth curves
-   - Shapes: Rectangle, Ellipse/Circle, Arrow, Line
-   - Sticky Notes with editable text & color presets
-   - Text boxes
-   - Infinite pan & zoom viewport
-   - Full undo/redo history & auto-save to workspace store
-   - Export to PNG download
+   Interactive Whiteboard & Multi-Canvas Studio (inspired by tldraw)
+   - Multi-canvas boards (create, switch, rename, delete)
+   - Image upload from device & paste from clipboard
+   - Freehand pen with midpoint quadratic curve smoothing (zero lag)
+   - Translucent highlighter tool for diagramming
+   - Shapes: Rectangle, Ellipse/Circle, Arrow, Straight Line
+   - Sticky Notes with 5 pastel colors & double-click editing
+   - Text boxes with live inline entry
+   - Dynamic canvas grid (Dots, Grid, Blank)
+   - Infinite pan & zoom viewport with mouse-centered wheel
+   - Full undo/redo history & persistent multi-board storage
+   - High-res PNG export with background rendering
    ============================================================ */
 (function(NX){
 'use strict';
@@ -32,17 +36,41 @@ const STICKY_COLORS = [
   { id:'purple', bg:'#E9D5FF', fg:'#581C87' }
 ];
 
-let curTool = 'draw'; // 'select','hand','draw','rect','circle','arrow','line','sticky','text','eraser'
+let curTool = 'draw'; // 'select','hand','draw','highlighter','arrow','line','rect','circle','sticky','text','eraser'
 let curColor = '#7CD56E';
 let curWidth = 3;
 let curFill = false;
+let curGrid = 'dots'; // 'dots', 'grid', 'none'
 
 NX.routeInShell('canvas', 'Canvas', 'brush', function(view){
   view.classList.add('full');
+
+  // Load or initialize boards
+  let boards = NX.store.get('canvas:boards', null);
+  if(!boards || !Array.isArray(boards) || !boards.length){
+    const oldElems = NX.store.get('canvas:elements', []);
+    boards = [
+      { id: 'board-main', name: 'Main Canvas', elements: Array.isArray(oldElems) ? oldElems : [] }
+    ];
+    NX.store.set('canvas:boards', boards);
+  }
+
+  let activeBoardId = NX.store.get('canvas:active_board', boards[0].id);
+  let curBoard = boards.find(b => b.id === activeBoardId) || boards[0];
+
   view.innerHTML = `
     <div class="canvas-page" id="canvas-page">
-      <!-- Floating Top Toolbar (tldraw style) -->
+      <!-- Floating Top Bar with Board Switcher & Tools -->
       <div class="canvas-toolbar" id="canvas-toolbar">
+        <!-- Board Switcher Capsule -->
+        <div class="canvas-board-capsule" style="display:flex;align-items:center;gap:4px;padding-right:6px;border-right:1px solid var(--line)">
+          <button class="btn btn-sm btn-soft" id="cb-switch-btn" style="height:30px;padding:0 10px;font-size:12px;font-weight:700;gap:6px" title="Switch or manage canvas boards">
+            <span>🎨</span> <span id="cb-name-txt">${U.esc(curBoard.name)}</span> <span style="font-size:9px;opacity:0.6">▾</span>
+          </button>
+          <button class="icon-btn sm" id="cb-add-btn" title="Create New Board" style="width:28px;height:28px">${icon('plus', 13)}</button>
+        </div>
+
+        <!-- Navigation Tools -->
         <button class="ct-btn ${curTool==='select'?'on':''}" data-t="select" data-tip="Select & Move (V)">
           ${icon('target', 16)}
         </button>
@@ -50,8 +78,13 @@ NX.routeInShell('canvas', 'Canvas', 'brush', function(view){
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v7M10 10.5V6a2 2 0 0 0-4 0v8a7 7 0 0 0 14 0v-3a2 2 0 0 0-4 0"/></svg>
         </button>
         <div class="ct-divider"></div>
-        <button class="ct-btn ${curTool==='draw'?'on':''}" data-t="draw" data-tip="Draw Pen (P)">
+
+        <!-- Drawing Tools -->
+        <button class="ct-btn ${curTool==='draw'?'on':''}" data-t="draw" data-tip="Pen (P)">
           ${icon('brush', 16)}
+        </button>
+        <button class="ct-btn ${curTool==='highlighter'?'on':''}" data-t="highlighter" data-tip="Highlighter (M)">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 11-6 6v3h3l6-6"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
         </button>
         <button class="ct-btn ${curTool==='arrow'?'on':''}" data-t="arrow" data-tip="Arrow (A)">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19L19 5M19 5v8M19 5h-8"/></svg>
@@ -68,15 +101,21 @@ NX.routeInShell('canvas', 'Canvas', 'brush', function(view){
         <button class="ct-btn ${curTool==='sticky'?'on':''}" data-t="sticky" data-tip="Sticky Note (S)">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9l-6-6zM15 3v6h6"/></svg>
         </button>
-        <button class="ct-btn ${curTool==='text'?'on':''}" data-t="text" data-tip="Text Label (T)">
+        <button class="ct-btn ${curTool==='text'?'on':''}" data-t="text" data-tip="Text (T)">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
         </button>
+        <button class="ct-btn" id="ct-img-btn" data-tip="Upload Image to Canvas (I)">
+          ${icon('image', 16)}
+        </button>
+        <input type="file" id="ct-file-input" accept="image/*" style="display:none">
         <button class="ct-btn ${curTool==='eraser'?'on':''}" data-t="eraser" data-tip="Eraser (E)">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 14-8.5 8.5a2.12 2.12 0 0 1-3 0L3.5 19.5a2.12 2.12 0 0 1 0-3L12 8l6 6zM14.5 5.5l3-3a2.12 2.12 0 0 1 3 3l-3 3"/></svg>
         </button>
         <div class="ct-divider"></div>
+
+        <!-- History & Actions -->
         <button class="ct-btn" id="ct-undo" data-tip="Undo (Ctrl+Z)">${icon('undo', 15)}</button>
-        <button class="ct-btn" id="ct-clear" data-tip="Clear Board" style="color:var(--red,#ef4444)">${icon('trash', 15)}</button>
+        <button class="ct-btn" id="ct-clear" data-tip="Clear Canvas Board" style="color:var(--red,#ef4444)">${icon('trash', 15)}</button>
         <button class="ct-btn" id="ct-export" data-tip="Export to PNG Image" style="color:var(--green,#7cd56e)">${icon('download', 15)}</button>
       </div>
 
@@ -101,27 +140,32 @@ NX.routeInShell('canvas', 'Canvas', 'brush', function(view){
         <canvas id="nx-canvas-element"></canvas>
       </div>
 
-      <!-- Bottom Zoom Controls -->
-      <div class="canvas-bottom-left">
+      <!-- Bottom Controls (Zoom & Grid) -->
+      <div class="canvas-bottom-left" style="display:flex;align-items:center;gap:6px">
         <button class="icon-btn sm" id="cz-out" data-tip="Zoom Out (-)">${icon('minus', 12)}</button>
-        <span class="canvas-zoom-txt" id="cz-txt">100%</span>
+        <span class="canvas-zoom-txt" id="cz-txt" style="min-width:44px;text-align:center">100%</span>
         <button class="icon-btn sm" id="cz-in" data-tip="Zoom In (+)">${icon('plus', 12)}</button>
-        <button class="btn btn-ghost btn-sm" id="cz-reset" style="padding:2px 6px;font-size:10.5px">Fit</button>
+        <button class="btn btn-ghost btn-sm" id="cz-reset" style="padding:2px 8px;font-size:11px">Fit</button>
+        <div class="ct-divider" style="margin:0 2px"></div>
+        <button class="btn btn-ghost btn-sm" id="cz-grid-toggle" style="padding:2px 8px;font-size:11px" title="Toggle canvas background grid">
+          Grid: <span id="cz-grid-lbl">Dots</span>
+        </button>
       </div>
     </div>
   `;
 
-  initCanvasEngine(view);
+  initCanvasEngine(view, curBoard, boards);
 });
 
-function initCanvasEngine(root){
+function initCanvasEngine(root, initialBoard, allBoards){
   const vp = q('#canvas-viewport', root);
   const cvs = q('#nx-canvas-element', root);
   if(!vp || !cvs) return;
   const ctx = cvs.getContext('2d');
 
-  let elements = NX.store.get('canvas:elements', []);
-  if(!Array.isArray(elements)) elements = [];
+  let curBoard = initialBoard;
+  let boards = allBoards;
+  let elements = Array.isArray(curBoard.elements) ? curBoard.elements : [];
 
   let history = [JSON.stringify(elements)];
   let historyIdx = 0;
@@ -135,8 +179,22 @@ function initCanvasEngine(root){
   let isDraggingElem = false;
   let startX = 0, startY = 0;
   let dragElemId = null;
-  let dragElemOrigX = 0, dragElemOrigY = 0;
   let activeElement = null;
+
+  // Cached HTML Image elements for rapid 60fps rendering
+  const imgCache = new Map();
+
+  // Throttled RAF render scheduler
+  let renderScheduled = false;
+  function scheduleRender(){
+    if(!renderScheduled){
+      renderScheduled = true;
+      requestAnimationFrame(() => {
+        renderScheduled = false;
+        render();
+      });
+    }
+  }
 
   function pushHistory(){
     const snap = JSON.stringify(elements);
@@ -145,21 +203,44 @@ function initCanvasEngine(root){
     history.push(snap);
     if(history.length > 50) history.shift();
     historyIdx = history.length - 1;
-    saveState();
+    saveBoardState();
   }
 
   function undo(){
     if(historyIdx > 0){
       historyIdx--;
       elements = JSON.parse(history[historyIdx]);
-      saveState();
-      render();
+      saveBoardState();
+      scheduleRender();
       try{ NX.sfx.play('pop'); }catch(e){}
     }
   }
 
-  function saveState(){
-    try{ NX.store.set('canvas:elements', elements); }catch(e){}
+  function saveBoardState(){
+    curBoard.elements = elements;
+    try {
+      const idx = boards.findIndex(b => b.id === curBoard.id);
+      if(idx !== -1) boards[idx] = curBoard;
+      NX.store.set('canvas:boards', boards);
+      NX.store.set('canvas:active_board', curBoard.id);
+      NX.store.set('canvas:elements', elements);
+    } catch(e){}
+  }
+
+  function switchBoard(targetBoard){
+    saveBoardState();
+    curBoard = targetBoard;
+    elements = Array.isArray(curBoard.elements) ? curBoard.elements : [];
+    history = [JSON.stringify(elements)];
+    historyIdx = 0;
+    const nameEl = q('#cb-name-txt', root);
+    if(nameEl) nameEl.textContent = curBoard.name;
+    NX.store.set('canvas:active_board', curBoard.id);
+    panX = 0; panY = 0; zoom = 1.0;
+    updateZoomLabel();
+    scheduleRender();
+    NX.toastOk('Canvas loaded', curBoard.name);
+    try{ NX.sfx.play('nav'); }catch(e){}
   }
 
   function updateZoomLabel(){
@@ -172,7 +253,7 @@ function initCanvasEngine(root){
     const dpr = window.devicePixelRatio || 1;
     cvs.width = Math.round(rect.width * dpr);
     cvs.height = Math.round(rect.height * dpr);
-    render();
+    scheduleRender();
   }
 
   window.addEventListener('resize', resizeCanvas);
@@ -200,6 +281,14 @@ function initCanvasEngine(root){
 
     ctx.save();
     ctx.scale(dpr, dpr);
+
+    // Draw Background Grid if enabled
+    if(curGrid === 'dots'){
+      drawDotsGrid(ctx, rect.width, rect.height);
+    } else if(curGrid === 'grid'){
+      drawLinesGrid(ctx, rect.width, rect.height);
+    }
+
     ctx.translate(panX, panY);
     ctx.scale(zoom, zoom);
 
@@ -216,6 +305,47 @@ function initCanvasEngine(root){
     ctx.restore();
   }
 
+  function drawDotsGrid(c, w, h){
+    c.save();
+    const gap = 24 * zoom;
+    if(gap >= 8){
+      c.fillStyle = 'rgba(255, 255, 255, 0.08)';
+      const offsetX = ((panX % gap) + gap) % gap;
+      const offsetY = ((panY % gap) + gap) % gap;
+      const dotRadius = Math.max(1, 1.2 * Math.min(zoom, 1.5));
+      for(let x = offsetX; x < w; x += gap){
+        for(let y = offsetY; y < h; y += gap){
+          c.beginPath();
+          c.arc(x, y, dotRadius, 0, Math.PI * 2);
+          c.fill();
+        }
+      }
+    }
+    c.restore();
+  }
+
+  function drawLinesGrid(c, w, h){
+    c.save();
+    const gap = 32 * zoom;
+    if(gap >= 12){
+      c.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      c.lineWidth = 1;
+      const offsetX = ((panX % gap) + gap) % gap;
+      const offsetY = ((panY % gap) + gap) % gap;
+      c.beginPath();
+      for(let x = offsetX; x < w; x += gap){
+        c.moveTo(x, 0);
+        c.lineTo(x, h);
+      }
+      for(let y = offsetY; y < h; y += gap){
+        c.moveTo(0, y);
+        c.lineTo(w, y);
+      }
+      c.stroke();
+    }
+    c.restore();
+  }
+
   function drawElement(c, el){
     c.save();
     c.lineCap = 'round';
@@ -224,28 +354,60 @@ function initCanvasEngine(root){
     c.fillStyle = el.color || curColor;
     c.lineWidth = el.width || 3;
 
+    // 1. Freehand Pen with midpoint quadratic smoothing
     if(el.type === 'draw' && el.points && el.points.length){
+      const pts = el.points;
       c.beginPath();
-      c.moveTo(el.points[0].x, el.points[0].y);
-      for(let i=1; i<el.points.length; i++){
-        const p1 = el.points[i-1], p2 = el.points[i];
-        const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
-        c.quadraticCurveTo(p1.x, p1.y, midX, midY);
+      if(pts.length === 1){
+        c.arc(pts[0].x, pts[0].y, (el.width||3)/2, 0, Math.PI * 2);
+        c.fill();
+      } else {
+        c.moveTo(pts[0].x, pts[0].y);
+        for(let i=1; i<pts.length-1; i++){
+          const midX = (pts[i].x + pts[i+1].x) / 2;
+          const midY = (pts[i].y + pts[i+1].y) / 2;
+          c.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+        }
+        c.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+        c.stroke();
       }
-      c.stroke();
     }
+    // 2. Translucent Highlighter
+    else if(el.type === 'highlighter' && el.points && el.points.length){
+      const pts = el.points;
+      c.save();
+      c.globalAlpha = 0.35;
+      c.lineWidth = (el.width || 4) * 3.5;
+      c.beginPath();
+      if(pts.length === 1){
+        c.arc(pts[0].x, pts[0].y, c.lineWidth/2, 0, Math.PI * 2);
+        c.fill();
+      } else {
+        c.moveTo(pts[0].x, pts[0].y);
+        for(let i=1; i<pts.length-1; i++){
+          const midX = (pts[i].x + pts[i+1].x) / 2;
+          const midY = (pts[i].y + pts[i+1].y) / 2;
+          c.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+        }
+        c.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+        c.stroke();
+      }
+      c.restore();
+    }
+    // 3. Rectangle
     else if(el.type === 'rect'){
       c.beginPath();
       const r = Math.min(10, Math.abs(el.w)/4, Math.abs(el.h)/4);
       roundRect(c, el.x, el.y, el.w, el.h, r);
       if(el.fill){
         c.save();
-        c.globalAlpha = 0.15;
+        c.globalAlpha = 0.16;
         c.fill();
         c.restore();
       }
       c.stroke();
     }
+    // 4. Circle / Ellipse
     else if(el.type === 'circle'){
       c.beginPath();
       const rx = Math.abs(el.w) / 2;
@@ -255,24 +417,25 @@ function initCanvasEngine(root){
       c.ellipse(cx, cy, Math.max(1, rx), Math.max(1, ry), 0, 0, Math.PI * 2);
       if(el.fill){
         c.save();
-        c.globalAlpha = 0.15;
+        c.globalAlpha = 0.16;
         c.fill();
         c.restore();
       }
       c.stroke();
     }
+    // 5. Straight Line
     else if(el.type === 'line'){
       c.beginPath();
       c.moveTo(el.x1, el.y1);
       c.lineTo(el.x2, el.y2);
       c.stroke();
     }
+    // 6. Arrow with clean angled arrowhead
     else if(el.type === 'arrow'){
       c.beginPath();
       c.moveTo(el.x1, el.y1);
       c.lineTo(el.x2, el.y2);
       c.stroke();
-      // Arrowhead
       const angle = Math.atan2(el.y2 - el.y1, el.x2 - el.x1);
       const headLen = Math.max(12, (el.width||3) * 3);
       c.beginPath();
@@ -282,39 +445,65 @@ function initCanvasEngine(root){
       c.closePath();
       c.fill();
     }
+    // 7. Sticky Note
     else if(el.type === 'sticky'){
       const sw = el.w || 160;
       const sh = el.h || 140;
       c.save();
-      // Shadow
-      c.shadowColor = 'rgba(0,0,0,0.2)';
-      c.shadowBlur = 12;
-      c.shadowOffsetY = 4;
+      c.shadowColor = 'rgba(0,0,0,0.25)';
+      c.shadowBlur = 14;
+      c.shadowOffsetY = 5;
       c.fillStyle = el.bg || '#FEF08A';
       roundRect(c, el.x, el.y, sw, sh, 8);
       c.fill();
       c.restore();
 
-      // Fold corner
+      // Fold bar
       c.fillStyle = 'rgba(0,0,0,0.06)';
       c.fillRect(el.x, el.y, sw, 22);
 
-      // Text inside sticky
+      // Text inside
       c.fillStyle = el.fg || '#1F2937';
-      c.font = '14px Inter, system-ui, sans-serif';
+      c.font = '13.5px Inter, system-ui, sans-serif';
       c.textBaseline = 'top';
       const words = (el.text || 'Double-click to write…').split('\n');
-      let lineY = el.y + 30;
+      let lineY = el.y + 28;
       words.forEach(line => {
         c.fillText(line.slice(0, 24), el.x + 12, lineY);
         lineY += 20;
       });
     }
+    // 8. Text Label
     else if(el.type === 'text'){
       c.fillStyle = el.color || curColor;
       c.font = (el.fontSize || 18) + 'px Inter, system-ui, sans-serif';
       c.textBaseline = 'top';
       c.fillText(el.text || 'Text', el.x, el.y);
+    }
+    // 9. Uploaded / Pasted Image
+    else if(el.type === 'image' && el.src){
+      let cached = imgCache.get(el.src);
+      if(!cached){
+        cached = new Image();
+        cached.onload = () => scheduleRender();
+        cached.src = el.src;
+        imgCache.set(el.src, cached);
+      }
+      if(cached.complete && cached.naturalWidth > 0){
+        c.save();
+        c.beginPath();
+        roundRect(c, el.x, el.y, el.w, el.h, 8);
+        c.clip();
+        c.drawImage(cached, el.x, el.y, el.w, el.h);
+        c.restore();
+
+        // Border outline
+        c.strokeStyle = 'rgba(255,255,255,0.2)';
+        c.lineWidth = 1.5;
+        c.beginPath();
+        roundRect(c, el.x, el.y, el.w, el.h, 8);
+        c.stroke();
+      }
     }
     c.restore();
   }
@@ -333,7 +522,7 @@ function initCanvasEngine(root){
   function findElementAt(wx, wy){
     for(let i = elements.length - 1; i >= 0; i--){
       const el = elements[i];
-      if(el.type === 'sticky' || el.type === 'rect'){
+      if(el.type === 'sticky' || el.type === 'rect' || el.type === 'image'){
         const x = el.x, y = el.y, w = el.w || 160, h = el.h || 140;
         const minX = Math.min(x, x+w), maxX = Math.max(x, x+w);
         const minY = Math.min(y, y+h), maxY = Math.max(y, y+h);
@@ -342,14 +531,14 @@ function initCanvasEngine(root){
         const cx = el.x + (el.w||0)/2, cy = el.y + (el.h||0)/2;
         const rx = Math.abs(el.w||1)/2, ry = Math.abs(el.h||1)/2;
         if(Math.hypot((wx-cx)/rx, (wy-cy)/ry) <= 1) return el;
-      } else if(el.type === 'draw' && el.points){
-        const hit = el.points.some(p => Math.hypot(p.x - wx, p.y - wy) < 14);
+      } else if((el.type === 'draw' || el.type === 'highlighter') && el.points){
+        const hit = el.points.some(p => Math.hypot(p.x - wx, p.y - wy) < 16);
         if(hit) return el;
       } else if(el.type === 'line' || el.type === 'arrow'){
         const dist = distToSegment({x:wx, y:wy}, {x:el.x1, y:el.y1}, {x:el.x2, y:el.y2});
         if(dist < 12) return el;
       } else if(el.type === 'text'){
-        if(Math.hypot(el.x - wx, el.y - wy) < 30) return el;
+        if(Math.hypot(el.x - wx, el.y - wy) < 32) return el;
       }
     }
     return null;
@@ -363,6 +552,36 @@ function initCanvasEngine(root){
     return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
   }
 
+  // Handle Image insertion (from file reader or clipboard)
+  function insertImageFromDataUrl(dataUrl, targetWx, targetWy){
+    const tempImg = new Image();
+    tempImg.onload = () => {
+      const maxDim = 320;
+      let w = tempImg.width || 300;
+      let h = tempImg.height || 200;
+      if(w > maxDim || h > maxDim){
+        if(w > h){ h = (h / w) * maxDim; w = maxDim; }
+        else { w = (w / h) * maxDim; h = maxDim; }
+      }
+      const newImg = {
+        id: U.uid('img'),
+        type: 'image',
+        x: Math.round(targetWx - w/2),
+        y: Math.round(targetWy - h/2),
+        w: Math.round(w),
+        h: Math.round(h),
+        src: dataUrl
+      };
+      imgCache.set(dataUrl, tempImg);
+      elements.push(newImg);
+      pushHistory();
+      scheduleRender();
+      NX.toastOk('Image placed on canvas', 'Use Select tool to move it');
+      try{ NX.sfx.play('pop'); }catch(e){}
+    };
+    tempImg.src = dataUrl;
+  }
+
   // Pointer & mouse events
   vp.addEventListener('pointerdown', e => {
     const r = vp.getBoundingClientRect();
@@ -372,7 +591,6 @@ function initCanvasEngine(root){
     startX = sx;
     startY = sy;
 
-    // Middle click or space or hand tool -> Pan
     if(e.button === 1 || e.spaceKey || curTool === 'hand'){
       isPanning = true;
       vp.setPointerCapture(e.pointerId);
@@ -384,8 +602,6 @@ function initCanvasEngine(root){
       if(hit){
         isDraggingElem = true;
         dragElemId = hit.id;
-        dragElemOrigX = hit.x !== undefined ? hit.x : (hit.points ? hit.points[0].x : hit.x1);
-        dragElemOrigY = hit.y !== undefined ? hit.y : (hit.points ? hit.points[0].y : hit.y1);
         vp.setPointerCapture(e.pointerId);
       }
       return;
@@ -396,7 +612,7 @@ function initCanvasEngine(root){
       if(hit){
         elements = elements.filter(x => x.id !== hit.id);
         pushHistory();
-        render();
+        scheduleRender();
         try{ NX.sfx.play('pop'); }catch(err){}
       }
       return;
@@ -417,7 +633,7 @@ function initCanvasEngine(root){
       };
       elements.push(newSticky);
       pushHistory();
-      render();
+      scheduleRender();
       openStickyEditor(newSticky);
       try{ NX.sfx.play('tick'); }catch(err){}
       return;
@@ -436,12 +652,12 @@ function initCanvasEngine(root){
           fontSize: 20
         });
         pushHistory();
-        render();
+        scheduleRender();
       }
       return;
     }
 
-    // Drawing tools
+    // Freehand drawing & shapes
     isDrawing = true;
     vp.setPointerCapture(e.pointerId);
 
@@ -449,6 +665,14 @@ function initCanvasEngine(root){
       activeElement = {
         id: U.uid('drw'),
         type: 'draw',
+        color: curColor,
+        width: curWidth,
+        points: [{ x: w.x, y: w.y }]
+      };
+    } else if(curTool === 'highlighter'){
+      activeElement = {
+        id: U.uid('hl'),
+        type: 'highlighter',
         color: curColor,
         width: curWidth,
         points: [{ x: w.x, y: w.y }]
@@ -495,7 +719,7 @@ function initCanvasEngine(root){
       panY += (sy - startY);
       startX = sx;
       startY = sy;
-      render();
+      scheduleRender();
       return;
     }
 
@@ -508,7 +732,7 @@ function initCanvasEngine(root){
         else if(el.x1 !== undefined){ el.x1 += dx; el.y1 += dy; el.x2 += dx; el.y2 += dy; }
         else if(el.points){ el.points.forEach(p => { p.x += dx; p.y += dy; }); }
         startX = sx; startY = sy;
-        render();
+        scheduleRender();
       }
       return;
     }
@@ -517,23 +741,28 @@ function initCanvasEngine(root){
       const hit = findElementAt(w.x, w.y);
       if(hit){
         elements = elements.filter(x => x.id !== hit.id);
-        render();
+        scheduleRender();
       }
       return;
     }
 
     if(!isDrawing || !activeElement) return;
 
-    if(activeElement.type === 'draw'){
-      activeElement.points.push({ x: w.x, y: w.y });
+    if(activeElement.type === 'draw' || activeElement.type === 'highlighter'){
+      const lastP = activeElement.points[activeElement.points.length - 1];
+      if(!lastP || Math.hypot(w.x - lastP.x, w.y - lastP.y) >= 2.5){
+        activeElement.points.push({ x: w.x, y: w.y });
+        scheduleRender();
+      }
     } else if(activeElement.type === 'rect' || activeElement.type === 'circle'){
       activeElement.w = w.x - activeElement.x;
       activeElement.h = w.y - activeElement.y;
+      scheduleRender();
     } else if(activeElement.type === 'arrow' || activeElement.type === 'line'){
       activeElement.x2 = w.x;
       activeElement.y2 = w.y;
+      scheduleRender();
     }
-    render();
   });
 
   vp.addEventListener('pointerup', e => {
@@ -549,7 +778,7 @@ function initCanvasEngine(root){
       elements.push(activeElement);
       activeElement = null;
       pushHistory();
-      render();
+      scheduleRender();
       try{ NX.sfx.play('tick'); }catch(err){}
     }
   });
@@ -581,7 +810,7 @@ function initCanvasEngine(root){
       stk.text = ta.value.trim() || 'Note';
       editor.remove();
       pushHistory();
-      render();
+      scheduleRender();
     };
 
     ta.addEventListener('blur', close);
@@ -604,8 +833,114 @@ function initCanvasEngine(root){
     panY = my - (my - panY) * (newZoom / zoom);
     zoom = newZoom;
     updateZoomLabel();
-    render();
+    scheduleRender();
   }, { passive: false });
+
+  // Paste image directly onto canvas
+  window.addEventListener('paste', e => {
+    if(!document.body.contains(vp)) return;
+    if(e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if(e.clipboardData && e.clipboardData.files && e.clipboardData.files.length){
+      const file = Array.from(e.clipboardData.files).find(f => f.type.startsWith('image/'));
+      if(file){
+        e.preventDefault();
+        const rd = new FileReader();
+        rd.onload = () => {
+          const rect = vp.getBoundingClientRect();
+          const center = toWorld(rect.width / 2, rect.height / 2);
+          insertImageFromDataUrl(rd.result, center.x, center.y);
+        };
+        rd.readAsDataURL(file);
+      }
+    }
+  });
+
+  // Image Upload Button & File Input
+  const imgBtn = q('#ct-img-btn', root);
+  const fileInput = q('#ct-file-input', root);
+  if(imgBtn && fileInput){
+    imgBtn.onclick = () => fileInput.click();
+    fileInput.onchange = () => {
+      const file = fileInput.files && fileInput.files[0];
+      if(!file) return;
+      const rd = new FileReader();
+      rd.onload = () => {
+        const rect = vp.getBoundingClientRect();
+        const center = toWorld(rect.width / 2, rect.height / 2);
+        insertImageFromDataUrl(rd.result, center.x, center.y);
+        fileInput.value = '';
+      };
+      rd.readAsDataURL(file);
+    };
+  }
+
+  // Board Switcher & Management Menu
+  const switchBtn = q('#cb-switch-btn', root);
+  const addBoardBtn = q('#cb-add-btn', root);
+
+  if(switchBtn){
+    switchBtn.onclick = (e) => {
+      const menuItems = boards.map(b => ({
+        label: (b.id === curBoard.id ? '✓ ' : '  ') + b.name,
+        icon: 'grid',
+        onClick: () => switchBoard(b)
+      }));
+
+      menuItems.push('-');
+      menuItems.push({
+        label: '+ New Canvas Board',
+        icon: 'plus',
+        onClick: () => createNewBoard()
+      });
+      menuItems.push({
+        label: '✏️ Rename Current Board',
+        icon: 'edit',
+        onClick: () => {
+          const newName = prompt('Enter new board name:', curBoard.name);
+          if(newName && newName.trim()){
+            curBoard.name = newName.trim();
+            saveBoardState();
+            const nameEl = q('#cb-name-txt', root);
+            if(nameEl) nameEl.textContent = curBoard.name;
+            NX.toastOk('Renamed board', curBoard.name);
+          }
+        }
+      });
+
+      if(boards.length > 1){
+        menuItems.push({
+          label: '🗑️ Delete Current Board',
+          icon: 'trash',
+          onClick: () => {
+            if(confirm(`Delete canvas board "${curBoard.name}"?`)){
+              boards = boards.filter(b => b.id !== curBoard.id);
+              switchBoard(boards[0]);
+              NX.toastOk('Board deleted');
+            }
+          }
+        });
+      }
+
+      NX.menu(e.currentTarget, menuItems, { align: 'left' });
+    };
+  }
+
+  function createNewBoard(){
+    const bName = prompt('New canvas board title:', 'Canvas ' + (boards.length + 1));
+    if(bName && bName.trim()){
+      const newB = {
+        id: 'board-' + Date.now().toString(36),
+        name: bName.trim(),
+        elements: []
+      };
+      boards.push(newB);
+      switchBoard(newB);
+    }
+  }
+
+  if(addBoardBtn){
+    addBoardBtn.onclick = createNewBoard;
+  }
 
   // Toolbar events
   qa('.ct-btn[data-t]', root).forEach(btn => {
@@ -639,10 +974,10 @@ function initCanvasEngine(root){
 
   q('#ct-clear', root).onclick = () => {
     if(!elements.length) return;
-    if(confirm('Clear the entire whiteboard?')){
+    if(confirm('Clear current whiteboard?')){
       elements = [];
       pushHistory();
-      render();
+      scheduleRender();
       NX.toastOk('Canvas cleared', '');
     }
   };
@@ -650,7 +985,7 @@ function initCanvasEngine(root){
   q('#ct-export', root).onclick = () => {
     try {
       const link = document.createElement('a');
-      link.download = 'pebble-whiteboard-' + Date.now().toString(36) + '.png';
+      link.download = (curBoard.name.toLowerCase().replace(/\s+/g, '-') || 'canvas') + '-' + Date.now().toString(36) + '.png';
       link.href = cvs.toDataURL('image/png');
       link.click();
       NX.toastOk('Exported Canvas', link.download);
@@ -663,19 +998,32 @@ function initCanvasEngine(root){
   q('#cz-in', root).onclick = () => {
     zoom = Math.min(3.5, zoom * 1.2);
     updateZoomLabel();
-    render();
+    scheduleRender();
   };
   q('#cz-out', root).onclick = () => {
     zoom = Math.max(0.2, zoom * 0.8);
     updateZoomLabel();
-    render();
+    scheduleRender();
   };
   q('#cz-reset', root).onclick = () => {
     zoom = 1.0;
     panX = 0; panY = 0;
     updateZoomLabel();
-    render();
+    scheduleRender();
   };
+
+  // Grid Style Toggle
+  const gridBtn = q('#cz-grid-toggle', root);
+  const gridLbl = q('#cz-grid-lbl', root);
+  if(gridBtn && gridLbl){
+    gridBtn.onclick = () => {
+      if(curGrid === 'dots'){ curGrid = 'grid'; gridLbl.textContent = 'Lines'; }
+      else if(curGrid === 'grid'){ curGrid = 'none'; gridLbl.textContent = 'None'; }
+      else { curGrid = 'dots'; gridLbl.textContent = 'Dots'; }
+      scheduleRender();
+      try{ NX.sfx.play('tick'); }catch(e){}
+    };
+  }
 
   // Hotkeys
   window.addEventListener('keydown', e => {
@@ -684,7 +1032,7 @@ function initCanvasEngine(root){
       e.preventDefault();
       undo();
     }
-    const map = { v:'select', h:'hand', p:'draw', r:'rect', o:'circle', a:'arrow', l:'line', s:'sticky', t:'text', e:'eraser' };
+    const map = { v:'select', h:'hand', p:'draw', m:'highlighter', r:'rect', o:'circle', a:'arrow', l:'line', s:'sticky', t:'text', e:'eraser' };
     if(!e.ctrlKey && !e.metaKey && map[e.key.toLowerCase()]){
       const t = map[e.key.toLowerCase()];
       const btn = q(`.ct-btn[data-t="${t}"]`, root);
@@ -692,7 +1040,7 @@ function initCanvasEngine(root){
     }
   });
 
-  render();
+  scheduleRender();
 }
 
 })(window.NX);

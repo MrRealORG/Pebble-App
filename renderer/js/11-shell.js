@@ -224,14 +224,15 @@ function renderSidebar(host){
 function renderTopbar(host){
   const title = routeTitle();
   const unread = NX.unreadNotifs();
-  const bar = h(`<header class="topbar ultra-minimal">
+  const bar = h(`<header class="topbar ultra-minimal custom-glass-bar">
     <div class="page-title"><span>${U.esc(title)}</span></div>
     <div class="topbar-crumbs" id="topbar-crumbs" aria-label="Breadcrumb"></div>
     <div class="search-box sm" id="tp-search" role="button" tabindex="0" data-tip="Quick search & commands (Ctrl+K)">
-      ${icon('search',13)}<input placeholder="Search…" readonly>
+      ${icon('search',13)}<input placeholder="Search notes, tasks, commands…" readonly>
       <span class="kbd">Ctrl K</span>
     </div>
-    <div class="topbar-actions" style="display:flex;align-items:center;gap:4px">
+    <div class="topbar-actions" style="display:flex;align-items:center;gap:5px">
+      <button class="icon-btn sm" data-tip="Switch Theme (Ctrl+J)" id="tp-theme" style="color:var(--ink-2)">${icon('palette', 14)}</button>
       <button class="icon-btn sm" data-tip="Ask Pebble Copilot (Ctrl+Shift+A)" id="tp-copilot" style="color:var(--green)">${icon('robot', 15)}</button>
       <span class="bell-wrap">
         <button class="icon-btn sm" data-tip="Notifications" id="tp-bell">${icon('bell', 14)}</button>
@@ -241,6 +242,8 @@ function renderTopbar(host){
       <button class="btn btn-dark btn-sm" id="tp-new" style="height:30px;padding:0 12px;font-size:12px;gap:5px">${icon('plus',12)} New</button>
     </div>
   </header>`);
+  const themeBtn = bar.querySelector('#tp-theme');
+  if(themeBtn) themeBtn.onclick = () => NX.cycleTheme();
   bar.querySelector('#tp-search').onclick = ()=> (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette());
   bar.querySelector('#tp-search').onkeydown = (e)=>{ if(e.key==='Enter') (NX.openSpotlight ? NX.openSpotlight() : NX.openCommandPalette()); };
   bar.querySelector('#tp-copilot').onclick = ()=> NX.openAskPebble && NX.openAskPebble();
