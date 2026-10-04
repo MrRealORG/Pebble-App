@@ -390,16 +390,16 @@ function initCanvasEngine(root, initialBoard, allBoards){
   function drawDotsGrid(c, w, h){
     c.save();
     const gap = 24 * zoom;
-    if(gap >= 8 && zoom >= 0.35){
+    if(gap >= 10 && zoom >= 0.35){
       c.fillStyle = 'rgba(255, 255, 255, 0.08)';
       const offsetX = ((panX % gap) + gap) % gap;
       const offsetY = ((panY % gap) + gap) % gap;
       const dotRadius = Math.max(1, 1.2 * Math.min(zoom, 1.5));
+      const dotDiameter = dotRadius * 2;
       c.beginPath();
       for(let x = offsetX; x < w; x += gap){
         for(let y = offsetY; y < h; y += gap){
-          c.moveTo(x + dotRadius, y);
-          c.arc(x, y, dotRadius, 0, Math.PI * 2);
+          c.rect(x - dotRadius, y - dotRadius, dotDiameter, dotDiameter);
         }
       }
       c.fill();
@@ -437,22 +437,43 @@ function initCanvasEngine(root, initialBoard, allBoards){
     c.fillStyle = el.color || curColor;
     c.lineWidth = el.width || 3;
 
-    // 1. Freehand Pen with midpoint quadratic smoothing
+    // 1. Freehand Pen with midpoint quadratic smoothing & GPU Path2D caching
     if(el.type === 'draw' && el.points && el.points.length){
       const pts = el.points;
-      c.beginPath();
-      if(pts.length === 1){
-        c.arc(pts[0].x, pts[0].y, (el.width||3)/2, 0, Math.PI * 2);
-        c.fill();
-      } else {
-        c.moveTo(pts[0].x, pts[0].y);
-        for(let i=1; i<pts.length-1; i++){
-          const midX = (pts[i].x + pts[i+1].x) / 2;
-          const midY = (pts[i].y + pts[i+1].y) / 2;
-          c.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+      if(typeof Path2D !== 'undefined' && el !== activeElement){
+        if(!el._p2d || el._p2dLen !== pts.length){
+          const p = new Path2D();
+          if(pts.length === 1){
+            p.arc(pts[0].x, pts[0].y, (el.width||3)/2, 0, Math.PI * 2);
+          } else {
+            p.moveTo(pts[0].x, pts[0].y);
+            for(let i=1; i<pts.length-1; i++){
+              const midX = (pts[i].x + pts[i+1].x) / 2;
+              const midY = (pts[i].y + pts[i+1].y) / 2;
+              p.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+            }
+            p.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+          }
+          el._p2d = p;
+          el._p2dLen = pts.length;
         }
-        c.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
-        c.stroke();
+        if(pts.length === 1) c.fill(el._p2d);
+        else c.stroke(el._p2d);
+      } else {
+        c.beginPath();
+        if(pts.length === 1){
+          c.arc(pts[0].x, pts[0].y, (el.width||3)/2, 0, Math.PI * 2);
+          c.fill();
+        } else {
+          c.moveTo(pts[0].x, pts[0].y);
+          for(let i=1; i<pts.length-1; i++){
+            const midX = (pts[i].x + pts[i+1].x) / 2;
+            const midY = (pts[i].y + pts[i+1].y) / 2;
+            c.quadraticCurveTo(pts[i].x, pts[i].y, midX, midY);
+          }
+          c.lineTo(pts[pts.length-1].x, pts[pts.length-1].y);
+          c.stroke();
+        }
       }
     }
     // 2. Translucent Highlighter

@@ -1635,7 +1635,7 @@ fn build_main_window(app: &tauri::App) -> Result<(), String> {
     .visible(false)
     .maximized(false)
     .resizable(true)
-    .transparent(true);
+    .transparent(false);
     /* Open on a screen that can actually hold the window. A fixed 1360x860 was
        larger than the work area on a small or high-DPI laptop, so the window
        opened clipped or off the bottom edge. Scale to ~88% of the primary

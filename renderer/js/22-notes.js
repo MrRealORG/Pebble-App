@@ -97,9 +97,9 @@ function mdRender(src){
     out = out.replace(/:?\[@task:\s*([^\]]+)\]\(todo:\/\/([^\)]+)\)/g, (m0, taskTitle, taskId) => {
       const allTasks = NX.store.get('tasks', []);
       const t = allTasks.find(x => x.id === taskId);
-      const isDone = t ? t.done : false;
-      const dueStr = t && t.due ? `<span class="md-todo-due">📅 ${U.esc(t.due)}</span>` : '';
-      return `<span class="md-todo-chip ${isDone?'done':''}" data-task-id="${U.esc(taskId)}"><input type="checkbox" class="md-todo-cb" data-task-id="${U.esc(taskId)}" ${isDone?'checked':''}><span class="md-todo-text">${U.esc(taskTitle)}</span>${dueStr}</span>`;
+      // taskTitle is matched from `out`, which was already entity-escaped at the start of inline().
+      // Use taskTitle directly so apostrophes and quotes are not double-escaped into raw HTML entities.
+      return `<span class="md-todo-chip ${isDone?'done':''}" data-task-id="${U.esc(taskId)}"><input type="checkbox" class="md-todo-cb" data-task-id="${U.esc(taskId)}" ${isDone?'checked':''}><span class="md-todo-text">${taskTitle}</span>${dueStr}</span>`;
     });
     // File Attachment Cards: [📎 filename (size)](url) or [file: filename (size)](url) or files ending in common formats
     out = out.replace(/\[(?:📎|file:)?\s*([^\]]+?\.(pdf|docx?|xlsx?|pptx?|csv|txt|zip|tar|gz|7z|rar|mp3|wav|mp4))\s*(?:\(([^)]+)\))?\]\(([^)]+)\)/gi, (m0, fileName, ext, sizeStr, rawUrl) => {
@@ -1893,13 +1893,20 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
   /* ---------------- Task Mentions (@task) ---------------- */
   let taskMentionMenu = null;
   function removeTaskMentionMenu(){
-    if(taskMentionMenu){ taskMentionMenu.remove(); taskMentionMenu = null; }
+    if(taskMentionMenu){
+      try { taskMentionMenu.remove(); } catch(e){}
+      taskMentionMenu = null;
+    }
+    const leftovers = document.querySelectorAll('#task-mention-menu');
+    leftovers.forEach(el => el.remove());
   }
 
   function maybeTaskMention(textarea){
     const pos = textarea.selectionStart;
     const val = textarea.value.slice(0, pos);
-    const match = val.match(/@([a-zA-Z0-9_\s-]*)$/);
+    // CRITICAL: Only match on current line! Never match across newlines!
+    const curLine = val.split('\n').pop() || '';
+    const match = curLine.match(/(?:^|\s)@([a-zA-Z0-9_-]{0,25})$/);
     if(!match){
       removeTaskMentionMenu();
       return;
@@ -1911,7 +1918,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       removeTaskMentionMenu();
       return;
     }
-    showTaskMentionMenu(textarea, matches, match[0]);
+    showTaskMentionMenu(textarea, matches, '@' + match[1]);
   }
 
   function showTaskMentionMenu(textarea, matches, queryPrefix){
@@ -1920,10 +1927,10 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
       <div style="padding:6px 10px 4px;font-size:10px;font-weight:800;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line)">
         ${icon('todo',12)} Mention Task
       </div>
-      ${matches.map(t => {
+      ${matches.map((t, idx) => {
         const title = t.name || t.title || 'Task';
         return `
-        <div class="tm-item" data-id="${U.esc(t.id)}" data-title="${U.esc(title)}">
+        <div class="tm-item ${idx === 0 ? 'selected' : ''}" data-id="${U.esc(t.id)}" data-title="${U.esc(title)}">
           <span style="font-size:13px">${t.priority==='high'?'🔴':'📋'}</span>
           <span class="tm-title">${U.esc(title)}</span>
           ${t.due ? `<span class="tm-due">${U.esc(t.due)}</span>` : ''}
@@ -1939,6 +1946,7 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     qa('.tm-item', taskMentionMenu).forEach(item => {
       item.onmousedown = (e) => {
         e.preventDefault();
+        e.stopPropagation();
         const taskId = item.dataset.id;
         const taskTitle = item.dataset.title;
         insertTaskMention(textarea, taskId, taskTitle, queryPrefix);
@@ -1950,9 +1958,11 @@ Your notes live as **real .md files** in \`Documents/PebbleX Notes\`.
     removeTaskMentionMenu();
     const pos = textarea.selectionStart;
     const v = textarea.value;
-    const before = v.slice(0, pos - queryPrefix.length);
+    const prefixLen = (queryPrefix || '').length;
+    const before = v.slice(0, Math.max(0, pos - prefixLen));
     const after = v.slice(pos);
-    const insert = `[@task: ${taskTitle}](todo://${taskId}) `;
+    const cleanTitle = String(taskTitle || 'Task').replace(/[\r\n\[\]]/g, ' ').trim();
+    const insert = `[@task: ${cleanTitle}](todo://${taskId}) `;
     textarea.value = before + insert + after;
     textarea.selectionStart = textarea.selectionEnd = before.length + insert.length;
     textarea.focus();
