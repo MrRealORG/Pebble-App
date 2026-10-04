@@ -8,12 +8,19 @@ on:
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub Release with downloadable files'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
 
 jobs:
   build:
+    name: Build PebbleX Windows (Portable + Installer)
     runs-on: windows-latest
 
     steps:
@@ -24,6 +31,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -36,47 +44,66 @@ jobs:
           workspaces: './src-tauri -> target'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci || npm install
+
+      - name: Run Test Suite
+        run: npm test
 
       - name: Build frontend bundles
         run: node scripts/build.js
 
-      - name: Build Tauri App (Installer + Binaries)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: v__VERSION__
-          releaseName: 'PebbleX v__VERSION__'
-          releaseBody: 'See the assets to download this version and install.'
-          releaseDraft: false
-          prerelease: false
-          args: --verbose
+      - name: Build Tauri Application
+        run: npx tauri build
 
-      - name: Locate & Prepare Standalone Portable Executable
+      - name: Locate & Package Artifacts
         shell: bash
         run: |
           mkdir -p build-output/portable
           mkdir -p build-output/installer
           
-          # Copy release binary as standalone portable exe
-          if [ -f src-tauri/target/release/pebblex.exe ]; then
-            cp src-tauri/target/release/pebblex.exe build-output/portable/PebbleX-Portable-x64.exe
+          # Find and copy portable standalone binary
+          if [ -f "src-tauri/target/release/pebblex.exe" ]; then
+            cp "src-tauri/target/release/pebblex.exe" "build-output/portable/PebbleX-Portable-x64.exe"
+            echo "Found pebblex.exe -> copied to PebbleX-Portable-x64.exe"
+          elif [ -f "src-tauri/target/release/PebbleX.exe" ]; then
+            cp "src-tauri/target/release/PebbleX.exe" "build-output/portable/PebbleX-Portable-x64.exe"
+            echo "Found PebbleX.exe -> copied to PebbleX-Portable-x64.exe"
           fi
           
-          # Copy NSIS installer
-          find src-tauri/target/release/bundle/nsis -name "*.exe" -exec cp {} build-output/installer/PebbleX-Setup-x64.exe \; 2>/dev/null || true
+          # Find and copy NSIS installer
+          NSIS_FILE=$(find src-tauri/target/release/bundle/nsis -type f -name "*.exe" | head -n 1)
+          if [ -n "$NSIS_FILE" ]; then
+            cp "$NSIS_FILE" "build-output/installer/PebbleX-Setup-x64.exe"
+            echo "Found installer $NSIS_FILE -> copied to PebbleX-Setup-x64.exe"
+          fi
+          
+          ls -la build-output/portable/
+          ls -la build-output/installer/
 
-      - name: Upload Installer Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: PebbleX-Installer-x64
-          path: build-output/installer/*.exe
-          if-no-files-found: warn
-
-      - name: Upload Portable Executable Artifact
+      - name: Upload Portable Executable (Standalone EXE)
         uses: actions/upload-artifact@v4
         with:
           name: PebbleX-Portable-x64
-          path: build-output/portable/*.exe
+          path: build-output/portable/PebbleX-Portable-x64.exe
+          if-no-files-found: error
+
+      - name: Upload Installer (NSIS Setup EXE)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PebbleX-Installer-x64
+          path: build-output/installer/PebbleX-Setup-x64.exe
           if-no-files-found: warn
+
+      - name: Create GitHub Release (if tagged or requested)
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.create_release == true
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build-output/portable/PebbleX-Portable-x64.exe
+            build-output/installer/PebbleX-Setup-x64.exe
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
