@@ -194,11 +194,11 @@ NX.routeInShell('today', 'Today', 'sun', function(view){
 const afterRender = {};
 const _routeInShell = NX.routeInShell;
 NX.routeInShell = function(name, title, ic, renderFn, onMount){
-  return _routeInShell(name, title, ic, function(view){
-    renderFn(view);
+  return _routeInShell(name, title, ic, function(view, params){
+    renderFn(view, params);
     const hooks = afterRender[name] || [];
     for(let i=0;i<hooks.length;i++){
-      try{ hooks[i](view); }
+      try{ hooks[i](view, params); }
       catch(e){ console.error('[after:'+name+']', e); }
     }
   }, onMount);

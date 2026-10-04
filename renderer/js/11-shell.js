@@ -918,7 +918,8 @@ NX.renderShell = function(routeName){
 NX.routeInShell = function(name, title, ic, renderFn, onMount){
   NX.router.register(name, {
     title, icon: ic, layout:'app',
-    render(app){
+    render(app, params){
+      params = params || null;
       /* Build the shell ONCE and reuse it. This used to compare
          dataset.route against the incoming name, so switching tabs tore the
          whole shell down — sidebar, topbar, badges — and rebuilt it before the
@@ -937,7 +938,7 @@ NX.routeInShell = function(name, title, ic, renderFn, onMount){
       if(t) t.textContent = title;
       qa('.sidebar .nav-item').forEach(el=>el.classList.toggle('on', el.dataset.route === name));
       NX.refreshBadges();
-      if(NX.tabs && NX.tabs.syncFromRoute) NX.tabs.syncFromRoute(name);
+      if(NX.tabs && NX.tabs.syncFromRoute) NX.tabs.syncFromRoute(name, params);
       if(view._cleanup){
         try{ view._cleanup(); }catch(e){}
         view._cleanup = null;
