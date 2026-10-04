@@ -1,0 +1,19 @@
+# Normalize line endings: always store LF in the repository.
+# This prevents CRLF/LF mismatches between Windows dev machines and
+# the Linux GitHub Actions CI runner, which caused test assertion failures.
+* text=auto eol=lf
+
+# Binaries — never touch their bytes
+*.exe    binary
+*.dll    binary
+*.pdb    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.webp   binary
+*.ico    binary
+*.woff   binary
+*.woff2  binary
+*.ttf    binary
+*.otf    binary

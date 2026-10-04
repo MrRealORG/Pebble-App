@@ -25,7 +25,8 @@ assert(shellJs.includes("data-glass-shade"), 'Glass shades must set data-glass-s
 console.log('  ✓ Topbar contains compressed [⚡ Hub] button and customizable Glass Shade engine');
 
 // 3. Check 03-shell.css for Glass Hub & Shades
-const shellCss = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'css', '03-shell.css'), 'utf8');
+// Normalize CRLF→LF so assertions pass on both Windows dev machines and Linux CI runners
+const shellCss = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'css', '03-shell.css'), 'utf8').replace(/\r\n/g, '\n');
 assert(shellCss.includes('.topbar-hub-btn'), 'CSS must style .topbar-hub-btn');
 assert(shellCss.includes('.glass-hub-card'), 'CSS must style .glass-hub-card with backdrop-filter blur');
 assert(shellCss.includes('.gh-shade-dot'), 'CSS must style .gh-shade-dot for shade selector');
